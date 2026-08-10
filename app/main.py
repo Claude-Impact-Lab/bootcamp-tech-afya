@@ -11,9 +11,9 @@ templates = Jinja2Templates(directory=BASE_DIR / "templates")
 # Ainda nao temos banco (isso e a missao 03), entao os usuarios moram aqui na
 # memoria. Some quando o servidor reinicia -- e tudo bem por enquanto.
 USERS = [
-    {"id": 1, "name": "Ana Souza"},
-    {"id": 2, "name": "Bruno Lima"},
-    {"id": 3, "name": "Carla Mendes"},
+    {"id": 1, "name": "Ana lucia"},
+    {"id": 2, "name": "Bruna silva"},
+    {"id": 3, "name": "Lucas Araujo"},
 ]
 
 

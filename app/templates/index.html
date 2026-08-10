@@ -12,11 +12,18 @@
         min-height: 100vh;
         margin: 0;
       }
+      .caixa {
+        border: 1px solid #ccc;
+        border-radius: 6px;
+        padding: 8px 16px;
+        display: inline-block;
+      }
     </style>
   </head>
   <body>
     <main>
       <h1>Usuarios</h1>
+      <p id="total" class="caixa">...</p>
       <!-- A lista nasce vazia: o HTML nao sabe quantos usuarios existem.
            Quem cria os <li> e o JavaScript, com o que a API respondeu. -->
       <ul id="usuarios"></ul>
@@ -26,6 +33,7 @@
     <script>
       const lista = document.getElementById("usuarios");
       const aviso = document.getElementById("aviso");
+      const total = document.getElementById("total");
 
       fetch("/users")
         .then((resposta) => resposta.json())
@@ -36,10 +44,17 @@
             lista.appendChild(item);
           });
 
+          // A contagem sai do tamanho da lista que a API mandou -- nao precisa
+          // de outra rota so para isso.
+          const quantidade = usuarios.length;
+          total.textContent =
+            quantidade === 1 ? "1 usuario cadastrado" : `${quantidade} usuarios cadastrados`;
+
           // Lista vazia nao e erro: a API respondeu certo, so nao ha ninguem.
-          aviso.textContent = usuarios.length ? "" : "nenhum usuario cadastrado";
+          aviso.textContent = quantidade ? "" : "nenhum usuario cadastrado";
         })
         .catch(() => {
+          total.textContent = "";
           aviso.textContent = "erro ao chamar a API";
         });
     </script>
