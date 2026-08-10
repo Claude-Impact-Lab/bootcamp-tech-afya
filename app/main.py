@@ -9,10 +9,11 @@ app = FastAPI(title="User Manager")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 USUARIOS = [
-    {"id": 1, "nome": "André Seabra"},
-    {"id": 2, "nome": "Ademilson Mamilo"},
-    {"id": 3, "nome": "Sant'anna Thanos"},
+    {"id": 1, "nome": "André Seabra", "email": "andre.seabra@example.com"},
+    {"id": 2, "nome": "Ademilson Mamilo", "email": "ademilson.mamilo@example.com"},
+    {"id": 3, "nome": "Sant'anna Thanos", "email": "santanna.thanos@example.com"},
 ]
+
 
 
 @app.get("/health")

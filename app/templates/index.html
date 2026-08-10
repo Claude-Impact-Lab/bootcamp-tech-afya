@@ -1,54 +1,62 @@
 <!doctype html>
 <html lang="pt-BR">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>User Manager</title>
-    <style>
-      body {
-        font-family: system-ui, sans-serif;
-        display: grid;
-        place-items: center;
-        min-height: 100vh;
-        margin: 0;
-      }
-    </style>
-  </head>
-  <body>
-    <h1>Usuários</h1>
 
-<ul id="lista-usuarios"></ul>
-
-<p id="aviso">carregando...</p>
-
-
-    <script>
-      // Busca a mensagem na API em vez de escrever no HTML:
-      // e o primeiro contato do time com fetch + JSON.
-      // Busca os usuarios na API e cria um <li> para cada um.
-// O HTML nao sabe quantos sao — quem monta a lista e o JavaScript.
-fetch("/users")
-  .then((resposta) => resposta.json())
-  .then((usuarios) => {
-    const lista = document.getElementById("lista-usuarios");
-    const aviso = document.getElementById("aviso");
-
-    for (const usuario of usuarios) {
-      const item = document.createElement("li");
-      item.textContent = usuario.nome;
-      lista.appendChild(item);
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>User Manager</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      display: grid;
+      place-items: center;
+      min-height: 100vh;
+      margin: 0;
     }
+  </style>
+</head>
 
-    if (usuarios.length === 0) {
-      aviso.textContent = "Nenhum usuário cadastrado.";
-    } else {
-      aviso.textContent = "";
-    }
-  })
-  .catch(() => {
-    document.getElementById("aviso").textContent = "erro ao chamar a API";
-  });
+<body>
+  <h1>Usuários</h1>
 
-    </script>
-  </body>
+  <ul id="lista-usuarios"></ul>
+
+  <p id="aviso">carregando...</p>
+
+
+  <script>
+    // Busca os usuarios na API e cria um <li> para cada um.
+    // O HTML nao sabe quantos sao — quem monta a lista e o JavaScript.
+    fetch("/users")
+      .then((resposta) => resposta.json())
+      .then((usuarios) => {
+        const lista = document.getElementById("lista-usuarios");
+        const aviso = document.getElementById("aviso");
+
+        for (const usuario of usuarios) {
+  const item = document.createElement("li");
+
+  const nome = document.createElement("strong");
+  nome.textContent = usuario.nome;
+
+  item.appendChild(nome);
+  item.append(` — ${usuario.email}`);
+
+  lista.appendChild(item);
+}
+
+
+        if (usuarios.length === 0) {
+          aviso.textContent = "Nenhum usuário cadastrado.";
+        } else {
+          aviso.textContent = "";
+        }
+      })
+      .catch(() => {
+        document.getElementById("aviso").textContent = "erro ao chamar a API";
+      });
+
+  </script>
+</body>
+
 </html>
