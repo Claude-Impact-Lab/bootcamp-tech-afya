@@ -200,6 +200,7 @@ recarregue a página, veja a mudança.
 |----------|---------|
 | <http://127.0.0.1:8000> | a tela |
 | <http://127.0.0.1:8000/health> | a resposta da API em JSON |
+| <http://127.0.0.1:8000/users> | a lista de usuários em JSON |
 | <http://127.0.0.1:8000/docs> | documentação automática, onde dá para testar a API |
 
 ### Se algo der errado
@@ -222,7 +223,7 @@ recarregue a página, veja a mudança.
 uv run pytest
 ```
 
-Devem passar 2 testes. Se algum falhar, a mensagem diz qual e por quê.
+Devem passar 6 testes. Se algum falhar, a mensagem diz qual e por quê.
 
 ---
 
@@ -247,6 +248,20 @@ claro antes de ela existir.
 O `index.html` não tem a palavra "Hello World" escrita nele. Ele chama a API com
 `fetch("/health")` e escreve na página o que a API respondeu. É o primeiro contato
 com HTTP + JSON: se a API cair, a tela mostra o erro em vez do texto.
+
+A lista de usuários segue a mesma ideia: **nenhum nome está escrito no HTML**. A tela
+chama `fetch("/users")` e monta um `<li>` por usuário que a API devolveu. São três
+situações diferentes, e a tela trata cada uma:
+
+| Situação | O que a tela mostra |
+|----------|---------------------|
+| A API devolveu usuários | um item por usuário |
+| A API devolveu `[]` | "nenhum usuário cadastrado ainda" |
+| A API não respondeu (ou deu erro) | "erro ao chamar a API" |
+
+Repare que **lista vazia não é erro**. `GET /users` responde `200` com `[]` — a
+pergunta "quem são os usuários?" foi respondida com sucesso; a resposta é "ninguém".
+Erro seria a pergunta não ter sido respondida.
 
 ---
 

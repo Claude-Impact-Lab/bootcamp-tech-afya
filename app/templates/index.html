@@ -7,15 +7,34 @@
     <style>
       body {
         font-family: system-ui, sans-serif;
-        display: grid;
-        place-items: center;
-        min-height: 100vh;
-        margin: 0;
+        margin: 0 auto;
+        padding: 2rem 1rem;
+        max-width: 40rem;
+      }
+
+      ul#usuarios {
+        list-style: none;
+        padding: 0;
+      }
+
+      ul#usuarios li {
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        margin-bottom: 0.5rem;
+      }
+
+      .aviso {
+        color: #666;
       }
     </style>
   </head>
   <body>
     <h1 id="mensagem">carregando...</h1>
+
+    <h2>Usuários</h2>
+    <p id="estado" class="aviso">carregando...</p>
+    <ul id="usuarios"></ul>
 
     <script>
       // Busca a mensagem na API em vez de escrever no HTML:
@@ -27,6 +46,39 @@
         })
         .catch(() => {
           document.getElementById("mensagem").textContent = "erro ao chamar a API";
+        });
+
+      // Mesma ideia, agora com uma lista: nenhum nome esta escrito no HTML,
+      // todos vem de /users.
+      const lista = document.getElementById("usuarios");
+      const estado = document.getElementById("estado");
+
+      fetch("/users")
+        .then((resposta) => {
+          // Status fora da faixa 2xx e erro de verdade. Lista vazia nao e.
+          if (!resposta.ok) {
+            throw new Error("a API respondeu " + resposta.status);
+          }
+          return resposta.json();
+        })
+        .then((usuarios) => {
+          if (usuarios.length === 0) {
+            estado.textContent = "nenhum usuário cadastrado ainda";
+            return;
+          }
+
+          estado.textContent = "";
+
+          for (const usuario of usuarios) {
+            const item = document.createElement("li");
+            // textContent (e nao innerHTML) porque o nome e dado de fora:
+            // assim ele e sempre tratado como texto, nunca como HTML.
+            item.textContent = usuario.id + " - " + usuario.nome;
+            lista.appendChild(item);
+          }
+        })
+        .catch(() => {
+          estado.textContent = "erro ao chamar a API";
         });
     </script>
   </body>
