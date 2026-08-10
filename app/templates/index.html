@@ -7,26 +7,56 @@
     <style>
       body {
         font-family: system-ui, sans-serif;
-        display: grid;
-        place-items: center;
-        min-height: 100vh;
-        margin: 0;
+        margin: 0 auto;
+        padding: 2rem 1rem;
+        max-width: 40rem;
+      }
+
+      li {
+        margin-bottom: 0.5rem;
+      }
+
+      .email {
+        color: #555;
       }
     </style>
   </head>
   <body>
-    <h1 id="mensagem">carregando...</h1>
+    <h1>Usuarios</h1>
+
+    <p id="aviso">carregando...</p>
+    <ul id="lista"></ul>
 
     <script>
-      // Busca a mensagem na API em vez de escrever no HTML:
-      // e o primeiro contato do time com fetch + JSON.
-      fetch("/health")
+      const aviso = document.getElementById("aviso");
+      const lista = document.getElementById("lista");
+
+      // A tela nao sabe quantos usuarios existem: ela monta os <li> a
+      // partir do que a API respondeu.
+      fetch("/users")
         .then((resposta) => resposta.json())
-        .then((dados) => {
-          document.getElementById("mensagem").textContent = dados.message;
+        .then((usuarios) => {
+          // Lista vazia nao e erro: e so uma lista sem itens.
+          aviso.textContent = usuarios.length
+            ? ""
+            : "nenhum usuario cadastrado";
+
+          usuarios.forEach((usuario) => {
+            const item = document.createElement("li");
+
+            const nome = document.createElement("strong");
+            nome.textContent = usuario.nome;
+
+            const email = document.createElement("span");
+            email.className = "email";
+            email.textContent = ` — ${usuario.email}`;
+
+            item.append(nome, email);
+            lista.append(item);
+          });
         })
         .catch(() => {
-          document.getElementById("mensagem").textContent = "erro ao chamar a API";
+          aviso.textContent = "erro ao chamar a API";
         });
     </script>
   </body>
