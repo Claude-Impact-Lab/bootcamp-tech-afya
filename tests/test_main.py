@@ -23,6 +23,13 @@ def test_users_retorna_a_lista_em_json():
     assert all("id" in usuario and "name" in usuario for usuario in usuarios)
 
 
+def test_todo_usuario_tem_um_status_conhecido():
+    """A tela filtra por status, entao nenhum usuario pode vir sem ele."""
+    usuarios = client.get("/users").json()
+
+    assert all(usuario["status"] in {"ativo", "pre_cadastro"} for usuario in usuarios)
+
+
 def test_users_sem_cadastro_devolve_lista_vazia(monkeypatch):
     """Sem usuarios a resposta continua sendo sucesso, e nao um 404."""
     monkeypatch.setattr(main, "USERS", [])

@@ -10,10 +10,12 @@ templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 # Ainda nao temos banco (isso e a missao 03), entao os usuarios moram aqui na
 # memoria. Some quando o servidor reinicia -- e tudo bem por enquanto.
+# "status" separa quem ja esta ativo de quem so fez o pre-cadastro.
 USERS = [
-    {"id": 1, "name": "Ana lucia"},
-    {"id": 2, "name": "Bruna silva"},
-    {"id": 3, "name": "Lucas Araujo"},
+    {"id": 1, "name": "Ana lucia", "status": "ativo"},
+    {"id": 2, "name": "Bruna silva", "status": "pre_cadastro"},
+    {"id": 3, "name": "Lucas Araujo", "status": "ativo"},
+    {"id": 4, "name": "Marcos Pinto", "status": "pre_cadastro"},
 ]
 
 

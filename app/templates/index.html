@@ -28,12 +28,19 @@
            Quem cria os <li> e o JavaScript, com o que a API respondeu. -->
       <ul id="usuarios"></ul>
       <p id="aviso">carregando...</p>
+
+      <div id="caixa-pre-cadastro" class="caixa">
+        <strong>Em pre-cadastro</strong>
+        <ul id="pendentes"></ul>
+      </div>
     </main>
 
     <script>
       const lista = document.getElementById("usuarios");
       const aviso = document.getElementById("aviso");
       const total = document.getElementById("total");
+      const pendentes = document.getElementById("pendentes");
+      const caixaPreCadastro = document.getElementById("caixa-pre-cadastro");
 
       fetch("/users")
         .then((resposta) => resposta.json())
@@ -52,9 +59,27 @@
 
           // Lista vazia nao e erro: a API respondeu certo, so nao ha ninguem.
           aviso.textContent = quantidade ? "" : "nenhum usuario cadastrado";
+
+          // Filtra a mesma lista que ja chegou, sem pedir nada novo para a API.
+          const emPreCadastro = usuarios.filter(
+            (usuario) => usuario.status === "pre_cadastro"
+          );
+
+          emPreCadastro.forEach((usuario) => {
+            const item = document.createElement("li");
+            item.textContent = usuario.name;
+            pendentes.appendChild(item);
+          });
+
+          if (emPreCadastro.length === 0) {
+            const item = document.createElement("li");
+            item.textContent = "ninguem em pre-cadastro";
+            pendentes.appendChild(item);
+          }
         })
         .catch(() => {
           total.textContent = "";
+          caixaPreCadastro.hidden = true;
           aviso.textContent = "erro ao chamar a API";
         });
     </script>
