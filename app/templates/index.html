@@ -38,12 +38,51 @@
         text-align: left;
       }
 
-      #aviso {
+      #aviso,
+      #aviso-form {
         padding: 0.75rem 1rem;
         border-radius: 0.5rem;
         background: #fff4f4;
         border: 1px solid #f0c0c0;
         color: #8a1f1f;
+      }
+
+      form {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        align-items: flex-end;
+        margin-bottom: 1.5rem;
+      }
+
+      label {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        font-size: 0.875rem;
+        color: #555;
+      }
+
+      input {
+        font: inherit;
+        padding: 0.4rem 0.5rem;
+        border: 1px solid #bbb;
+        border-radius: 0.25rem;
+      }
+
+      button {
+        font: inherit;
+        padding: 0.45rem 1rem;
+        border: 0;
+        border-radius: 0.25rem;
+        background: #1f6feb;
+        color: white;
+        cursor: pointer;
+      }
+
+      button:disabled {
+        background: #9bb8e8;
+        cursor: progress;
       }
 
       [hidden] {
@@ -54,6 +93,23 @@
   <body>
     <main>
       <h1>User Manager</h1>
+
+      <!-- novalidate: deixamos a API ser a fonte da verdade da validacao,
+           para o erro que aparece na tela ser o mesmo que o back-end aplica. -->
+      <form id="form-novo" novalidate>
+        <label>
+          Nome
+          <input id="campo-nome" name="nome" required minlength="2" />
+        </label>
+        <label>
+          E-mail
+          <input id="campo-email" name="email" type="email" required />
+        </label>
+        <button id="botao-salvar" type="submit">Cadastrar</button>
+      </form>
+
+      <p id="aviso-form" role="alert" hidden></p>
+
       <p id="mensagem">carregando...</p>
 
       <!-- Nenhum nome aparece escrito aqui: o JavaScript cria as linhas
@@ -75,8 +131,13 @@
     <script>
       const mensagem = document.getElementById("mensagem");
       const aviso = document.getElementById("aviso");
+      const avisoForm = document.getElementById("aviso-form");
       const tabela = document.getElementById("tabela");
       const lista = document.getElementById("lista");
+      const form = document.getElementById("form-novo");
+      const campoNome = document.getElementById("campo-nome");
+      const campoEmail = document.getElementById("campo-email");
+      const botaoSalvar = document.getElementById("botao-salvar");
 
       function mostrarAviso(texto) {
         aviso.textContent = texto;
@@ -115,23 +176,90 @@
         tabela.hidden = false;
       }
 
-      // Assim que a pagina abre, busca a lista real no servidor.
-      fetch("/users")
-        .then((resposta) => {
-          if (!resposta.ok) {
-            throw new Error(`A API respondeu ${resposta.status}`);
-          }
-          return resposta.json();
+      function carregarUsuarios() {
+        return fetch("/users")
+          .then((resposta) => {
+            if (!resposta.ok) {
+              throw new Error(`A API respondeu ${resposta.status}`);
+            }
+            return resposta.json();
+          })
+          .then((users) => {
+            aviso.hidden = true;
+            desenharUsuarios(users);
+          })
+          .catch((erro) => {
+            mensagem.textContent = "";
+            tabela.hidden = true;
+            mostrarAviso(
+              "Não foi possível carregar os usuários. O servidor pode estar fora do ar — " +
+                `tente recarregar a página. (${erro.message})`,
+            );
+          });
+      }
+
+      // O FastAPI responde de duas formas: 422 traz detail como lista de erros
+      // por campo, e o nosso 409 traz detail como texto simples.
+      function mensagemDeErro(corpo, resposta) {
+        const detail = corpo?.detail;
+
+        if (typeof detail === "string") {
+          return detail;
+        }
+
+        if (Array.isArray(detail)) {
+          return detail
+            .map((erro) => {
+              const campo = erro.loc?.[erro.loc.length - 1];
+              return campo ? `${campo}: ${erro.msg}` : erro.msg;
+            })
+            .join("; ");
+        }
+
+        return `A API respondeu ${resposta.status}.`;
+      }
+
+      form.addEventListener("submit", (evento) => {
+        // Sem isto o navegador recarregaria a pagina e a resposta da API
+        // seria perdida.
+        evento.preventDefault();
+
+        avisoForm.hidden = true;
+        botaoSalvar.disabled = true;
+
+        fetch("/users", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            nome: campoNome.value,
+            email: campoEmail.value,
+          }),
         })
-        .then(desenharUsuarios)
-        .catch((erro) => {
-          mensagem.textContent = "";
-          tabela.hidden = true;
-          mostrarAviso(
-            "Não foi possível carregar os usuários. O servidor pode estar fora do ar — " +
-              `tente recarregar a página. (${erro.message})`,
-          );
-        });
+          .then((resposta) =>
+            // O corpo do erro tambem e JSON, entao lemos antes de decidir.
+            resposta.json().then((corpo) => {
+              if (!resposta.ok) {
+                throw new Error(mensagemDeErro(corpo, resposta));
+              }
+              return corpo;
+            }),
+          )
+          .then(() => {
+            form.reset();
+            campoNome.focus();
+            return carregarUsuarios();
+          })
+          .catch((erro) => {
+            avisoForm.textContent = erro.message;
+            avisoForm.hidden = false;
+          })
+          .finally(() => {
+            botaoSalvar.disabled = false;
+          });
+      });
+
+      // Assim que a pagina abre, busca a lista real no servidor.
+      carregarUsuarios();
     </script>
   </body>
 </html>

@@ -3,8 +3,8 @@
 Projeto do treinamento de programação: um cadastro de usuários que vai evoluir até
 validar médicos no Webservice oficial do CFM.
 
-Hoje a tela lista os usuários que vêm da própria API (`GET /users`). Cada missão
-adiciona uma camada a partir daqui.
+Hoje a tela lista os usuários que vêm da própria API (`GET /users`) e cadastra novos
+pelo formulário (`POST /users`). Cada missão adiciona uma camada a partir daqui.
 
 ---
 
@@ -200,6 +200,7 @@ recarregue a página, veja a mudança.
 | Endereço | O que é |
 |----------|---------|
 | <http://127.0.0.1:8000> | a tela |
+| <http://127.0.0.1:8000/users> | a lista de usuários em JSON |
 | <http://127.0.0.1:8000/health> | a resposta da API em JSON |
 | <http://127.0.0.1:8000/docs> | documentação automática, onde dá para testar a API |
 
@@ -223,7 +224,7 @@ recarregue a página, veja a mudança.
 uv run pytest
 ```
 
-Devem passar 13 testes. Se algum falhar, a mensagem diz qual e por quê.
+Devem passar 28 testes. Se algum falhar, a mensagem diz qual e por quê.
 
 ---
 
@@ -252,6 +253,14 @@ respondeu. É o primeiro contato com HTTP + JSON:
 - lista vazia (`[]`) → a tela avisa "Nenhum usuário cadastrado ainda";
 - servidor fora do ar ou erro HTTP → a tela mostra um aviso pedindo para recarregar,
   em vez de ficar em branco.
+
+O formulário faz `POST /users` e, no sucesso, recarrega a lista pela API em vez de
+adicionar a linha por conta própria — assim a tela mostra o que o servidor realmente
+gravou (incluindo o `id` que ele gerou). Erro de validação (`422`) ou e-mail repetido
+(`409`) aparecem como aviso acima da tabela.
+
+> Os usuários vivem em memória (a lista `USERS` em `app/main.py`). Reiniciar o servidor
+> apaga o que você cadastrou — o banco de verdade entra na missão 03.
 
 ---
 
