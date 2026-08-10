@@ -7,26 +7,130 @@
     <style>
       body {
         font-family: system-ui, sans-serif;
-        display: grid;
-        place-items: center;
-        min-height: 100vh;
         margin: 0;
+        padding: 2rem 1rem;
+        display: flex;
+        justify-content: center;
+      }
+
+      main {
+        width: 100%;
+        max-width: 40rem;
+      }
+
+      h1 {
+        margin-top: 0;
+      }
+
+      #mensagem {
+        color: #555;
+      }
+
+      table {
+        border-collapse: collapse;
+        width: 100%;
+      }
+
+      th,
+      td {
+        border-bottom: 1px solid #ddd;
+        padding: 0.5rem 0.75rem;
+        text-align: left;
+      }
+
+      #aviso {
+        padding: 0.75rem 1rem;
+        border-radius: 0.5rem;
+        background: #fff4f4;
+        border: 1px solid #f0c0c0;
+        color: #8a1f1f;
+      }
+
+      [hidden] {
+        display: none !important;
       }
     </style>
   </head>
   <body>
-    <h1 id="mensagem">carregando...</h1>
+    <main>
+      <h1>User Manager</h1>
+      <p id="mensagem">carregando...</p>
+
+      <!-- Nenhum nome aparece escrito aqui: o JavaScript cria as linhas
+           a partir do que a API responder em /users. -->
+      <p id="aviso" role="alert" hidden></p>
+
+      <table id="tabela" hidden>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Nome</th>
+            <th>E-mail</th>
+          </tr>
+        </thead>
+        <tbody id="lista"></tbody>
+      </table>
+    </main>
 
     <script>
-      // Busca a mensagem na API em vez de escrever no HTML:
-      // e o primeiro contato do time com fetch + JSON.
-      fetch("/health")
-        .then((resposta) => resposta.json())
-        .then((dados) => {
-          document.getElementById("mensagem").textContent = dados.message;
+      const mensagem = document.getElementById("mensagem");
+      const aviso = document.getElementById("aviso");
+      const tabela = document.getElementById("tabela");
+      const lista = document.getElementById("lista");
+
+      function mostrarAviso(texto) {
+        aviso.textContent = texto;
+        aviso.hidden = false;
+      }
+
+      function criarLinha(user) {
+        const linha = document.createElement("tr");
+
+        // textContent (e nao innerHTML) para o nome vindo da API nunca
+        // ser interpretado como HTML.
+        for (const valor of [user.id, user.nome, user.email]) {
+          const celula = document.createElement("td");
+          celula.textContent = valor;
+          linha.appendChild(celula);
+        }
+
+        return linha;
+      }
+
+      function desenharUsuarios(users) {
+        lista.replaceChildren();
+
+        if (users.length === 0) {
+          mensagem.textContent = "Nenhum usuário cadastrado ainda.";
+          tabela.hidden = true;
+          return;
+        }
+
+        for (const user of users) {
+          lista.appendChild(criarLinha(user));
+        }
+
+        const plural = users.length === 1 ? "usuário" : "usuários";
+        mensagem.textContent = `${users.length} ${plural} cadastrado(s).`;
+        tabela.hidden = false;
+      }
+
+      // Assim que a pagina abre, busca a lista real no servidor.
+      fetch("/users")
+        .then((resposta) => {
+          if (!resposta.ok) {
+            throw new Error(`A API respondeu ${resposta.status}`);
+          }
+          return resposta.json();
         })
-        .catch(() => {
-          document.getElementById("mensagem").textContent = "erro ao chamar a API";
+        .then(desenharUsuarios)
+        .catch((erro) => {
+          mensagem.textContent = "";
+          tabela.hidden = true;
+          mostrarAviso(
+            "Não foi possível carregar os usuários. O servidor pode estar fora do ar — " +
+              `tente recarregar a página. (${erro.message})`,
+          );
         });
     </script>
   </body>

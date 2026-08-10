@@ -3,8 +3,8 @@
 Projeto do treinamento de programação: um cadastro de usuários que vai evoluir até
 validar médicos no Webservice oficial do CFM.
 
-Hoje o projeto está no ponto de partida: uma tela que mostra **Hello World**,
-buscando a mensagem da própria API. Cada missão adiciona uma camada a partir daqui.
+Hoje a tela lista os usuários que vêm da própria API (`GET /users`). Cada missão
+adiciona uma camada a partir daqui.
 
 ---
 
@@ -186,7 +186,8 @@ servidor. Você vai ver algo assim:
 INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
 ```
 
-Agora abra **<http://127.0.0.1:8000>** no navegador. Deve aparecer **Hello World**.
+Agora abra **<http://127.0.0.1:8000>** no navegador. Deve aparecer a tabela com os
+usuários que a API devolveu.
 
 Enquanto o servidor está rodando, o terminal fica "preso" mostrando os acessos — isso
 é normal. Para desligar, aperte **Ctrl + C**.
@@ -222,7 +223,7 @@ recarregue a página, veja a mudança.
 uv run pytest
 ```
 
-Devem passar 2 testes. Se algum falhar, a mensagem diz qual e por quê.
+Devem passar 13 testes. Se algum falhar, a mensagem diz qual e por quê.
 
 ---
 
@@ -244,9 +245,13 @@ claro antes de ela existir.
 
 ### Como a tela funciona
 
-O `index.html` não tem a palavra "Hello World" escrita nele. Ele chama a API com
-`fetch("/health")` e escreve na página o que a API respondeu. É o primeiro contato
-com HTTP + JSON: se a API cair, a tela mostra o erro em vez do texto.
+O `index.html` não tem nenhum nome de usuário escrito nele. Ao abrir, ele chama
+`fetch("/users")` e o JavaScript cria as linhas da tabela a partir do JSON que a API
+respondeu. É o primeiro contato com HTTP + JSON:
+
+- lista vazia (`[]`) → a tela avisa "Nenhum usuário cadastrado ainda";
+- servidor fora do ar ou erro HTTP → a tela mostra um aviso pedindo para recarregar,
+  em vez de ficar em branco.
 
 ---
 
