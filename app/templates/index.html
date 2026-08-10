@@ -15,19 +15,40 @@
     </style>
   </head>
   <body>
-    <h1 id="mensagem">carregando...</h1>
+    <h1>Usuários</h1>
+
+<ul id="lista-usuarios"></ul>
+
+<p id="aviso">carregando...</p>
+
 
     <script>
       // Busca a mensagem na API em vez de escrever no HTML:
       // e o primeiro contato do time com fetch + JSON.
-      fetch("/health")
-        .then((resposta) => resposta.json())
-        .then((dados) => {
-          document.getElementById("mensagem").textContent = dados.message;
-        })
-        .catch(() => {
-          document.getElementById("mensagem").textContent = "erro ao chamar a API";
-        });
+      // Busca os usuarios na API e cria um <li> para cada um.
+// O HTML nao sabe quantos sao — quem monta a lista e o JavaScript.
+fetch("/users")
+  .then((resposta) => resposta.json())
+  .then((usuarios) => {
+    const lista = document.getElementById("lista-usuarios");
+    const aviso = document.getElementById("aviso");
+
+    for (const usuario of usuarios) {
+      const item = document.createElement("li");
+      item.textContent = usuario.nome;
+      lista.appendChild(item);
+    }
+
+    if (usuarios.length === 0) {
+      aviso.textContent = "Nenhum usuário cadastrado.";
+    } else {
+      aviso.textContent = "";
+    }
+  })
+  .catch(() => {
+    document.getElementById("aviso").textContent = "erro ao chamar a API";
+  });
+
     </script>
   </body>
 </html>
