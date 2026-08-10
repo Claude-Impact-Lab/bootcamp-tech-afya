@@ -167,6 +167,28 @@ Mensagens de commit seguem o formato `tipo: descrição`, com tipo sendo `feat`,
 
 > **Nunca dê `push` na `main` direto.** Se o `git status` disser `On branch main`, crie
 > uma branch antes com `git checkout -b nome-da-missao`. Seus commits vão junto.
+> A `main` é protegida: o GitHub vai recusar o push com a mensagem
+> `Changes must be made through a pull request`.
+
+### O robô que revisa antes do time
+
+Quando você abre um PR, o GitHub roda os testes automaticamente e mostra o resultado
+ali na página:
+
+- ✅ **verde** — os testes passaram, o PR pode ser revisado
+- ❌ **vermelho** — algo quebrou; clique em **Details** para ver qual teste falhou e por quê
+- 🟡 **amarelo** — ainda rodando, aguarde
+
+Um ❌ não é bronca: é a mesma informação que o `uv run pytest` te dá localmente, só que
+sem depender de você lembrar de rodar. **Rode os testes antes de dar push** e o check
+já nasce verde.
+
+Para acompanhar sem sair do terminal:
+
+```bash
+gh pr checks        # mostra o resultado dos checks do seu PR
+gh pr view --web    # abre o PR no navegador
+```
 
 ---
 
@@ -236,6 +258,9 @@ app/
 tests/
   test_main.py         os testes
 pyproject.toml         a lista de bibliotecas do projeto
+.github/
+  workflows/
+    ci.yml             roda os testes a cada push e PR
 ```
 
 Ainda **não** existem pastas para `services`, `repositories` ou integrações. Elas
