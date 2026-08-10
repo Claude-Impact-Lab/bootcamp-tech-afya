@@ -1,0 +1,20 @@
+[project]
+name = "usermanager"
+version = "0.1.0"
+description = "Treinamento de programacao - cadastro e validacao de medicos (CFM)"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "jinja2>=3.1",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "httpx>=0.28",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
