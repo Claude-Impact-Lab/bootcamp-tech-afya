@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cadastro concluido | AFYA</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        min-height: 100vh;
+        margin: 0;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        font-family: system-ui, sans-serif;
+        color: #243147;
+        background: linear-gradient(145deg, #eef7ff, #f7f2ff);
+      }
+      main {
+        width: min(620px, 100%);
+        padding: 48px 32px;
+        text-align: center;
+        border-radius: 24px;
+        background: white;
+        box-shadow: 0 20px 60px #24314720;
+      }
+      .logo { width: min(280px, 80%); height: auto; margin-bottom: 28px; }
+      .icone {
+        display: grid;
+        place-items: center;
+        width: 72px;
+        height: 72px;
+        margin: 0 auto 20px;
+        border-radius: 50%;
+        color: white;
+        background: #00a98f;
+        font-size: 40px;
+      }
+      h1 { margin: 0 0 12px; font-size: clamp(2rem, 7vw, 3rem); }
+      p { margin: 0 auto 28px; max-width: 460px; color: #56647a; line-height: 1.6; }
+      a {
+        display: inline-block;
+        padding: 12px 22px;
+        border-radius: 10px;
+        color: white;
+        background: #6046c6;
+        text-decoration: none;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img class="logo" src="/static/afya-logo.svg" alt="Logo da AFYA" />
+      <div class="icone" aria-hidden="true">✓</div>
+      <h1>Parabens{% if user_name %}, {{ user_name }}{% endif %}!</h1>
+      <p>
+        Voce completou todas as etapas do cadastro. Enviamos uma confirmacao para
+        o seu e-mail; abra a mensagem para concluir a ativacao.
+      </p>
+      <a href="/">Voltar para o inicio</a>
+    </main>
+  </body>
+</html>

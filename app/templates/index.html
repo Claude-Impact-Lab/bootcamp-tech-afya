@@ -18,21 +18,200 @@
         padding: 8px 16px;
         display: inline-block;
       }
+      .caixa[hidden] {
+        display: none;
+      }
+      form {
+        display: grid;
+        gap: 8px;
+        margin: 20px 0;
+      }
+      fieldset {
+        display: grid;
+        gap: 8px;
+        border: 1px solid #ccc;
+        border-radius: 6px;
+        padding: 12px;
+        position: relative;
+      }
+      input,
+      button {
+        font: inherit;
+        padding: 8px;
+      }
+      button {
+        cursor: pointer;
+      }
+      .toast {
+        display: none;
+        position: fixed;
+        right: 24px;
+        bottom: 24px;
+        max-width: 320px;
+        padding: 12px 16px;
+        border-radius: 6px;
+        background: #1f2937;
+        color: white;
+        box-shadow: 0 4px 12px #0004;
+      }
+      .toast.visivel {
+        display: block;
+      }
+      .sugestoes-email {
+        display: grid;
+        gap: 6px;
+        position: absolute;
+        top: calc(100% - 6px);
+        left: 12px;
+        z-index: 1;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 6px;
+        background: white;
+        box-shadow: 0 4px 12px #0002;
+      }
+      .sugestoes-email[hidden] {
+        display: none;
+      }
+      .sugestoes-email button {
+        text-align: left;
+        border: 0;
+        background: transparent;
+      }
+      .sugestoes-email button:hover {
+        background: #e5e7eb;
+      }
+      #login-admin {
+        display: grid;
+        gap: 8px;
+        margin-bottom: 20px;
+      }
+      #login-admin[hidden] {
+        display: none;
+      }
+      #formulario-login[hidden] {
+        display: none;
+      }
+      .entrada {
+        width: min(680px, calc(100vw - 32px));
+        text-align: center;
+      }
+      .entrada h1 {
+        margin-bottom: 8px;
+      }
+      .entrada > p {
+        color: #56647a;
+      }
+      .opcoes-entrada {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        margin: 24px 0;
+      }
+      .opcoes-entrada button {
+        min-height: 72px;
+        border: 1px solid #6046c6;
+        border-radius: 10px;
+        color: #6046c6;
+        background: white;
+        font-weight: 700;
+      }
+      .opcoes-entrada button:hover,
+      .opcoes-entrada button[aria-pressed="true"] {
+        color: white;
+        background: #6046c6;
+      }
+      .area-acesso[hidden] {
+        display: none;
+      }
+      @media (max-width: 600px) {
+        .opcoes-entrada { grid-template-columns: 1fr; }
+      }
     </style>
   </head>
   <body>
-    <main>
-      <h1>Usuarios</h1>
-      <p id="total" class="caixa">...</p>
-      <!-- A lista nasce vazia: o HTML nao sabe quantos usuarios existem.
-           Quem cria os <li> e o JavaScript, com o que a API respondeu. -->
-      <ul id="usuarios"></ul>
-      <p id="aviso">carregando...</p>
+    <main class="entrada">
+      <h1>Equipe Afya em desenvolvimento</h1>
+      <p>Como voce deseja entrar?</p>
+      <nav class="opcoes-entrada" aria-label="Opcoes de entrada">
+        <button id="entrar-usuario" type="button" aria-pressed="false">Usuario</button>
+        <button id="entrar-administrador" type="button" aria-pressed="false">Administrador</button>
+        <button id="realizar-cadastro" type="button" aria-pressed="false">Realizar cadastro</button>
+      </nav>
 
-      <div id="caixa-pre-cadastro" class="caixa">
-        <strong>Em pre-cadastro</strong>
-        <ul id="pendentes"></ul>
-      </div>
+      <section id="area-usuario" class="area-acesso" hidden>
+        <h2>Entrar como usuario</h2>
+        <form id="formulario-login-usuario">
+          <label for="email-login-usuario">E-mail</label>
+          <input id="email-login-usuario" type="email" required />
+          <label for="senha-login-usuario">Senha</label>
+          <input id="senha-login-usuario" type="password" required />
+          <button type="submit">Entrar</button>
+        </form>
+        <p id="mensagem-login-usuario" role="status"></p>
+        <h2>Usuarios cadastrados</h2>
+        <ul id="usuarios"></ul>
+        <p id="aviso">carregando...</p>
+      </section>
+
+      <section id="login-admin" class="area-acesso" hidden>
+        <strong>Area administrativa</strong>
+        <form id="formulario-login">
+          <label for="usuario-admin">Usuario</label>
+          <input id="usuario-admin" required />
+          <label for="senha-admin">Senha</label>
+          <input id="senha-admin" type="password" required />
+          <button type="submit">Entrar como administrador</button>
+        </form>
+        <button id="sair-admin" type="button" hidden>Sair da area administrativa</button>
+        <p id="mensagem-login" role="status"></p>
+      </section>
+        <p id="total" class="caixa" hidden>...</p>
+        <div id="caixa-pre-cadastro" class="caixa" hidden>
+          <strong>Em pre-cadastro</strong>
+          <ul id="pendentes"></ul>
+        </div>
+      </section>
+
+      <section id="area-cadastro" class="area-acesso" hidden>
+      <form id="formulario-cadastro">
+        <fieldset>
+          <legend>Passo 1: nome e sobrenome</legend>
+          <label for="primeiro-nome">Nome</label>
+          <input id="primeiro-nome" name="primeiro-nome" minlength="2" maxlength="50" />
+          <label for="sobrenome">Sobrenome</label>
+          <input id="sobrenome" name="sobrenome" minlength="2" maxlength="50" />
+        </fieldset>
+        <fieldset>
+          <legend>Passo 2: idade</legend>
+          <label for="idade">Idade</label>
+          <input id="idade" name="idade" type="number" min="0" max="130" />
+        </fieldset>
+        <fieldset id="etapa-email">
+          <legend>Passo 3: melhor e-mail</legend>
+          <label for="email">Melhor e-mail</label>
+          <input id="email" name="email" type="email" maxlength="100" />
+          <div id="sugestoes-email" class="sugestoes-email" hidden>
+            <span>Complete seu e-mail:</span>
+            <button type="button" data-sufixo="@gmail.com">@gmail.com</button>
+            <button type="button" data-sufixo="@hotmail.com">@hotmail.com</button>
+            <button type="button" data-sufixo="@outlook.com">@outlook.com</button>
+            <button type="button" data-sufixo="@yahoo.com">@yahoo.com</button>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Passo 4: crie sua senha</legend>
+          <label for="senha-cadastro">Senha desejada</label>
+          <input id="senha-cadastro" name="senha-cadastro" type="password" minlength="8" maxlength="128" />
+          <label for="confirmar-senha">Confirme a senha</label>
+          <input id="confirmar-senha" name="confirmar-senha" type="password" minlength="8" maxlength="128" />
+          <small>Use pelo menos 8 caracteres. A senha sera protegida e usada no seu proximo acesso.</small>
+        </fieldset>
+        <button type="submit">Cadastrar usuario</button>
+      </form>
+      <div id="mensagem-cadastro" class="toast" role="status"></div>
+      <p>Se faltar algum dado, o usuario ficara em pre-cadastro. Com todos os dados preenchidos, enviaremos um e-mail de confirmacao.</p>
+      </section>
     </main>
 
     <script>
@@ -41,38 +220,186 @@
       const total = document.getElementById("total");
       const pendentes = document.getElementById("pendentes");
       const caixaPreCadastro = document.getElementById("caixa-pre-cadastro");
+      const formulario = document.getElementById("formulario-cadastro");
+      const primeiroNome = document.getElementById("primeiro-nome");
+      const sobrenome = document.getElementById("sobrenome");
+      const idade = document.getElementById("idade");
+      const email = document.getElementById("email");
+      const senhaCadastro = document.getElementById("senha-cadastro");
+      const confirmarSenha = document.getElementById("confirmar-senha");
+      const mensagemCadastro = document.getElementById("mensagem-cadastro");
+      const sugestoesEmail = document.getElementById("sugestoes-email");
+      const formularioLogin = document.getElementById("formulario-login");
+      const usuarioAdmin = document.getElementById("usuario-admin");
+      const senhaAdmin = document.getElementById("senha-admin");
+      const mensagemLogin = document.getElementById("mensagem-login");
+      const sairAdmin = document.getElementById("sair-admin");
+      const areaUsuario = document.getElementById("area-usuario");
+      const areaAdministrador = document.getElementById("login-admin");
+      const areaCadastro = document.getElementById("area-cadastro");
+      const entrarUsuario = document.getElementById("entrar-usuario");
+      const entrarAdministrador = document.getElementById("entrar-administrador");
+      const realizarCadastro = document.getElementById("realizar-cadastro");
+      const formularioLoginUsuario = document.getElementById("formulario-login-usuario");
+      const emailLoginUsuario = document.getElementById("email-login-usuario");
+      const senhaLoginUsuario = document.getElementById("senha-login-usuario");
+      const mensagemLoginUsuario = document.getElementById("mensagem-login-usuario");
+
+      const opcoesEntrada = [
+        [entrarUsuario, areaUsuario],
+        [entrarAdministrador, areaAdministrador],
+        [realizarCadastro, areaCadastro],
+      ];
+
+      function abrirArea(botaoSelecionado, areaSelecionada) {
+        opcoesEntrada.forEach(([botao, area]) => {
+          const selecionada = area === areaSelecionada;
+          area.hidden = !selecionada;
+          botao.setAttribute("aria-pressed", String(selecionada));
+        });
+      }
+
+      opcoesEntrada.forEach(([botao, area]) => {
+        botao.addEventListener("click", () => abrirArea(botao, area));
+      });
+
+      formularioLoginUsuario.addEventListener("submit", (evento) => {
+        evento.preventDefault();
+        mensagemLoginUsuario.textContent = "validando...";
+        fetch("/users/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: emailLoginUsuario.value,
+            password: senhaLoginUsuario.value,
+          }),
+        })
+          .then(async (resposta) => {
+            const dados = await resposta.json();
+            if (!resposta.ok) throw new Error(dados.detail || "Nao foi possivel entrar.");
+            return dados;
+          })
+          .then((dados) => {
+            mensagemLoginUsuario.textContent = dados.message;
+            formularioLoginUsuario.reset();
+          })
+          .catch((erro) => {
+            mensagemLoginUsuario.textContent = erro.message;
+          });
+      });
+
+      function atualizarSugestoesEmail() {
+        sugestoesEmail.hidden = email.value.includes("@");
+      }
+
+      email.addEventListener("focus", atualizarSugestoesEmail);
+      email.addEventListener("input", atualizarSugestoesEmail);
+      email.addEventListener("blur", () => {
+        window.setTimeout(() => {
+          sugestoesEmail.hidden = true;
+        }, 150);
+      });
+
+      sugestoesEmail.addEventListener("click", (evento) => {
+        const sufixo = evento.target.dataset.sufixo;
+        if (!sufixo) return;
+
+        const inicio = email.value.split("@")[0];
+        email.value = `${inicio}${sufixo}`;
+        email.focus();
+        sugestoesEmail.hidden = true;
+      });
+
+      function mostrarMensagem(texto) {
+        mensagemCadastro.textContent = texto;
+        mensagemCadastro.classList.add("visivel");
+        window.clearTimeout(mostrarMensagem.timeout);
+        mostrarMensagem.timeout = window.setTimeout(() => {
+          mensagemCadastro.classList.remove("visivel");
+        }, 6000);
+      }
+
+      function exibirUsuario(usuario) {
+        if (usuario.status === "pre_cadastro") {
+          pendentes.querySelector("[data-sem-pre-cadastro]")?.remove();
+          const pendente = document.createElement("li");
+          pendente.textContent = usuario.name;
+          pendentes.appendChild(pendente);
+          return;
+        }
+
+        // Quem preencheu tudo, mas ainda nao confirmou o e-mail, so entra
+        // nesta lista depois de ficar ativo.
+        if (usuario.status !== "ativo") {
+          return;
+        }
+
+        const item = document.createElement("li");
+        item.textContent = usuario.name;
+        lista.appendChild(item);
+      }
+
+      function atualizarTotal(quantidade) {
+        total.textContent =
+          quantidade === 1 ? "1 usuario cadastrado" : `${quantidade} usuarios cadastrados`;
+      }
+
+      function configurarVisaoAdmin(ehAdmin) {
+        total.hidden = !ehAdmin;
+        caixaPreCadastro.hidden = !ehAdmin;
+        formularioLogin.hidden = ehAdmin;
+        sairAdmin.hidden = !ehAdmin;
+      }
+
+      fetch("/admin/session")
+        .then((resposta) => resposta.json())
+        .then((sessao) => {
+          configurarVisaoAdmin(sessao.is_admin);
+          if (sessao.is_admin) abrirArea(entrarAdministrador, areaAdministrador);
+        });
+
+      formularioLogin.addEventListener("submit", (evento) => {
+        evento.preventDefault();
+        mensagemLogin.textContent = "validando...";
+
+        fetch("/admin/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username: usuarioAdmin.value,
+            password: senhaAdmin.value,
+          }),
+        })
+          .then(async (resposta) => {
+            if (!resposta.ok) throw new Error("Usuario ou senha incorretos.");
+            return resposta.json();
+          })
+          .then(() => window.location.reload())
+          .catch((erro) => {
+            mensagemLogin.textContent = erro.message;
+          });
+      });
+
+      sairAdmin.addEventListener("click", () => {
+        fetch("/admin/logout", { method: "POST" }).then(() => window.location.reload());
+      });
 
       fetch("/users")
         .then((resposta) => resposta.json())
         .then((usuarios) => {
-          usuarios.forEach((usuario) => {
-            const item = document.createElement("li");
-            item.textContent = usuario.name;
-            lista.appendChild(item);
-          });
+          usuarios.forEach(exibirUsuario);
 
           // A contagem sai do tamanho da lista que a API mandou -- nao precisa
           // de outra rota so para isso.
-          const quantidade = usuarios.length;
-          total.textContent =
-            quantidade === 1 ? "1 usuario cadastrado" : `${quantidade} usuarios cadastrados`;
+          const quantidade = lista.children.length;
+          atualizarTotal(quantidade);
 
           // Lista vazia nao e erro: a API respondeu certo, so nao ha ninguem.
           aviso.textContent = quantidade ? "" : "nenhum usuario cadastrado";
 
-          // Filtra a mesma lista que ja chegou, sem pedir nada novo para a API.
-          const emPreCadastro = usuarios.filter(
-            (usuario) => usuario.status === "pre_cadastro"
-          );
-
-          emPreCadastro.forEach((usuario) => {
+          if (!usuarios.some((usuario) => usuario.status === "pre_cadastro")) {
             const item = document.createElement("li");
-            item.textContent = usuario.name;
-            pendentes.appendChild(item);
-          });
-
-          if (emPreCadastro.length === 0) {
-            const item = document.createElement("li");
+            item.dataset.semPreCadastro = "";
             item.textContent = "ninguem em pre-cadastro";
             pendentes.appendChild(item);
           }
@@ -82,6 +409,51 @@
           caixaPreCadastro.hidden = true;
           aviso.textContent = "erro ao chamar a API";
         });
+
+      formulario.addEventListener("submit", (evento) => {
+        evento.preventDefault();
+        if (senhaCadastro.value !== confirmarSenha.value) {
+          mostrarMensagem("As senhas nao conferem.");
+          confirmarSenha.focus();
+          return;
+        }
+        mostrarMensagem("cadastrando...");
+
+        fetch("/users", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            first_name: primeiroNome.value || null,
+            last_name: sobrenome.value || null,
+            age: idade.value === "" ? null : Number(idade.value),
+            email: email.value || null,
+            password: senhaCadastro.value || null,
+            password_confirmation: confirmarSenha.value || null,
+          }),
+        })
+          .then(async (resposta) => {
+            if (!resposta.ok) {
+              throw new Error("Confira nome, sobrenome, idade e e-mail.");
+            }
+            return resposta.json();
+          })
+          .then((usuario) => {
+            exibirUsuario(usuario);
+            atualizarTotal(lista.children.length);
+            if (usuario.status === "aguardando_confirmacao_email") {
+              window.location.href = `/congratulations?name=${encodeURIComponent(usuario.name)}`;
+              return;
+            }
+            mostrarMensagem(
+              `${usuario.name} ficou em pre-cadastro porque faltam dados.`
+            );
+            formulario.reset();
+            primeiroNome.focus();
+          })
+          .catch((erro) => {
+            mostrarMensagem(erro.message);
+          });
+      });
     </script>
   </body>
 </html>
