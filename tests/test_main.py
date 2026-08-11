@@ -40,6 +40,32 @@ def test_users_sem_cadastro_devolve_lista_vazia(monkeypatch):
     assert resposta.json() == []
 
 
+def test_cria_usuario_com_nome_valido(monkeypatch):
+    monkeypatch.setattr(main, "USERS", [])
+
+    resposta = client.post("/users", json={"name": "Maria Souza"})
+
+    assert resposta.status_code == 201
+    assert resposta.json() == {
+        "id": 1,
+        "name": "Maria Souza",
+        "status": "pre_cadastro",
+    }
+    assert main.USERS == [resposta.json()]
+
+
+def test_nao_cria_usuario_com_nome_curto():
+    resposta = client.post("/users", json={"name": "Al"})
+
+    assert resposta.status_code == 422
+
+
+def test_nao_cria_usuario_sem_nome():
+    resposta = client.post("/users", json={})
+
+    assert resposta.status_code == 422
+
+
 def test_index_renderiza_a_tela():
     resposta = client.get("/")
 
