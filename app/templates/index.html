@@ -20,44 +20,154 @@
         color: #555;
       }
     </style>
+  <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 0 auto;
+        padding: 2rem 1rem;
+        max-width: 40rem;
+      }
+
+      li {
+        margin-bottom: 0.5rem;
+      }
+
+      .email {
+        color: #555;
+      }
+
+      form {
+        margin-bottom: 1.5rem;
+        border: 1px solid #ddd;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        background: #fafafa;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 0.5rem;
+      }
+
+      input {
+        width: 100%;
+        padding: 0.5rem;
+        margin-bottom: 1rem;
+        border: 1px solid #ccc;
+        border-radius: 0.25rem;
+      }
+
+      button {
+        padding: 0.75rem 1rem;
+        background: #2563eb;
+        color: white;
+        border: none;
+        border-radius: 0.25rem;
+        cursor: pointer;
+      }
+
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+    </style>
   </head>
   <body>
-    <h1>Usuarios</h1>
+    <h1>Acesso de usuário</h1>
 
+    <form id="login-form">
+      <label>
+        Nome:
+        <input type="text" id="nome" name="nome" required />
+      </label>
+
+      <label>
+        Email:
+        <input type="email" id="email" name="email" required />
+      </label>
+
+      <button type="submit">Entrar / Cadastrar</button>
+      <p id="mensagem" style="margin-top: 0.5rem; color: #1d4ed8"></p>
+    </form>
+
+    <h2>Usuários cadastrados</h2>
     <p id="aviso">carregando...</p>
     <ul id="lista"></ul>
 
     <script>
       const aviso = document.getElementById("aviso");
       const lista = document.getElementById("lista");
+      const form = document.getElementById("login-form");
+      const nomeInput = document.getElementById("nome");
+      const emailInput = document.getElementById("email");
+      const mensagem = document.getElementById("mensagem");
 
-      // A tela nao sabe quantos usuarios existem: ela monta os <li> a
-      // partir do que a API respondeu.
-      fetch("/users")
-        .then((resposta) => resposta.json())
-        .then((usuarios) => {
-          // Lista vazia nao e erro: e so uma lista sem itens.
-          aviso.textContent = usuarios.length
-            ? ""
-            : "nenhum usuario cadastrado";
+      // Esta funcao carrega os usuarios da API e atualiza a lista na tela.
+      function carregarUsuarios() {
+        aviso.textContent = "carregando...";
+        lista.innerHTML = "";
 
-          usuarios.forEach((usuario) => {
-            const item = document.createElement("li");
+        fetch("/users")
+          .then((resposta) => resposta.json())
+          .then((usuarios) => {
+            aviso.textContent = usuarios.length
+              ? ""
+              : "nenhum usuario cadastrado";
 
-            const nome = document.createElement("strong");
-            nome.textContent = usuario.nome;
+            usuarios.forEach((usuario) => {
+              const item = document.createElement("li");
 
-            const email = document.createElement("span");
-            email.className = "email";
-            email.textContent = ` — ${usuario.email}`;
+              const nome = document.createElement("strong");
+              nome.textContent = usuario.nome;
 
-            item.append(nome, email);
-            lista.append(item);
+              const email = document.createElement("span");
+              email.className = "email";
+              email.textContent = ` — ${usuario.email}`;
+
+              item.append(nome, email);
+              lista.append(item);
+            });
+          })
+          .catch(() => {
+            aviso.textContent = "erro ao chamar a API";
           });
+      }
+
+      // Quando o formulario e enviado, criamos um novo usuario via POST.
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        mensagem.textContent = "Enviando...";
+
+        const novoUsuario = {
+          nome: nomeInput.value.trim(),
+          email: emailInput.value.trim(),
+        };
+
+        fetch("/users", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(novoUsuario),
         })
-        .catch(() => {
-          aviso.textContent = "erro ao chamar a API";
-        });
+          .then((resposta) => {
+            if (!resposta.ok) {
+              throw new Error("Falha ao cadastrar usuario");
+            }
+            return resposta.json();
+          })
+          .then((usuarioCriado) => {
+            mensagem.textContent = `Usuário ${usuarioCriado.nome} cadastrado com sucesso!`;
+            nomeInput.value = "";
+            emailInput.value = "";
+            carregarUsuarios();
+          })
+          .catch(() => {
+            mensagem.textContent = "Erro ao cadastrar usuário. Tente novamente.";
+          });
+      });
+
+      carregarUsuarios();
     </script>
   </body>
 </html>
