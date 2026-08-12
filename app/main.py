@@ -13,7 +13,7 @@ templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 usuarios = [
     {"id": 1, "nome": "Yuri Mestre", "email": "yuri@example.com"},
-    {"id": 2, "nome": "Torres Diamante", "email": "torres@macbookpica.com"},
+    {"id": 2, "nome": "Torres Diamante", "email": "torres@macbook.com"},
     {"id": 3, "nome": "Daniel Mestre", "email": "daniel@example.com"}
 ]
 
