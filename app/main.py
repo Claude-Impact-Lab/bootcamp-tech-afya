@@ -1,9 +1,15 @@
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, EmailStr, StringConstraints, TypeAdapter, ValidationError, field_validator
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from app.database import get_db
+from app.models import User
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -36,11 +42,6 @@ class UserIn(BaseModel):
         return valor.lower()
 
 
-# Os usuarios moram aqui por enquanto. Somem quando o servidor reinicia:
-# o banco de verdade entra na missao 03.
-USERS: list[dict] = []
-
-
 @app.get("/health")
 def health() -> dict[str, str]:
     """Endpoint JSON: e daqui que o HTML busca a mensagem."""
@@ -48,42 +49,40 @@ def health() -> dict[str, str]:
 
 
 @app.get("/users")
-def list_users(nome: str | None = None) -> list[dict]:
+def list_users(nome: str | None = None, db: Session = Depends(get_db)) -> list[dict]:
     """Lista os usuarios. Com ?nome=, devolve so quem tem esse texto no nome."""
-    if nome is None:
-        return USERS
-
-    procurado = nome.lower()
-    return [user for user in USERS if procurado in user["nome"].lower()]
+    statement = select(User).order_by(User.id)
+    if nome is not None:
+        statement = statement.where(User.nome.ilike(f"%{nome}%"))
+    return [user.to_dict() for user in db.scalars(statement)]
 
 
 @app.post("/users", status_code=status.HTTP_201_CREATED)
-def create_user(novo: UserIn) -> dict:
+def create_user(novo: UserIn, db: Session = Depends(get_db)) -> dict:
     """Cadastra um usuario. Devolve 201 com o usuario criado, ja com o id."""
     email = novo.email.lower()
 
-    for user in USERS:
-        if user["email"].lower() == email:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"O e-mail {email} já está cadastrado",
-            )
+    user = User(nome=novo.nome, email=email)
+    db.add(user)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"O e-mail {email} já está cadastrado",
+        )
 
-    # max(...) + 1 em vez de len(USERS) + 1: com exclusao (missao 04) o len
-    # repetiria um id ja usado.
-    proximo_id = max((user["id"] for user in USERS), default=0) + 1
-    user = {"id": proximo_id, "nome": novo.nome, "email": email}
-    USERS.append(user)
-
-    return user
+    db.refresh(user)
+    return user.to_dict()
 
 
 @app.get("/users/{user_id}")
-def get_user(user_id: int) -> dict:
+def get_user(user_id: int, db: Session = Depends(get_db)) -> dict:
     """Busca um usuario pelo id. Devolve 404 se ele nao existir."""
-    for user in USERS:
-        if user["id"] == user_id:
-            return user
+    user = db.get(User, user_id)
+    if user:
+        return user.to_dict()
 
     raise HTTPException(status_code=404, detail=f"Usuário {user_id} não encontrado")
 

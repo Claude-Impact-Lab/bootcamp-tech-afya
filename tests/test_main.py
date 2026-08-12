@@ -2,24 +2,44 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
+from app.database import get_db
 from app.main import BASE_DIR, app
+from app.models import Base, User
 
 client = TestClient(app)
-
 INDEX_HTML = Path(BASE_DIR / "templates" / "index.html").read_text(encoding="utf-8")
 
 
 @pytest.fixture
-def base_isolada(monkeypatch):
-    """Da a cada teste a sua propria lista vazia.
+def db_isolado(tmp_path):
+    """Cada teste ganha um banco temporário, separado do PostgreSQL local."""
+    engine = create_engine(f"sqlite:///{tmp_path / 'test.db'}")
+    Base.metadata.create_all(engine)
+    session_local = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
-    Sem isto um teste que cadastra alguem mudaria o USERS do modulo e quebraria
-    os testes seguintes, dependendo da ordem em que rodassem.
-    """
-    users = []
-    monkeypatch.setattr("app.main.USERS", users)
-    return users
+    def override_get_db():
+        db = session_local()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    app.dependency_overrides[get_db] = override_get_db
+    yield session_local
+    app.dependency_overrides.clear()
+    engine.dispose()
+
+
+def adicionar_usuarios(session_local, usuarios):
+    db = session_local()
+    try:
+        db.add_all([User(**usuario) for usuario in usuarios])
+        db.commit()
+    finally:
+        db.close()
 
 
 def test_health_retorna_ok():
@@ -36,12 +56,11 @@ def test_index_renderiza_a_tela():
     assert "Bem vindo" in resposta.text or "Novo usuário do projeto" in resposta.text
 
 
-def test_list_users_retorna_a_lista(monkeypatch):
-    users = [
-        {"id": 1, "nome": "Ana Souza", "email": "ana@exemplo.com"},
-        {"id": 2, "nome": "Bruno Lima", "email": "bruno@exemplo.com"},
-    ]
-    monkeypatch.setattr("app.main.USERS", users)
+def test_list_users_retorna_a_lista(db_isolado):
+    adicionar_usuarios(db_isolado, [
+        {"nome": "Ana Souza", "email": "ana@exemplo.com"},
+        {"nome": "Bruno Lima", "email": "bruno@exemplo.com"},
+    ])
 
     resposta = client.get("/users")
 
@@ -50,12 +69,11 @@ def test_list_users_retorna_a_lista(monkeypatch):
     assert resposta.json()[0]["nome"] == "Ana Souza"
 
 
-def test_list_users_filtra_por_nome(monkeypatch):
-    users = [
-        {"id": 1, "nome": "Ana Souza", "email": "ana@exemplo.com"},
-        {"id": 2, "nome": "Bruno Lima", "email": "bruno@exemplo.com"},
-    ]
-    monkeypatch.setattr("app.main.USERS", users)
+def test_list_users_filtra_por_nome(db_isolado):
+    adicionar_usuarios(db_isolado, [
+        {"nome": "Ana Souza", "email": "ana@exemplo.com"},
+        {"nome": "Bruno Lima", "email": "bruno@exemplo.com"},
+    ])
 
     resposta = client.get("/users", params={"nome": "Ana"})
 
@@ -64,12 +82,11 @@ def test_list_users_filtra_por_nome(monkeypatch):
     assert resposta.json()[0]["nome"] == "Ana Souza"
 
 
-def test_list_users_filtra_ignorando_maiusculas_e_parte_do_nome(monkeypatch):
-    users = [
-        {"id": 1, "nome": "Ana Souza", "email": "ana@exemplo.com"},
-        {"id": 2, "nome": "Bruno Lima", "email": "bruno@exemplo.com"},
-    ]
-    monkeypatch.setattr("app.main.USERS", users)
+def test_list_users_filtra_ignorando_maiusculas_e_parte_do_nome(db_isolado):
+    adicionar_usuarios(db_isolado, [
+        {"nome": "Ana Souza", "email": "ana@exemplo.com"},
+        {"nome": "Bruno Lima", "email": "bruno@exemplo.com"},
+    ])
 
     resposta = client.get("/users", params={"nome": "souza"})
 
@@ -77,36 +94,26 @@ def test_list_users_filtra_ignorando_maiusculas_e_parte_do_nome(monkeypatch):
     assert len(resposta.json()) == 1
 
 
-def test_list_users_sem_resultado_retorna_lista_vazia_com_200(monkeypatch):
-    """Busca que nao acha nada nao e erro: e uma lista vazia."""
-    monkeypatch.setattr("app.main.USERS", [])
-
+def test_list_users_sem_resultado_retorna_lista_vazia_com_200(db_isolado):
     resposta = client.get("/users", params={"nome": "Ninguem"})
 
     assert resposta.status_code == 200
     assert resposta.json() == []
 
 
-def test_get_user_retorna_o_usuario_pedido(monkeypatch):
-    users = [
-        {"id": 1, "nome": "Ana Souza", "email": "ana@exemplo.com"},
-        {"id": 2, "nome": "Bruno Lima", "email": "bruno@exemplo.com"},
-    ]
-    monkeypatch.setattr("app.main.USERS", users)
+def test_get_user_retorna_o_usuario_pedido(db_isolado):
+    adicionar_usuarios(db_isolado, [
+        {"nome": "Ana Souza", "email": "ana@exemplo.com"},
+        {"nome": "Bruno Lima", "email": "bruno@exemplo.com"},
+    ])
 
     resposta = client.get("/users/2")
 
     assert resposta.status_code == 200
-    assert resposta.json() == {
-        "id": 2,
-        "nome": "Bruno Lima",
-        "email": "bruno@exemplo.com",
-    }
+    assert resposta.json() == {"id": 2, "nome": "Bruno Lima", "email": "bruno@exemplo.com"}
 
 
-def test_get_user_inexistente_retorna_404(monkeypatch):
-    monkeypatch.setattr("app.main.USERS", [])
-
+def test_get_user_inexistente_retorna_404(db_isolado):
     resposta = client.get("/users/999")
 
     assert resposta.status_code == 404
@@ -114,42 +121,32 @@ def test_get_user_inexistente_retorna_404(monkeypatch):
 
 
 def test_get_user_com_id_nao_numerico_retorna_422():
-    """O FastAPI recusa o id invalido antes da funcao rodar, por causa do `user_id: int`."""
     resposta = client.get("/users/abc")
 
     assert resposta.status_code == 422
 
 
-def test_list_users_sem_ninguem_cadastrado_retorna_200_e_lista_vazia(monkeypatch):
-    """Base vazia nao e erro: a rota responde 200 com []."""
-    monkeypatch.setattr("app.main.USERS", [])
-
+def test_list_users_sem_ninguem_cadastrado_retorna_200_e_lista_vazia(db_isolado):
     resposta = client.get("/users")
 
     assert resposta.status_code == 200
     assert resposta.json() == []
 
 
-def test_list_users_responde_json():
+def test_list_users_responde_json(db_isolado):
     resposta = client.get("/users")
 
     assert resposta.headers["content-type"].startswith("application/json")
 
 
-def test_create_user_retorna_201_com_o_usuario_criado(base_isolada):
-    resposta = client.post(
-        "/users", json={"nome": "Carla Dias", "email": "carla@exemplo.com"}
-    )
+def test_create_user_retorna_201_com_o_usuario_criado(db_isolado):
+    resposta = client.post("/users", json={"nome": "Carla Dias", "email": "carla@exemplo.com"})
 
     assert resposta.status_code == 201
-    assert resposta.json() == {
-        "id": 1,
-        "nome": "Carla Dias",
-        "email": "carla@exemplo.com",
-    }
+    assert resposta.json() == {"id": 1, "nome": "Carla Dias", "email": "carla@exemplo.com"}
 
 
-def test_create_user_faz_o_usuario_aparecer_na_listagem(base_isolada):
+def test_create_user_faz_o_usuario_aparecer_na_listagem(db_isolado):
     client.post("/users", json={"nome": "Carla Dias", "email": "carla@exemplo.com"})
 
     resposta = client.get("/users")
@@ -158,8 +155,7 @@ def test_create_user_faz_o_usuario_aparecer_na_listagem(base_isolada):
     assert resposta.json()[-1]["nome"] == "Carla Dias"
 
 
-def test_create_user_ignora_id_enviado_pelo_cliente(base_isolada):
-    """Quem decide o id e o servidor: o campo extra e descartado."""
+def test_create_user_ignora_id_enviado_pelo_cliente(db_isolado):
     resposta = client.post(
         "/users", json={"id": 99, "nome": "Carla Dias", "email": "carla@exemplo.com"}
     )
@@ -168,45 +164,37 @@ def test_create_user_ignora_id_enviado_pelo_cliente(base_isolada):
     assert resposta.json()["id"] == 1
 
 
-def test_create_user_continua_do_maior_id_e_nao_do_tamanho(base_isolada):
-    """Com um id 10 na base, o proximo e 11 - nao 3."""
-    base_isolada.append({"id": 10, "nome": "Dora Reis", "email": "dora@exemplo.com"})
+def test_create_user_continua_do_maior_id_e_nao_do_tamanho(db_isolado):
+    adicionar_usuarios(db_isolado, [{"id": 10, "nome": "Dora Reis", "email": "dora@exemplo.com"}])
 
-    resposta = client.post(
-        "/users", json={"nome": "Carla Dias", "email": "carla@exemplo.com"}
-    )
+    resposta = client.post("/users", json={"nome": "Carla Dias", "email": "carla@exemplo.com"})
 
     assert resposta.json()["id"] == 11
 
 
-def test_create_user_guarda_o_email_em_minusculas(base_isolada):
-    resposta = client.post(
-        "/users", json={"nome": "Carla Dias", "email": "CARLA@Exemplo.COM"}
-    )
+def test_create_user_guarda_o_email_em_minusculas(db_isolado):
+    resposta = client.post("/users", json={"nome": "Carla Dias", "email": "CARLA@Exemplo.COM"})
 
     assert resposta.json()["email"] == "carla@exemplo.com"
 
 
-def test_create_user_tira_espacos_das_pontas_do_nome(base_isolada):
-    resposta = client.post(
-        "/users", json={"nome": "  Carla Dias  ", "email": "carla@exemplo.com"}
-    )
+def test_create_user_tira_espacos_das_pontas_do_nome(db_isolado):
+    resposta = client.post("/users", json={"nome": "  Carla Dias  ", "email": "carla@exemplo.com"})
 
     assert resposta.json()["nome"] == "Carla Dias"
 
 
-def test_create_user_com_email_repetido_retorna_409(base_isolada):
-    base_isolada.append({"id": 1, "nome": "Ana Souza", "email": "ana@exemplo.com"})
+def test_create_user_com_email_repetido_retorna_409(db_isolado):
+    adicionar_usuarios(db_isolado, [{"nome": "Ana Souza", "email": "ana@exemplo.com"}])
 
     resposta = client.post("/users", json={"nome": "Outra Ana", "email": "ana@exemplo.com"})
 
     assert resposta.status_code == 409
     assert "já está cadastrado" in resposta.json()["detail"]
-    assert len(base_isolada) == 1
 
 
-def test_create_user_nao_diferencia_maiusculas_no_email_repetido(base_isolada):
-    base_isolada.append({"id": 1, "nome": "Ana Souza", "email": "ana@exemplo.com"})
+def test_create_user_nao_diferencia_maiusculas_no_email_repetido(db_isolado):
+    adicionar_usuarios(db_isolado, [{"nome": "Ana Souza", "email": "ana@exemplo.com"}])
 
     resposta = client.post("/users", json={"nome": "Outra Ana", "email": "ANA@exemplo.com"})
 
@@ -224,28 +212,26 @@ def test_create_user_nao_diferencia_maiusculas_no_email_repetido(base_isolada):
         ({"nome": "Carla Dias", "email": ""}, "email vazio"),
     ],
 )
-def test_create_user_com_dados_invalidos_retorna_422(base_isolada, corpo, motivo):
-    """O Pydantic recusa antes de a funcao rodar, e nada e gravado."""
+def test_create_user_com_dados_invalidos_retorna_422(db_isolado, corpo, motivo):
     resposta = client.post("/users", json=corpo)
 
     assert resposta.status_code == 422, motivo
-    assert len(base_isolada) == 0
+    assert client.get("/users").json() == []
 
 
-def test_create_user_email_invalido_retorna_mensagem_em_portugues(base_isolada):
+def test_create_user_email_invalido_retorna_mensagem_em_portugues(db_isolado):
     resposta = client.post("/users", json={"nome": "Carla Dias", "email": "nao-e-email"})
 
     assert resposta.status_code == 422
     assert "EMAIL NÃO É VÁLIDO" in resposta.json()["detail"][0]["msg"]
 
 
-def test_index_tem_formulario_que_envia_post(base_isolada):
+def test_index_tem_formulario_que_envia_post():
     assert '<form id="form-novo"' in INDEX_HTML
     assert 'method: "POST"' in INDEX_HTML
 
 
 def test_index_nao_tem_nomes_fixos_no_html():
-    """Os nomes vem da API. Se aparecerem no HTML, a tela parou de ser dinamica."""
     for nome in ("Ana Souza", "Bruno Lima"):
         assert nome not in INDEX_HTML
 

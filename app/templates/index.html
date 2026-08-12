@@ -3,130 +3,279 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Bem vindo</title>
+    <title>User Manager</title>
+
     <style>
+      :root {
+        --background: #121214;
+        --card: #202024;
+        --input: #121214;
+        --border: #323238;
+        --text: #e1e1e6;
+        --text-muted: #a8a8b3;
+        --blue: #2563eb;
+        --blue-hover: #1d4ed8;
+        --danger-bg: #3a1f25;
+        --danger-border: #7f1d2d;
+        --danger-text: #fecdd3;
+        --row-hover: #29292e;
+      }
+
+      body.tema-claro {
+        --background: #f4f4f5;
+        --card: #ffffff;
+        --input: #ffffff;
+        --border: #d4d4d8;
+        --text: #27272a;
+        --text-muted: #52525b;
+        --danger-bg: #fff1f2;
+        --danger-border: #fda4af;
+        --danger-text: #9f1239;
+        --row-hover: #f4f4f5;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
       body {
-        font-family: system-ui, sans-serif;
+        min-height: 100vh;
         margin: 0;
         padding: 2rem 1rem;
         display: flex;
         justify-content: center;
+        align-items: center;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: var(--background);
+        color: var(--text);
       }
 
       main {
+        position: relative;
         width: 100%;
-        max-width: 40rem;
+        max-width: 52rem;
+        text-align: center;
       }
 
       h1 {
-        margin-top: 0;
+        margin: 0;
+        color: var(--text);
+        font-size: clamp(2rem, 5vw, 2.75rem);
       }
 
-      #mensagem {
-        color: #555;
+      h2 {
+        margin: 0.5rem 0 2rem;
+        color: var(--text-muted);
+        font-size: 1.1rem;
+        font-weight: 400;
       }
 
-      table {
-        border-collapse: collapse;
-        width: 100%;
-      }
-
-      th,
-      td {
-        border-bottom: 1px solid #ddd;
-        padding: 0.5rem 0.75rem;
+      .card {
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border: 1px solid var(--border);
+        border-radius: 0.75rem;
+        background: var(--card);
+        box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.25);
         text-align: left;
       }
 
-      #aviso,
-      #aviso-form {
-        padding: 0.75rem 1rem;
-        border-radius: 0.5rem;
-        background: #fff4f4;
-        border: 1px solid #f0c0c0;
-        color: #8a1f1f;
-      }
-
       form {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-        align-items: flex-end;
-        margin-bottom: 1.5rem;
+        display: grid;
+        grid-template-columns: 1fr 1fr auto;
+        gap: 1rem;
+        align-items: end;
       }
 
       label {
         display: flex;
         flex-direction: column;
-        gap: 0.25rem;
-        font-size: 0.875rem;
-        color: #555;
+        gap: 0.45rem;
+        color: var(--text);
+        font-size: 0.9rem;
+        font-weight: 600;
       }
 
       input {
+        width: 100%;
+        padding: 0.75rem;
+        border: 1px solid var(--border);
+        border-radius: 0.5rem;
+        outline: none;
+        background: var(--input);
+        color: var(--text);
         font: inherit;
-        padding: 0.4rem 0.5rem;
-        border: 1px solid #bbb;
-        border-radius: 0.25rem;
+        transition: border-color 0.2s, box-shadow 0.2s;
+      }
+
+      input:focus {
+        border-color: var(--blue);
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25);
       }
 
       button {
-        font: inherit;
-        padding: 0.45rem 1rem;
+        padding: 0.75rem 1.25rem;
         border: 0;
-        border-radius: 0.25rem;
-        background: #1f6feb;
-        color: white;
+        border-radius: 0.5rem;
+        background: var(--blue);
+        color: #ffffff;
         cursor: pointer;
+        font: inherit;
+        font-weight: 700;
+        transition: background 0.2s, transform 0.2s;
+      }
+
+      button:hover {
+        background: var(--blue-hover);
+        transform: translateY(-1px);
       }
 
       button:disabled {
-        background: #9bb8e8;
         cursor: progress;
+        opacity: 0.65;
+      }
+
+      #botao-tema {
+        position: absolute;
+        top: 0;
+        right: 0;
+        padding: 0.4rem 0.6rem;
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--text);
+        font-size: 0.65rem;
+        letter-spacing: 0.04em;
+      }
+
+      #botao-tema:hover {
+        background: var(--card);
+      }
+
+      #mensagem {
+        margin: 1.5rem 0 1rem;
+        color: var(--text-muted);
+      }
+
+      #aviso,
+      #aviso-form {
+        padding: 0.75rem 1rem;
+        border: 1px solid var(--danger-border);
+        border-radius: 0.5rem;
+        background: var(--danger-bg);
+        color: var(--danger-text);
+      }
+
+      #aviso-form {
+        margin-top: 1rem;
+      }
+
+      .table-container {
+        overflow-x: auto;
+        border: 1px solid var(--border);
+        border-radius: 0.75rem;
+        background: var(--card);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+      }
+
+      th,
+      td {
+        padding: 1rem;
+        border-bottom: 1px solid var(--border);
+      }
+
+      th {
+        color: var(--text-muted);
+        font-size: 0.8rem;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      td {
+        color: var(--text);
+      }
+
+      tbody tr {
+        transition: background 0.2s;
+      }
+
+      tbody tr:hover {
+        background: var(--row-hover);
+      }
+
+      tbody tr:last-child td {
+        border-bottom: 0;
       }
 
       [hidden] {
         display: none !important;
       }
+
+      @media (max-width: 640px) {
+        body {
+          align-items: flex-start;
+        }
+
+        form {
+          grid-template-columns: 1fr;
+        }
+
+        button {
+          width: 100%;
+        }
+
+        #botao-tema {
+          width: auto;
+        }
+      }
     </style>
   </head>
+
   <body>
     <main>
       <h1>Bem vindo</h1>
       <h2>Novo usuário do projeto</h2>
+      <button id="botao-tema" type="button" aria-pressed="false">
+        TEMA CLARO/ESCURO
+      </button>
 
-      <!-- novalidate: deixamos a API ser a fonte da verdade da validacao,
-           para o erro que aparece na tela ser o mesmo que o back-end aplica. -->
-      <form id="form-novo" novalidate>
-        <label>
-          Nome
-          <input id="campo-nome" name="nome" required minlength="2" />
-        </label>
-        <label>
-          E-mail
-          <input id="campo-email" name="email" type="email" required />
-        </label>
-        <button id="botao-salvar" type="submit">Cadastrar</button>
-      </form>
+      <section class="card">
+        <form id="form-novo" novalidate>
+          <label>
+            Nome
+            <input id="campo-nome" name="nome" required minlength="2" />
+          </label>
 
-      <p id="aviso-form" role="alert" hidden></p>
+          <label>
+            E-mail
+            <input id="campo-email" name="email" type="email" required />
+          </label>
 
-      <p id="mensagem">carregando...</p>
+          <button id="botao-salvar" type="submit">Cadastrar</button>
+        </form>
 
-      <!-- Nenhum nome aparece escrito aqui: o JavaScript cria as linhas
-           a partir do que a API responder em /users. -->
+        <p id="aviso-form" role="alert" hidden></p>
+      </section>
+
+      <p id="mensagem">Carregando...</p>
       <p id="aviso" role="alert" hidden></p>
 
-      <table id="tabela" hidden>
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Nome</th>
-            <th>E-mail</th>
-          </tr>
-        </thead>
-        <tbody id="lista"></tbody>
-      </table>
+      <div class="table-container">
+        <table id="tabela" hidden>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Nome</th>
+              <th>E-mail</th>
+            </tr>
+          </thead>
+          <tbody id="lista"></tbody>
+        </table>
+      </div>
     </main>
 
     <script>
@@ -139,6 +288,24 @@
       const campoNome = document.getElementById("campo-nome");
       const campoEmail = document.getElementById("campo-email");
       const botaoSalvar = document.getElementById("botao-salvar");
+      const botaoTema = document.getElementById("botao-tema");
+
+      function aplicarTema(tema) {
+        const temaClaro = tema === "claro";
+        document.body.classList.toggle("tema-claro", temaClaro);
+        botaoTema.setAttribute("aria-pressed", String(temaClaro));
+      }
+
+      const temaSalvo = localStorage.getItem("tema");
+      aplicarTema(temaSalvo || "escuro");
+
+      botaoTema.addEventListener("click", () => {
+        const proximoTema = document.body.classList.contains("tema-claro")
+          ? "escuro"
+          : "claro";
+        aplicarTema(proximoTema);
+        localStorage.setItem("tema", proximoTema);
+      });
 
       function mostrarAviso(texto) {
         aviso.textContent = texto;
@@ -148,8 +315,6 @@
       function criarLinha(user) {
         const linha = document.createElement("tr");
 
-        // textContent (e nao innerHTML) para o nome vindo da API nunca
-        // ser interpretado como HTML.
         for (const valor of [user.id, user.nome, user.email]) {
           const celula = document.createElement("td");
           celula.textContent = valor;
@@ -183,6 +348,7 @@
             if (!resposta.ok) {
               throw new Error(`A API respondeu ${resposta.status}`);
             }
+
             return resposta.json();
           })
           .then((users) => {
@@ -193,14 +359,12 @@
             mensagem.textContent = "";
             tabela.hidden = true;
             mostrarAviso(
-              "Não foi possível carregar os usuários. O servidor pode estar fora do ar — " +
-                `tente recarregar a página. (${erro.message})`,
+              "Não foi possível carregar os usuários. " +
+                `Tente recarregar a página. (${erro.message})`,
             );
           });
       }
 
-      // O FastAPI responde de duas formas: 422 traz detail como lista de erros
-      // por campo, e o nosso 409 traz detail como texto simples.
       function mensagemDeErro(corpo, resposta) {
         const detail = corpo?.detail;
 
@@ -215,7 +379,7 @@
               const mensagem = String(erro.msg || "");
 
               if (mensagem.includes("EMAIL NÃO É VÁLIDO")) {
-                return "EMAIL NÃO É VÁLIDO";
+                return "E-mail não é válido.";
               }
 
               return campo ? `${campo}: ${mensagem}` : mensagem;
@@ -227,8 +391,6 @@
       }
 
       form.addEventListener("submit", (evento) => {
-        // Sem isto o navegador recarregaria a pagina e a resposta da API
-        // seria perdida.
         evento.preventDefault();
 
         avisoForm.hidden = true;
@@ -243,11 +405,11 @@
           }),
         })
           .then((resposta) =>
-            // O corpo do erro tambem e JSON, entao lemos antes de decidir.
             resposta.json().then((corpo) => {
               if (!resposta.ok) {
                 throw new Error(mensagemDeErro(corpo, resposta));
               }
+
               return corpo;
             }),
           )
@@ -265,7 +427,6 @@
           });
       });
 
-      // Assim que a pagina abre, busca a lista real no servidor.
       carregarUsuarios();
     </script>
   </body>

@@ -176,11 +176,14 @@ Dentro da pasta do projeto:
 
 ```bash
 uv sync
+docker compose up -d
+uv run alembic upgrade head
 uv run uvicorn app.main:app --reload
 ```
 
-O primeiro comando instala tudo (demora um pouco na primeira vez). O segundo liga o
-servidor. Você vai ver algo assim:
+Antes, copie a configuração local do banco: `cp .env.example .env`. O primeiro comando
+instala tudo; o segundo sobe o PostgreSQL; o terceiro cria ou atualiza as tabelas a
+partir das migrations; e o último liga o servidor. Você vai ver algo assim:
 
 ```
 INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
@@ -203,6 +206,21 @@ recarregue a página, veja a mudança.
 | <http://127.0.0.1:8000/users> | a lista de usuários em JSON |
 | <http://127.0.0.1:8000/health> | a resposta da API em JSON |
 | <http://127.0.0.1:8000/docs> | documentação automática, onde dá para testar a API |
+
+### Banco de dados e migrations
+
+O PostgreSQL roda pelo Docker Compose e os dados ficam no volume `postgres_data`, então
+não desaparecem quando o servidor FastAPI reinicia. O `.env` contém a configuração
+local e é ignorado pelo Git; `.env.example` é o modelo seguro para colegas.
+
+Para criar uma alteração de estrutura depois de mudar um modelo:
+
+```bash
+uv run alembic revision --autogenerate -m "descreve a alteracao"
+uv run alembic upgrade head
+```
+
+Para desfazer a última migration localmente: `uv run alembic downgrade -1`.
 
 ### Se algo der errado
 
