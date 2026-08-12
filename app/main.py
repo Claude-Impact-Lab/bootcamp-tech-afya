@@ -1,25 +1,42 @@
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends, HTTPException
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, EmailStr
+from sqlalchemy.orm import Session
+
+from app.config import settings
+from app.db import SessionLocal, engine
+from app.models import Base, Usuario
 
 BASE_DIR = Path(__file__).resolve().parent
 
 app = FastAPI(title="User Manager")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
-USUARIOS = [
-    {"id": 1, "nome": "André Seabra", "email": "andre.seabra@teste.com"},
-    {"id": 2, "nome": "Ademilson Mamilo", "email": "ademilson.mamilo@teste.com"},
-    {"id": 3, "nome": "Sant'anna Thanos", "email": "santanna.thanos@teste.com"},
-    {"id": 4, "nome": "Pagliasse Trepa", "email": "pagliasse.trepa@teste.com"},
-]
+Base.metadata.create_all(bind=engine)
 
 
 class UsuarioCreate(BaseModel):
     nome: str
     email: EmailStr
+
+
+class UsuarioOut(BaseModel):
+    id: int
+    nome: str
+    email: EmailStr
+
+    class Config:
+        orm_mode = True
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 
 @app.get("/health")
@@ -28,21 +45,22 @@ def health() -> dict[str, str]:
     return {"status": "ok", "message": "Hello World"}
 
 
-@app.get("/users")
-def listar_usuarios() -> list[dict[str, int | str]]:
+@app.get("/users", response_model=list[UsuarioOut])
+def listar_usuarios(db: Session = Depends(get_db)) -> list[Usuario]:
     """Devolve todos os usuarios cadastrados."""
-    return USUARIOS
+    return db.query(Usuario).all()
 
 
-@app.post("/users", status_code=201)
-def criar_usuario(usuario: UsuarioCreate) -> dict[str, int | str]:
+@app.post("/users", status_code=201, response_model=UsuarioOut)
+def criar_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db)) -> Usuario:
     """Cria um novo usuario e o adiciona no fim da lista."""
-    novo_usuario = {
-        "id": max((u["id"] for u in USUARIOS), default=0) + 1,
-        "nome": usuario.nome,
-        "email": usuario.email,
-    }
-    USUARIOS.append(novo_usuario)
+    if db.query(Usuario).filter(Usuario.email == usuario.email).first():
+        raise HTTPException(status_code=400, detail="Email já cadastrado")
+
+    novo_usuario = Usuario(nome=usuario.nome, email=usuario.email)
+    db.add(novo_usuario)
+    db.commit()
+    db.refresh(novo_usuario)
     return novo_usuario
 
 
