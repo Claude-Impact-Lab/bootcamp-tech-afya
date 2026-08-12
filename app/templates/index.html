@@ -12,7 +12,7 @@
       place-items: center;
       min-height: 100vh;
       margin: 0;
-      background: #f4f7fb;
+      background: linear-gradient(to right, #E60067 0%, #E60067 10%, #ffffff 10%, #ffffff 90%, #E60067 90%, #E60067 100%);
       color: #1f2937;
     }
 
@@ -24,9 +24,26 @@
       padding: 24px;
     }
 
-    h1 {
-      margin-top: 0;
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
       margin-bottom: 16px;
+    }
+
+    .logo-top {
+      width: 56px;
+      height: auto;
+      object-fit: contain;
+      border-radius: 12px;
+      background: #ffffff;
+      padding: 4px;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+    }
+
+    h1 {
+      margin: 0;
       font-size: 2rem;
     }
 
@@ -74,7 +91,7 @@
     .botao {
       border: none;
       border-radius: 10px;
-      background: #2563eb;
+      background: #E60067;
       color: white;
       padding: 12px 16px;
       font-size: 1rem;
@@ -84,14 +101,17 @@
     }
 
     .botao:hover {
-      background: #1d4ed8;
+      background: #bf0059;
     }
   </style>
 </head>
 
 <body>
   <div class="container">
-    <h1>Usuários</h1>
+    <div class="header">
+      <h1>Bem-vindo</h1>
+      <img class="logo-top" src="https://companieslogo.com/img/orig/AFYA_BIG-54d3e65a.png?t=1742570503" alt="Logo Afya" />
+    </div>
 
     <form class="form-cadastro">
       <div class="campo">
@@ -105,6 +125,7 @@
       </div>
 
       <button class="botao" type="submit">Entrar/Cadastrar</button>
+      <p style="font-weight: 700; margin: 0;">Usuários cadastrados</p>
     </form>
 
     <ul id="lista-usuarios"></ul>
