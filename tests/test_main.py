@@ -12,15 +12,12 @@ INDEX_HTML = Path(BASE_DIR / "templates" / "index.html").read_text(encoding="utf
 
 @pytest.fixture
 def base_isolada(monkeypatch):
-    """Da a cada teste de POST a sua propria lista.
+    """Da a cada teste a sua propria lista vazia.
 
     Sem isto um teste que cadastra alguem mudaria o USERS do modulo e quebraria
     os testes seguintes, dependendo da ordem em que rodassem.
     """
-    users = [
-        {"id": 1, "nome": "Ana Souza", "email": "ana@exemplo.com"},
-        {"id": 2, "nome": "Bruno Lima", "email": "bruno@exemplo.com"},
-    ]
+    users = []
     monkeypatch.setattr("app.main.USERS", users)
     return users
 
@@ -36,10 +33,16 @@ def test_index_renderiza_a_tela():
     resposta = client.get("/")
 
     assert resposta.status_code == 200
-    assert "User Manager" in resposta.text
+    assert "Bem vindo" in resposta.text or "Novo usuário do projeto" in resposta.text
 
 
-def test_list_users_retorna_a_lista():
+def test_list_users_retorna_a_lista(monkeypatch):
+    users = [
+        {"id": 1, "nome": "Ana Souza", "email": "ana@exemplo.com"},
+        {"id": 2, "nome": "Bruno Lima", "email": "bruno@exemplo.com"},
+    ]
+    monkeypatch.setattr("app.main.USERS", users)
+
     resposta = client.get("/users")
 
     assert resposta.status_code == 200
@@ -47,7 +50,13 @@ def test_list_users_retorna_a_lista():
     assert resposta.json()[0]["nome"] == "Ana Souza"
 
 
-def test_list_users_filtra_por_nome():
+def test_list_users_filtra_por_nome(monkeypatch):
+    users = [
+        {"id": 1, "nome": "Ana Souza", "email": "ana@exemplo.com"},
+        {"id": 2, "nome": "Bruno Lima", "email": "bruno@exemplo.com"},
+    ]
+    monkeypatch.setattr("app.main.USERS", users)
+
     resposta = client.get("/users", params={"nome": "Ana"})
 
     assert resposta.status_code == 200
@@ -55,22 +64,36 @@ def test_list_users_filtra_por_nome():
     assert resposta.json()[0]["nome"] == "Ana Souza"
 
 
-def test_list_users_filtra_ignorando_maiusculas_e_parte_do_nome():
+def test_list_users_filtra_ignorando_maiusculas_e_parte_do_nome(monkeypatch):
+    users = [
+        {"id": 1, "nome": "Ana Souza", "email": "ana@exemplo.com"},
+        {"id": 2, "nome": "Bruno Lima", "email": "bruno@exemplo.com"},
+    ]
+    monkeypatch.setattr("app.main.USERS", users)
+
     resposta = client.get("/users", params={"nome": "souza"})
 
     assert resposta.status_code == 200
     assert len(resposta.json()) == 1
 
 
-def test_list_users_sem_resultado_retorna_lista_vazia_com_200():
+def test_list_users_sem_resultado_retorna_lista_vazia_com_200(monkeypatch):
     """Busca que nao acha nada nao e erro: e uma lista vazia."""
+    monkeypatch.setattr("app.main.USERS", [])
+
     resposta = client.get("/users", params={"nome": "Ninguem"})
 
     assert resposta.status_code == 200
     assert resposta.json() == []
 
 
-def test_get_user_retorna_o_usuario_pedido():
+def test_get_user_retorna_o_usuario_pedido(monkeypatch):
+    users = [
+        {"id": 1, "nome": "Ana Souza", "email": "ana@exemplo.com"},
+        {"id": 2, "nome": "Bruno Lima", "email": "bruno@exemplo.com"},
+    ]
+    monkeypatch.setattr("app.main.USERS", users)
+
     resposta = client.get("/users/2")
 
     assert resposta.status_code == 200
@@ -81,7 +104,9 @@ def test_get_user_retorna_o_usuario_pedido():
     }
 
 
-def test_get_user_inexistente_retorna_404():
+def test_get_user_inexistente_retorna_404(monkeypatch):
+    monkeypatch.setattr("app.main.USERS", [])
+
     resposta = client.get("/users/999")
 
     assert resposta.status_code == 404
@@ -118,7 +143,7 @@ def test_create_user_retorna_201_com_o_usuario_criado(base_isolada):
 
     assert resposta.status_code == 201
     assert resposta.json() == {
-        "id": 3,
+        "id": 1,
         "nome": "Carla Dias",
         "email": "carla@exemplo.com",
     }
@@ -129,7 +154,7 @@ def test_create_user_faz_o_usuario_aparecer_na_listagem(base_isolada):
 
     resposta = client.get("/users")
 
-    assert len(resposta.json()) == 3
+    assert len(resposta.json()) == 1
     assert resposta.json()[-1]["nome"] == "Carla Dias"
 
 
@@ -140,7 +165,7 @@ def test_create_user_ignora_id_enviado_pelo_cliente(base_isolada):
     )
 
     assert resposta.status_code == 201
-    assert resposta.json()["id"] == 3
+    assert resposta.json()["id"] == 1
 
 
 def test_create_user_continua_do_maior_id_e_nao_do_tamanho(base_isolada):
@@ -171,14 +196,18 @@ def test_create_user_tira_espacos_das_pontas_do_nome(base_isolada):
 
 
 def test_create_user_com_email_repetido_retorna_409(base_isolada):
+    base_isolada.append({"id": 1, "nome": "Ana Souza", "email": "ana@exemplo.com"})
+
     resposta = client.post("/users", json={"nome": "Outra Ana", "email": "ana@exemplo.com"})
 
     assert resposta.status_code == 409
     assert "já está cadastrado" in resposta.json()["detail"]
-    assert len(base_isolada) == 2
+    assert len(base_isolada) == 1
 
 
 def test_create_user_nao_diferencia_maiusculas_no_email_repetido(base_isolada):
+    base_isolada.append({"id": 1, "nome": "Ana Souza", "email": "ana@exemplo.com"})
+
     resposta = client.post("/users", json={"nome": "Outra Ana", "email": "ANA@exemplo.com"})
 
     assert resposta.status_code == 409
@@ -200,7 +229,14 @@ def test_create_user_com_dados_invalidos_retorna_422(base_isolada, corpo, motivo
     resposta = client.post("/users", json=corpo)
 
     assert resposta.status_code == 422, motivo
-    assert len(base_isolada) == 2
+    assert len(base_isolada) == 0
+
+
+def test_create_user_email_invalido_retorna_mensagem_em_portugues(base_isolada):
+    resposta = client.post("/users", json={"nome": "Carla Dias", "email": "nao-e-email"})
+
+    assert resposta.status_code == 422
+    assert "EMAIL NÃO É VÁLIDO" in resposta.json()["detail"][0]["msg"]
 
 
 def test_index_tem_formulario_que_envia_post(base_isolada):

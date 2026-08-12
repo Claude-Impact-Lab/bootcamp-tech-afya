@@ -3,30 +3,42 @@ from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel, EmailStr, StringConstraints
+from pydantic import BaseModel, EmailStr, StringConstraints, TypeAdapter, ValidationError, field_validator
 
 BASE_DIR = Path(__file__).resolve().parent
 
-app = FastAPI(title="User Manager")
+app = FastAPI(title="Novo usuário do projeto")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 # strip_whitespace tira os espacos das pontas antes de medir o tamanho:
 # assim "   " nao passa como nome valido.
 Nome = Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=80)]
+email_validator = TypeAdapter(EmailStr)
 
 
 class UserIn(BaseModel):
     """O que o cliente envia no POST. Sem `id`: quem decide o id e o servidor."""
 
     nome: Nome
-    email: EmailStr
+    email: str
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def validar_email(cls, value: str) -> str:
+        if value is None or not isinstance(value, str):
+            raise ValueError("EMAIL NÃO É VÁLIDO")
+
+        valor = value.strip()
+        try:
+            email_validator.validate_python(valor)
+        except ValidationError as exc:
+            raise ValueError("EMAIL NÃO É VÁLIDO") from exc
+        return valor.lower()
+
 
 # Os usuarios moram aqui por enquanto. Somem quando o servidor reinicia:
 # o banco de verdade entra na missao 03.
-USERS = [
-    {"id": 1, "nome": "Ana Souza", "email": "ana@exemplo.com"},
-    {"id": 2, "nome": "Bruno Lima", "email": "bruno@exemplo.com"},
-]
+USERS: list[dict] = []
 
 
 @app.get("/health")

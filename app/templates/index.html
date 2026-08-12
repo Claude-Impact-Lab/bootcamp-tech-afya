@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>User Manager</title>
+    <title>Bem vindo</title>
     <style>
       body {
         font-family: system-ui, sans-serif;
@@ -92,7 +92,8 @@
   </head>
   <body>
     <main>
-      <h1>User Manager</h1>
+      <h1>Bem vindo</h1>
+      <h2>Novo usuário do projeto</h2>
 
       <!-- novalidate: deixamos a API ser a fonte da verdade da validacao,
            para o erro que aparece na tela ser o mesmo que o back-end aplica. -->
@@ -211,7 +212,13 @@
           return detail
             .map((erro) => {
               const campo = erro.loc?.[erro.loc.length - 1];
-              return campo ? `${campo}: ${erro.msg}` : erro.msg;
+              const mensagem = String(erro.msg || "");
+
+              if (mensagem.includes("EMAIL NÃO É VÁLIDO")) {
+                return "EMAIL NÃO É VÁLIDO";
+              }
+
+              return campo ? `${campo}: ${mensagem}` : mensagem;
             })
             .join("; ");
         }
