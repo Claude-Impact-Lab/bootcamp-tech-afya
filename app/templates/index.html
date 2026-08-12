@@ -12,50 +12,179 @@
       place-items: center;
       min-height: 100vh;
       margin: 0;
+      background: #f4f7fb;
+      color: #1f2937;
+    }
+
+    .container {
+      width: min(420px, 90vw);
+      background: white;
+      border-radius: 14px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+      padding: 24px;
+    }
+
+    h1 {
+      margin-top: 0;
+      margin-bottom: 16px;
+      font-size: 2rem;
+    }
+
+    ul {
+      margin: 28px 0 12px 0;
+      padding-left: 20px;
+    }
+
+    #aviso {
+      margin-top: 0;
+      color: #475569;
+      min-height: 20px;
+    }
+
+    .form-cadastro {
+      margin-top: 28px;
+      margin-bottom: 20px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .campo {
+      display: grid;
+      gap: 8px;
+    }
+
+    .campo label {
+      font-weight: 600;
+      color: #334155;
+    }
+
+    .campo input {
+      padding: 12px 14px;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      font-size: 1rem;
+      outline: none;
+    }
+
+    .campo input:focus {
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    }
+
+    .botao {
+      border: none;
+      border-radius: 10px;
+      background: #2563eb;
+      color: white;
+      padding: 12px 16px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+
+    .botao:hover {
+      background: #1d4ed8;
     }
   </style>
 </head>
 
 <body>
-  <h1>Usuários</h1>
+  <div class="container">
+    <h1>Usuários</h1>
 
-  <ul id="lista-usuarios"></ul>
+    <form class="form-cadastro">
+      <div class="campo">
+        <label for="nome">Nome</label>
+        <input id="nome" name="nome" type="text" placeholder="Digite seu nome" />
+      </div>
 
-  <p id="aviso">carregando...</p>
+      <div class="campo">
+        <label for="email">E-mail</label>
+        <input id="email" name="email" type="email" placeholder="Digite seu e-mail" />
+      </div>
 
+      <button class="botao" type="submit">Entrar/Cadastrar</button>
+    </form>
+
+    <ul id="lista-usuarios"></ul>
+
+    <p id="aviso">carregando...</p>
+  </div>
 
   <script>
-    // Busca os usuarios na API e cria um <li> para cada um.
-    // O HTML nao sabe quantos sao — quem monta a lista e o JavaScript.
-    fetch("/users")
-      .then((resposta) => resposta.json())
-      .then((usuarios) => {
-        const lista = document.getElementById("lista-usuarios");
-        const aviso = document.getElementById("aviso");
+    const lista = document.getElementById("lista-usuarios");
+    const aviso = document.getElementById("aviso");
+    const form = document.querySelector(".form-cadastro");
 
-        for (const usuario of usuarios) {
-  const item = document.createElement("li");
+    function renderizarUsuarios(usuarios) {
+      lista.innerHTML = "";
 
-  const nome = document.createElement("strong");
-  nome.textContent = usuario.nome;
+      for (const usuario of usuarios) {
+        const item = document.createElement("li");
 
-  item.appendChild(nome);
-  item.append(` — ${usuario.email}`);
+        const nome = document.createElement("strong");
+        nome.textContent = usuario.nome;
 
-  lista.appendChild(item);
-}
+        item.appendChild(nome);
+        item.append(` — ${usuario.email}`);
 
+        lista.appendChild(item);
+      }
 
-        if (usuarios.length === 0) {
-          aviso.textContent = "Nenhum usuário cadastrado.";
-        } else {
-          aviso.textContent = "";
-        }
+      if (usuarios.length === 0) {
+        aviso.textContent = "Nenhum usuário cadastrado.";
+      } else {
+        aviso.textContent = "";
+      }
+    }
+
+    function carregarUsuarios() {
+      fetch("/users")
+        .then((resposta) => resposta.json())
+        .then((usuarios) => renderizarUsuarios(usuarios))
+        .catch(() => {
+          aviso.textContent = "erro ao chamar a API";
+        });
+    }
+
+    form.addEventListener("submit", (evento) => {
+      evento.preventDefault();
+
+      const nome = document.getElementById("nome").value.trim();
+      const email = document.getElementById("email").value.trim();
+
+      if (!nome || !email) {
+        aviso.textContent = "Preencha nome e e-mail.";
+        return;
+      }
+
+      fetch("/users", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ nome, email }),
       })
-      .catch(() => {
-        document.getElementById("aviso").textContent = "erro ao chamar a API";
-      });
+        .then(async (resposta) => {
+          const dados = await resposta.json();
 
+          if (!resposta.ok) {
+            const mensagem = dados.detail?.[0]?.msg ?? "erro ao cadastrar usuário";
+            aviso.textContent = mensagem;
+            return;
+          }
+
+          form.reset();
+          aviso.textContent = "";
+          carregarUsuarios();
+        })
+        .catch(() => {
+          aviso.textContent = "erro ao cadastrar usuário";
+        });
+    });
+
+    carregarUsuarios();
   </script>
 </body>
 
