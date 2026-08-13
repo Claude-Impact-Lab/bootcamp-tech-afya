@@ -1,11 +1,8 @@
-.venv/
+.env
+.env.*
+!.env.example
 __pycache__/
 *.py[cod]
 .pytest_cache/
-.env
-
-# configuracoes locais de ferramentas
-.claude/settings.local.json
-.vscode/
-.idea/
-.DS_Store
+.postgres-data/
+.postgres-log/

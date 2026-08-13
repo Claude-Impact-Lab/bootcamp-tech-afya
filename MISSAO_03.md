@@ -15,6 +15,17 @@ somem. Persistir significa salvar os registros fora da memória do Python.
 - `migrations/versions/0001_create_users.py`: primeira migration.
 - `.env.example`: exemplo da variável `DATABASE_URL`.
 
+## Banco local conectado em 13/08/2026
+
+- PostgreSQL 16 instalado como serviço local.
+- Serviço `postgresql-x64-16` com inicialização automática.
+- Autenticação local protegida por `SCRAM-SHA-256`.
+- Senha forte guardada na variável de ambiente `DATABASE_URL` do usuário do Windows.
+- Banco `usermanager` criado.
+- Migration `0001` aplicada com sucesso.
+- Tabelas existentes: `alembic_version` e `users`.
+- Arquivos `.env` e diretórios locais do PostgreSQL protegidos pelo `.gitignore`.
+
 ## Conceitos
 
 - Tabela: conjunto de registros do mesmo tipo.
@@ -25,11 +36,11 @@ somem. Persistir significa salvar os registros fora da memória do Python.
 
 ## Próxima aula
 
-1. Instalar ou disponibilizar uma instância PostgreSQL.
-2. Criar o banco `usermanager`.
-3. Configurar `DATABASE_URL` sem salvar senha real no Git.
-4. Executar `uv run alembic upgrade head`.
-5. Trocar gradualmente a lista `USERS` por consultas e transações SQLAlchemy.
+1. Criar uma dependência FastAPI que abre e fecha uma sessão SQLAlchemy.
+2. Migrar `GET /users` da lista `USERS` para um `SELECT` no PostgreSQL.
+3. Migrar `POST /users` para um `INSERT` com transação.
+4. Adaptar os testes para um banco de teste isolado.
+5. Remover a lista `USERS` quando nenhuma rota depender mais dela.
 
 Não execute a migration antes de confirmar que o PostgreSQL está disponível e que a
 URL aponta para o banco correto.
