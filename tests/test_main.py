@@ -1,9 +1,47 @@
+import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app import main
+from app.database import Base, get_db
 from app.main import app
+from app.models import User
+
+
+test_engine = create_engine(
+    "sqlite://",
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
+)
+TestingSessionLocal = sessionmaker(
+    bind=test_engine, autoflush=False, expire_on_commit=False
+)
+
+
+def override_get_db():
+    with TestingSessionLocal() as session:
+        yield session
+
+
+app.dependency_overrides[get_db] = override_get_db
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def banco_limpo():
+    Base.metadata.drop_all(test_engine)
+    Base.metadata.create_all(test_engine)
+    main.EMAIL_OUTBOX.clear()
+    yield
+    Base.metadata.drop_all(test_engine)
+
+
+def usuario_no_banco() -> User:
+    with TestingSessionLocal() as session:
+        return session.scalar(select(User).order_by(User.id))
 
 
 def test_health_retorna_ok():
@@ -24,6 +62,7 @@ def test_users_retorna_a_lista_em_json():
 
 
 def test_admin_visualiza_pre_cadastros():
+    client.post("/users", json={"first_name": "Nery"})
     admin_client = TestClient(app)
     login = admin_client.post(
         "/admin/login", json={"username": "afya", "password": "programação"}
@@ -66,20 +105,15 @@ def test_todo_usuario_tem_um_status_conhecido():
     assert all("confirmation_token" not in usuario for usuario in usuarios)
 
 
-def test_users_sem_cadastro_devolve_lista_vazia(monkeypatch):
+def test_users_sem_cadastro_devolve_lista_vazia():
     """Sem usuarios a resposta continua sendo sucesso, e nao um 404."""
-    monkeypatch.setattr(main, "USERS", [])
-
     resposta = client.get("/users")
 
     assert resposta.status_code == 200
     assert resposta.json() == []
 
 
-def test_cria_usuario_com_nome_valido(monkeypatch):
-    monkeypatch.setattr(main, "USERS", [])
-    monkeypatch.setattr(main, "EMAIL_OUTBOX", [])
-
+def test_cria_usuario_com_nome_valido():
     resposta = client.post(
         "/users",
         json={
@@ -101,20 +135,18 @@ def test_cria_usuario_com_nome_valido(monkeypatch):
         "email_confirmed": False,
         "status": "aguardando_confirmacao_email",
     }
-    assert main.USERS[0]["name"] == "Maria Souza"
-    assert "confirmation_token" in main.USERS[0]
+    usuario_salvo = usuario_no_banco()
+    assert usuario_salvo.name == "Maria Souza"
+    assert usuario_salvo.confirmation_token is not None
     assert "confirmation_token" not in resposta.json()
-    assert "password_hash" in main.USERS[0]
-    assert "senha-segura" not in str(main.USERS[0])
+    assert usuario_salvo.password_hash is not None
+    assert usuario_salvo.password_hash != "senha-segura"
     assert "password_hash" not in resposta.json()
     assert main.EMAIL_OUTBOX[0]["from"] == "resposta.noreply.2025@gmail.com"
     assert main.EMAIL_OUTBOX[0]["to"] == "maria.souza@exemplo.com"
 
 
-def test_dados_incompletos_criam_pre_cadastro(monkeypatch):
-    monkeypatch.setattr(main, "USERS", [])
-    monkeypatch.setattr(main, "EMAIL_OUTBOX", [])
-
+def test_dados_incompletos_criam_pre_cadastro():
     resposta = client.post("/users", json={"first_name": "Nery"})
 
     assert resposta.status_code == 201
@@ -122,9 +154,7 @@ def test_dados_incompletos_criam_pre_cadastro(monkeypatch):
     assert main.EMAIL_OUTBOX == []
 
 
-def test_confirmacao_de_email_ativa_usuario(monkeypatch):
-    monkeypatch.setattr(main, "USERS", [])
-    monkeypatch.setattr(main, "EMAIL_OUTBOX", [])
+def test_confirmacao_de_email_ativa_usuario():
     client.post(
         "/users",
         json={
@@ -136,7 +166,7 @@ def test_confirmacao_de_email_ativa_usuario(monkeypatch):
             "password_confirmation": "senha-segura",
         },
     )
-    token = main.USERS[0]["confirmation_token"]
+    token = usuario_no_banco().confirmation_token
 
     resposta = client.get(f"/users/confirm?token={token}")
 
@@ -189,9 +219,7 @@ def test_nao_cria_cadastro_com_senhas_diferentes():
     assert resposta.status_code == 422
 
 
-def test_usuario_confirmado_consegue_entrar(monkeypatch):
-    monkeypatch.setattr(main, "USERS", [])
-    monkeypatch.setattr(main, "EMAIL_OUTBOX", [])
+def test_usuario_confirmado_consegue_entrar():
     client.post(
         "/users",
         json={
@@ -203,7 +231,7 @@ def test_usuario_confirmado_consegue_entrar(monkeypatch):
             "password_confirmation": "senha-segura",
         },
     )
-    token = main.USERS[0]["confirmation_token"]
+    token = usuario_no_banco().confirmation_token
     client.get(f"/users/confirm?token={token}")
 
     resposta = client.post(
@@ -213,6 +241,23 @@ def test_usuario_confirmado_consegue_entrar(monkeypatch):
 
     assert resposta.status_code == 200
     assert resposta.json()["user"]["name"] == "Maria Souza"
+
+
+def test_nao_permite_email_duplicado():
+    dados = {
+        "first_name": "Maria",
+        "last_name": "Souza",
+        "age": 28,
+        "email": "maria.souza@exemplo.com",
+        "password": "senha-segura",
+        "password_confirmation": "senha-segura",
+    }
+    primeira = client.post("/users", json=dados)
+    segunda = client.post("/users", json=dados)
+
+    assert primeira.status_code == 201
+    assert segunda.status_code == 409
+    assert segunda.json()["detail"] == "Este e-mail ja esta cadastrado."
 
 
 def test_index_renderiza_a_tela():

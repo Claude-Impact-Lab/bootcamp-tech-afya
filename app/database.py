@@ -16,3 +16,9 @@ class Base(DeclarativeBase):
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+
+
+def get_db():
+    """Entrega uma sessão por requisição e garante seu fechamento."""
+    with SessionLocal() as session:
+        yield session

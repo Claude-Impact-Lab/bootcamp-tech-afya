@@ -4,28 +4,22 @@ import os
 from pathlib import Path
 from secrets import token_hex, token_urlsafe
 
-from fastapi import FastAPI, HTTPException, Request, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from app.database import get_db
+from app.models import User
 
 BASE_DIR = Path(__file__).resolve().parent
 
 app = FastAPI(title="User Manager")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
-
-# Ainda nao temos banco (isso e a missao 03), entao os usuarios moram aqui na
-# memoria. Some quando o servidor reinicia -- e tudo bem por enquanto.
-# "status" separa quem ja esta ativo de quem so fez o pre-cadastro.
-USERS = [
-    {"id": 1, "name": "Ana Lucia", "age": 29, "email": "ana.lucia@exemplo.com", "email_confirmed": False, "status": "aguardando_confirmacao_email", "confirmation_token": token_urlsafe(32)},
-    {"id": 2, "name": "Nery", "age": 27, "email": "nery@exemplo.com", "email_confirmed": False, "status": "pre_cadastro"},
-    {"id": 3, "name": "Lucas Araujo", "age": 31, "email": "lucas.araujo@exemplo.com", "email_confirmed": False, "status": "aguardando_confirmacao_email", "confirmation_token": token_urlsafe(32)},
-    {"id": 4, "name": "Yuri", "age": 26, "email": "yuri@exemplo.com", "email_confirmed": False, "status": "pre_cadastro"},
-    {"id": 5, "name": "Allan", "age": 30, "email": "allan@exemplo.com", "email_confirmed": False, "status": "pre_cadastro"},
-    {"id": 6, "name": "Ronaldo", "age": 28, "email": "ronaldo@exemplo.com", "email_confirmed": False, "status": "pre_cadastro"},
-]
 
 EMAIL_SENDER = "resposta.noreply.2025@gmail.com"
 ADMIN_USERNAME = "afya"
@@ -100,18 +94,24 @@ def hash_password(password: str, salt: str) -> str:
     ).hex()
 
 
-def verify_password(password: str, user: dict) -> bool:
-    saved_hash = user.get("password_hash")
-    salt = user.get("password_salt")
+def verify_password(password: str, user: User) -> bool:
+    saved_hash = user.password_hash
+    salt = user.password_salt
     if not saved_hash or not salt:
         return False
     return hmac.compare_digest(hash_password(password, salt), saved_hash)
 
 
-def public_user(user: dict) -> dict:
-    """Evita expor o token secreto de confirmação pela API."""
-    private_fields = {"confirmation_token", "password_hash", "password_salt"}
-    return {key: value for key, value in user.items() if key not in private_fields}
+def public_user(user: User) -> dict:
+    """Converte o modelo do banco sem expor campos secretos."""
+    return {
+        "id": user.id,
+        "name": user.name,
+        "age": user.age,
+        "email": user.email,
+        "email_confirmed": user.email_confirmed,
+        "status": user.status,
+    }
 
 
 @app.get("/health")
@@ -121,10 +121,13 @@ def health() -> dict[str, str]:
 
 
 @app.get("/users")
-def list_users(request: Request) -> list[dict]:
+def list_users(request: Request, db: Session = Depends(get_db)) -> list[dict]:
     """Lista os usuarios. Sem nenhum cadastrado, devolve [] com status 200:
     a colecao existe, so esta vazia -- isso nao e um 404."""
-    users = USERS if is_admin(request) else [user for user in USERS if user["status"] == "ativo"]
+    query = select(User).order_by(User.id)
+    if not is_admin(request):
+        query = query.where(User.status == "ativo")
+    users = db.scalars(query).all()
     return [public_user(user) for user in users]
 
 
@@ -157,27 +160,26 @@ def admin_logout(response: Response) -> dict[str, bool]:
 
 
 @app.post("/users/login")
-def user_login(credentials: UserLogin, response: Response) -> dict:
-    user = next(
-        (
-            registered
-            for registered in USERS
-            if registered.get("email", "").casefold() == credentials.email.casefold()
-        ),
-        None,
+def user_login(
+    credentials: UserLogin,
+    response: Response,
+    db: Session = Depends(get_db),
+) -> dict:
+    user = db.scalar(
+        select(User).where(func.lower(User.email) == credentials.email.casefold())
     )
     if user is None or not verify_password(credentials.password, user):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="E-mail ou senha invalidos.")
-    if user["status"] != "ativo":
+    if user.status != "ativo":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Confirme seu e-mail antes de entrar.")
 
     response.set_cookie(
         key="user_session",
-        value=str(user["id"]),
+        value=str(user.id),
         httponly=True,
         samesite="lax",
     )
-    return {"message": f"Bem-vindo, {user['name']}!", "user": public_user(user)}
+    return {"message": f"Bem-vindo, {user.name}!", "user": public_user(user)}
 
 
 def secrets_compare(value: str, expected: str) -> bool:
@@ -185,49 +187,62 @@ def secrets_compare(value: str, expected: str) -> bool:
 
 
 @app.post("/users", status_code=status.HTTP_201_CREATED)
-def create_user(request: Request, user: UserCreate) -> dict:
+def create_user(
+    request: Request,
+    user: UserCreate,
+    db: Session = Depends(get_db),
+) -> dict:
     """Cria um usuário em pré-cadastro.
 
     Dados incompletos ficam em pré-cadastro. Com todos os dados preenchidos,
     enviamos uma confirmação de e-mail antes de ativar o usuário.
     """
-    next_id = max((registered_user["id"] for registered_user in USERS), default=0) + 1
     complete_registration = all(
         value is not None
         for value in (user.first_name, user.last_name, user.age, user.email, user.password)
     )
     name = " ".join(part for part in (user.first_name, user.last_name) if part) or "Nome não informado"
-    new_user: dict = {
-        "id": next_id,
-        "name": name,
-        "age": user.age,
-        "email": user.email,
-        "email_confirmed": False,
-        "status": "pre_cadastro",
-    }
+    new_user = User(
+        name=name,
+        age=user.age,
+        email=user.email.casefold() if user.email else None,
+        email_confirmed=False,
+        status="pre_cadastro",
+    )
     if complete_registration:
         password_salt = token_hex(16)
-        new_user["password_salt"] = password_salt
-        new_user["password_hash"] = hash_password(user.password, password_salt)
+        new_user.password_salt = password_salt
+        new_user.password_hash = hash_password(user.password, password_salt)
         confirmation_token = token_urlsafe(32)
-        new_user["confirmation_token"] = confirmation_token
-        new_user["status"] = "aguardando_confirmacao_email"
+        new_user.confirmation_token = confirmation_token
+        new_user.status = "aguardando_confirmacao_email"
         confirmation_link = f"{str(request.base_url).rstrip('/')}/users/confirm?token={confirmation_token}"
         send_confirmation_email(user.email, name, confirmation_link)
 
-    USERS.append(new_user)
+    db.add(new_user)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Este e-mail ja esta cadastrado.",
+        )
+    db.refresh(new_user)
     return public_user(new_user)
 
 
 @app.get("/users/confirm")
-def confirm_email(token: str) -> dict:
+def confirm_email(token: str, db: Session = Depends(get_db)) -> dict:
     """Confirma o e-mail e conclui o cadastro do usuário."""
-    for user in USERS:
-        if user.get("confirmation_token") == token:
-            user["email_confirmed"] = True
-            user["status"] = "ativo"
-            del user["confirmation_token"]
-            return {"message": "E-mail confirmado. Cadastro concluído!", "user": public_user(user)}
+    user = db.scalar(select(User).where(User.confirmation_token == token))
+    if user is not None:
+        user.email_confirmed = True
+        user.status = "ativo"
+        user.confirmation_token = None
+        db.commit()
+        db.refresh(user)
+        return {"message": "E-mail confirmado. Cadastro concluído!", "user": public_user(user)}
 
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Link de confirmação inválido ou expirado.")
 

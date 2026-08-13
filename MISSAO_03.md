@@ -2,8 +2,9 @@
 
 ## O problema que vamos resolver
 
-Hoje os usuários ficam na lista `USERS`. Quando o servidor reinicia, os novos dados
-somem. Persistir significa salvar os registros fora da memória do Python.
+Antes desta missão, os usuários ficavam na lista `USERS`. Quando o servidor
+reiniciava, os novos dados sumiam. Persistir significa salvar os registros fora da
+memória do Python; agora eles ficam no PostgreSQL.
 
 ## Fundação criada
 
@@ -26,6 +27,23 @@ somem. Persistir significa salvar os registros fora da memória do Python.
 - Tabelas existentes: `alembic_version` e `users`.
 - Arquivos `.env` e diretórios locais do PostgreSQL protegidos pelo `.gitignore`.
 
+## Rotas migradas para o PostgreSQL
+
+- `GET /users`: executa `SELECT` e respeita a visão de administrador.
+- `POST /users`: executa `INSERT`, `COMMIT` e atualiza o objeto com `refresh`.
+- `POST /users/login`: busca o usuário pelo e-mail no banco.
+- `GET /users/confirm`: atualiza confirmação e status com transação.
+- E-mail duplicado devolve `409 Conflict`.
+- A antiga lista `USERS` foi removida.
+- Cada requisição recebe uma sessão SQLAlchemy que é fechada automaticamente.
+
+## Testes e prova de persistência
+
+- Os testes usam SQLite temporário em memória e nunca alteram o banco real.
+- 18 testes automatizados passam.
+- Um usuário temporário foi criado pela API, encontrado depois do servidor reiniciar e
+  removido em seguida. Essa prova confirma a persistência ponta a ponta.
+
 ## Conceitos
 
 - Tabela: conjunto de registros do mesmo tipo.
@@ -34,13 +52,11 @@ somem. Persistir significa salvar os registros fora da memória do Python.
 - Chave primária: `id` único de cada usuário.
 - Migration: versão controlada da estrutura do banco.
 
-## Próxima aula
+## Missão 03 concluída
 
-1. Criar uma dependência FastAPI que abre e fecha uma sessão SQLAlchemy.
-2. Migrar `GET /users` da lista `USERS` para um `SELECT` no PostgreSQL.
-3. Migrar `POST /users` para um `INSERT` com transação.
-4. Adaptar os testes para um banco de teste isolado.
-5. Remover a lista `USERS` quando nenhuma rota depender mais dela.
+O requisito central foi atendido: os usuários agora permanecem no PostgreSQL mesmo
+quando o servidor reinicia. A próxima etapa do treinamento é a missão 04, com `PUT`,
+`DELETE` e idempotência.
 
 Não execute a migration antes de confirmar que o PostgreSQL está disponível e que a
 URL aponta para o banco correto.
