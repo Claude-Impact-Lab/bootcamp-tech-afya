@@ -32,6 +32,104 @@
       margin-bottom: 16px;
     }
 
+    .mode-toggle {
+      display: inline-flex;
+      background: #ffffff;
+      border-radius: 999px;
+      padding: 4px;
+      gap: 4px;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9rem; /* um pouco menor que o label Nome */
+      box-shadow: 0 4px 10px rgba(15,23,42,0.06);
+    }
+
+    .mode-toggle button {
+      border: none;
+      background: transparent;
+      padding: 6px 14px;
+      border-radius: 999px;
+      cursor: pointer;
+      font-weight: 700;
+      color: #111827;
+    }
+
+    .mode-toggle button.active {
+      background: #E60067;
+      color: #fff;
+    }
+
+    .users-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+    }
+
+    .users-table th, .users-table td {
+      border: 1px solid #e6e6e6;
+      padding: 8px 10px;
+      text-align: left;
+      font-size: 0.95rem;
+    }
+
+    .users-table th { background: #fafafa; }
+
+    /* Modern form inputs */
+    .input-wrap { position: relative; }
+    .input-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      opacity: 0.7;
+      width: 18px;
+      height: 18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #6b7280;
+    }
+    .campo input {
+      padding-left: 40px;
+      padding-right: 14px;
+      height: 48px;
+      border-radius: 10px;
+      border: 1px solid #e6e6e9;
+      background: #fff;
+      box-shadow: none;
+      width: 100%;
+      font-size: 1.05rem; /* aumentar fonte para melhor legibilidade */
+    }
+    .input-wrap input { width: 100%; }
+    .campo label { font-size: 0.95rem; margin-bottom: 6px; display:block; }
+    .campo input:focus { outline: none; border-color: #E60067; box-shadow: 0 4px 18px rgba(230,6,103,0.08); }
+
+    .botao { height: 48px; border-radius: 12px; font-size: 1rem; }
+
+    /* avatar */
+    .avatar {
+      width: 36px; height: 36px; border-radius: 50%;
+      display:inline-flex; align-items:center; justify-content:center;
+      color:#fff; font-weight:700; font-size:0.9rem;
+    }
+
+    /* action icon buttons */
+    .icon-btn {
+      border: none; background: transparent; cursor: pointer; padding:6px; border-radius:8px;
+      display: inline-flex; align-items:center; justify-content:center;
+    }
+    .icon-btn.edit { color: #0f766e; }
+    .icon-btn.delete { color: #b91c1c; }
+    .users-table td.actions { display:flex; gap:8px; align-items:center; }
+
+    /* responsive */
+    @media (max-width: 520px) {
+      .container { width: calc(100vw - 32px); padding:16px; }
+      .header { gap:8px; }
+      .logo-top { width:48px; }
+      .users-table th, .users-table td { font-size: 0.92rem; padding:8px; }
+    }
+
     .logo-top {
       width: 56px;
       height: auto;
@@ -114,42 +212,77 @@
     </div>
 
     <form class="form-cadastro">
+      <div style="display:flex; justify-content:center;">
+        <div class="mode-toggle" role="tablist" aria-label="Modo de acesso">
+          <button type="button" id="mode-user" class="active">Usuário</button>
+          <button type="button" id="mode-admin">Admin</button>
+        </div>
+      </div>
+
       <div class="campo">
         <label for="nome">Nome</label>
-        <input id="nome" name="nome" type="text" placeholder="Digite seu nome" />
+        <div class="input-wrap">
+          <span class="input-icon"> 
+            <!-- user icon -->
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 12c2.761 0 5-2.239 5-5s-2.239-5-5-5-5 2.239-5 5 2.239 5 5 5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 21c0-3.866 3.582-7 9-7s9 3.134 9 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          <input id="nome" name="nome" type="text" placeholder="Digite seu nome" />
+        </div>
       </div>
 
       <div class="campo">
         <label for="email">E-mail</label>
-        <input id="email" name="email" type="email" placeholder="Digite seu e-mail" />
+        <div class="input-wrap">
+          <span class="input-icon">
+            <!-- mail icon -->
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 8.5v7.5A2 2 0 0 0 5 18h14a2 2 0 0 0 2-2V8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 6H3v2.5l9 6 9-6V6z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          <input id="email" name="email" type="email" placeholder="Digite seu e-mail" />
+        </div>
       </div>
 
       <button class="botao" type="submit">Entrar/Cadastrar</button>
-      <p style="font-weight: 700; margin: 0;">Usuários cadastrados</p>
     </form>
 
-    <ul id="lista-usuarios"></ul>
+    <div id="admin-area" style="display:none; margin-top: 18px;">
+      <h3 style="margin:0 0 8px 0;">Painel Admin</h3>
+      <p id="admin-heading" style="font-weight:700; margin:6px 0 8px 0; display:none;">Usuários cadastrados</p>
+      <!-- search (visual) -->
+      <div id="admin-search" style="display:flex; gap:8px; margin-bottom:10px; align-items:center;">
+        <input id="search-box" placeholder="Buscar por nome ou e-mail..." style="flex:1; height:40px; padding:8px 12px; border-radius:10px; border:1px solid #e6e6e6" />
+        <button id="search-clear" style="height:40px; border-radius:10px; border: none; background:#f3f4f6; padding:8px 12px; cursor:pointer">Limpar</button>
+      </div>
+      <div id="admin-table-wrap"></div>
+    </div>
 
-    <p id="aviso">carregando...</p>
+    <ul id="lista-usuarios"></ul>
   </div>
 
   <script>
     const lista = document.getElementById("lista-usuarios");
     const aviso = document.getElementById("aviso");
     const form = document.querySelector(".form-cadastro");
+    const modeUserBtn = document.getElementById('mode-user');
+    const modeAdminBtn = document.getElementById('mode-admin');
+    const adminArea = document.getElementById('admin-area');
+    const adminTableWrap = document.getElementById('admin-table-wrap');
+    const adminHeading = document.getElementById('admin-heading');
+    const headerTitle = document.querySelector('.header h1');
+
+    let mode = 'user'; // 'user' or 'admin'
+    let isAdmin = false;
+    let currentUser = null; // {nome, email}
 
     function renderizarUsuarios(usuarios) {
+      // função legacy não usada para admin; mantida para compatibilidade
       lista.innerHTML = "";
 
       for (const usuario of usuarios) {
         const item = document.createElement("li");
-
         const nome = document.createElement("strong");
         nome.textContent = usuario.nome;
-
         item.appendChild(nome);
         item.append(` — ${usuario.email}`);
-
         lista.appendChild(item);
       }
 
@@ -160,18 +293,208 @@
       }
     }
 
-    function carregarUsuarios() {
-      fetch("/users")
-        .then((resposta) => resposta.json())
-        .then((usuarios) => renderizarUsuarios(usuarios))
-        .catch(() => {
-          aviso.textContent = "erro ao chamar a API";
-        });
+    async function carregarUsuariosAdmin(adminEmail) {
+      try {
+        const res = await fetch(`/users?admin_email=${encodeURIComponent(adminEmail)}`);
+        if (!res.ok) throw new Error('acesso negado');
+        const usuarios = await res.json();
+        renderizarTabelaAdmin(usuarios);
+      } catch (err) {
+        adminTableWrap.innerHTML = `<p style="color:#b91c1c">Não foi possível carregar usuários: ${err.message}</p>`;
+      }
     }
 
-    form.addEventListener("submit", (evento) => {
-      evento.preventDefault();
+    function renderizarTabelaAdmin(usuarios) {
+      if (!Array.isArray(usuarios)) usuarios = [];
+      // remover o usuário que está logado (admin) da lista exibida
+      if (currentUser && currentUser.email) {
+        usuarios = usuarios.filter(u => u.email.toLowerCase() !== currentUser.email.toLowerCase());
+      }
+      if (usuarios.length === 0) {
+        adminTableWrap.innerHTML = '<p>Nenhum usuário cadastrado.</p>';
+        return;
+      }
 
+      const table = document.createElement('table');
+      table.className = 'users-table';
+      table.innerHTML = `
+        <thead><tr><th>Nome</th><th>E-mail</th><th>Ações</th></tr></thead>
+        <tbody></tbody>
+      `;
+
+      const tbody = table.querySelector('tbody');
+      usuarios.forEach(u => {
+        const tr = document.createElement('tr');
+        tr.dataset.id = u.id;
+
+        const tdNome = document.createElement('td');
+        // avatar + nome
+        const avatar = document.createElement('div');
+        avatar.className = 'avatar';
+        // background color based on id for subtle variety
+        const colors = ['#E60067','#9b1743','#c026d3','#ef4444','#0ea5a4'];
+        avatar.style.background = colors[u.id % colors.length];
+        const initials = (u.nome || '').split(' ').map(s=>s.replace(/[^A-Za-zÀ-ÿ]/g,'')).filter(Boolean).slice(0,2).map(x=>x[0]?.toUpperCase()||'').join('');
+        avatar.textContent = initials || 'U';
+        const nameWrap = document.createElement('div');
+        nameWrap.style.display = 'inline-flex';
+        nameWrap.style.gap = '10px';
+        nameWrap.style.alignItems = 'center';
+        nameWrap.appendChild(avatar);
+        const nomeSpan = document.createElement('span'); nomeSpan.textContent = u.nome;
+        nameWrap.appendChild(nomeSpan);
+        tdNome.appendChild(nameWrap);
+
+        const tdEmail = document.createElement('td');
+        tdEmail.textContent = u.email;
+
+        const tdAcoes = document.createElement('td');
+        tdAcoes.className = 'actions';
+        const btnEditar = document.createElement('button');
+        btnEditar.className = 'icon-btn edit';
+        btnEditar.title = 'Editar';
+        btnEditar.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 21l3-1 11-11 2 2L8 22l-5 1z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        btnEditar.onclick = () => ativarEdicaoLinha(tr, u);
+
+        const btnExcluir = document.createElement('button');
+        btnExcluir.className = 'icon-btn delete';
+        btnExcluir.title = 'Excluir';
+        btnExcluir.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 6h18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        btnExcluir.onclick = () => excluirUsuarioConfirm(u.id);
+
+        tdAcoes.appendChild(btnEditar);
+        tdAcoes.appendChild(btnExcluir);
+
+        tr.appendChild(tdNome);
+        tr.appendChild(tdEmail);
+        tr.appendChild(tdAcoes);
+
+        tbody.appendChild(tr);
+      });
+
+      adminTableWrap.innerHTML = '';
+      adminTableWrap.appendChild(table);
+    }
+
+    function ativarEdicaoLinha(tr, user) {
+      const nomeTd = tr.children[0];
+      const emailTd = tr.children[1];
+      const acoesTd = tr.children[2];
+
+      nomeTd.innerHTML = `<input type="text" value="${escapeHtml(user.nome)}" style="width:100%" />`;
+      emailTd.innerHTML = `<input type="email" value="${escapeHtml(user.email)}" style="width:100%" />`;
+
+      acoesTd.innerHTML = '';
+      const btnSalvar = document.createElement('button');
+      btnSalvar.textContent = 'Salvar';
+      btnSalvar.style.marginRight = '8px';
+      btnSalvar.onclick = async () => {
+        const novoNome = nomeTd.querySelector('input').value.trim();
+        const novoEmail = emailTd.querySelector('input').value.trim();
+        if (!novoNome || !validateEmail(novoEmail)) {
+          alert('Nome e e-mail válidos são necessários.');
+          return;
+        }
+
+        try {
+          const res = await fetch(`/users/${user.id}?admin_email=${encodeURIComponent(currentUser.email)}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({nome: novoNome, email: novoEmail})
+          });
+          if (!res.ok) {
+            const data = await res.json();
+            alert(data.detail || 'Erro ao atualizar');
+            return;
+          }
+          const updated = await res.json();
+          nomeTd.textContent = updated.nome;
+          emailTd.textContent = updated.email;
+          acoesTd.innerHTML = '';
+          const btnEditar = document.createElement('button'); btnEditar.textContent = 'Editar'; btnEditar.onclick = () => ativarEdicaoLinha(tr, updated);
+          const btnExcluir = document.createElement('button'); btnExcluir.textContent = 'Excluir'; btnExcluir.onclick = () => excluirUsuarioConfirm(updated.id);
+          acoesTd.appendChild(btnEditar); acoesTd.appendChild(btnExcluir);
+        } catch (err) {
+          alert('Erro ao atualizar usuário');
+        }
+      };
+
+      const btnCancelar = document.createElement('button');
+      btnCancelar.textContent = 'Cancelar';
+      btnCancelar.onclick = () => carregarUsuariosAdmin(currentUser.email);
+
+      acoesTd.appendChild(btnSalvar);
+      acoesTd.appendChild(btnCancelar);
+    }
+
+    async function excluirUsuarioConfirm(userId) {
+      const ok = confirm('Tem certeza que deseja excluir este usuário?');
+      if (!ok) return;
+      try {
+        const res = await fetch(`/users/${userId}?admin_email=${encodeURIComponent(currentUser.email)}`, { method: 'DELETE' });
+        if (!res.ok && res.status !== 204) {
+          const data = await res.json();
+          alert(data.detail || 'Erro ao excluir');
+          return;
+        }
+        // recarrega a tabela
+        carregarUsuariosAdmin(currentUser.email);
+      } catch (err) {
+        alert('Erro ao excluir usuário');
+      }
+    }
+    // search UI: simple client-side filter of current table
+    const searchBox = document.getElementById('search-box');
+    const searchClear = document.getElementById('search-clear');
+    if (searchBox) {
+      searchBox.addEventListener('input', () => {
+        const q = (searchBox.value || '').toLowerCase().trim();
+        const table = adminTableWrap.querySelector('table');
+        if (!table) return;
+        const trs = Array.from(table.querySelectorAll('tbody tr'));
+        trs.forEach(tr => {
+          const nome = tr.children[0].innerText.toLowerCase();
+          const email = tr.children[1].innerText.toLowerCase();
+          tr.style.display = (nome.includes(q) || email.includes(q)) ? '' : 'none';
+        });
+      });
+      searchClear.addEventListener('click', () => { searchBox.value = ''; searchBox.dispatchEvent(new Event('input')); });
+    }
+
+    function validateEmail(email) {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    }
+
+    function escapeHtml(unsafe) {
+      return unsafe.replace(/[&<>"']/g, function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#039;"}[m];});
+    }
+
+    modeUserBtn.addEventListener('click', () => {
+      mode = 'user';
+      modeUserBtn.classList.add('active');
+      modeAdminBtn.classList.remove('active');
+      // ao trocar de modo, desloga automaticamente
+      currentUser = null;
+      headerTitle.innerHTML = 'Bem-vindo';
+      adminArea.style.display = 'none';
+      adminHeading.style.display = 'none';
+      isAdmin = false;
+    });
+
+    modeAdminBtn.addEventListener('click', () => {
+      mode = 'admin';
+      modeAdminBtn.classList.add('active');
+      modeUserBtn.classList.remove('active');
+      // ao trocar de modo, desloga automaticamente
+      currentUser = null;
+      headerTitle.innerHTML = 'Bem-vindo';
+      adminArea.style.display = 'none';
+      adminHeading.style.display = 'none';
+      isAdmin = false;
+    });
+
+    form.addEventListener("submit", async (evento) => {
+      evento.preventDefault();
       const nome = document.getElementById("nome").value.trim();
       const email = document.getElementById("email").value.trim();
 
@@ -179,34 +502,65 @@
         aviso.textContent = "Preencha nome e e-mail.";
         return;
       }
+      if (!validateEmail(email)) {
+        aviso.textContent = "E-mail inválido.";
+        return;
+      }
 
-      fetch("/users", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ nome, email }),
-      })
-        .then(async (resposta) => {
-          const dados = await resposta.json();
+      // admin flow
+      if (mode === 'admin') {
+        // only André allowed
+        if (nome === 'André Seabra' && email.toLowerCase() === 'andre.seabra@teste.com') {
+          isAdmin = true;
+          currentUser = { nome, email };
+          // mostrar sobrenome ao lado do Bem-vindo
+          headerTitle.innerHTML = `Bem-vindo, <span style="font-weight:700">Seabra</span>`;
+          adminArea.style.display = '';
+          adminHeading.style.display = '';
+          adminTableWrap.innerHTML = '<p>carregando usuários...</p>';
+          await carregarUsuariosAdmin(currentUser.email);
+          aviso.textContent = '';
+        } else {
+          aviso.textContent = 'admin inválido';
+          isAdmin = false;
+          adminArea.style.display = 'none';
+          adminHeading.style.display = 'none';
+        }
+        return;
+      }
 
-          if (!resposta.ok) {
-            const mensagem = dados.detail?.[0]?.msg ?? "erro ao cadastrar usuário";
-            aviso.textContent = mensagem;
-            return;
-          }
-
-          form.reset();
-          aviso.textContent = "";
-          carregarUsuarios();
-        })
-        .catch(() => {
-          aviso.textContent = "erro ao cadastrar usuário";
+      // user flow
+      try {
+        const res = await fetch('/users', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ nome, email })
         });
+        if (res.status === 201) {
+          currentUser = { nome, email };
+          headerTitle.innerHTML = `Bem-vindo, <span style="font-weight:700">${escapeHtml(nome.split(' ')[0])}</span>`;
+          form.reset();
+          aviso.textContent = '';
+        } else if (res.status === 400) {
+          // email já cadastrado — ainda assim mostramos o primeiro nome
+          currentUser = { nome, email };
+          headerTitle.innerHTML = `Bem-vindo, <span style="font-weight:700">${escapeHtml(nome.split(' ')[0])}</span>`;
+          form.reset();
+          aviso.textContent = '';
+        } else {
+          const data = await res.json();
+          aviso.textContent = data.detail || 'Erro ao cadastrar';
+        }
+      } catch (err) {
+        aviso.textContent = 'erro ao cadastrar usuário';
+      }
     });
 
-    carregarUsuarios();
+    // não carregamos lista por padrão — só quando admin loga
   </script>
+  <footer style="text-align:center; padding:18px 0; color:#6b7280; font-size:0.9rem;">
+    © 2026 Afya • Todos os direitos reservados
+  </footer>
 </body>
 
 </html>
