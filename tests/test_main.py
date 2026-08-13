@@ -224,6 +224,10 @@ def test_index_renderiza_a_tela():
     assert "Usuario" in resposta.text
     assert "Administrador" in resposta.text
     assert "Realizar cadastro" in resposta.text
+    assert resposta.text.count('autocomplete="new-password"') == 2
+    assert resposta.text.count('autocomplete="off"') >= 6
+    assert 'id="senha-cadastro"' in resposta.text
+    assert 'id="confirmar-senha"' in resposta.text
 
 
 def test_pagina_de_congratulations_exibe_nome_e_logo():
