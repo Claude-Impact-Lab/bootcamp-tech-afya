@@ -3,31 +3,144 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>User Manager</title>
+    <title>AFYA</title>
     <style>
+      :root {
+        --bg-rosa: #fdf2f8;
+        --card: #ffffff;
+        --texto: #2d1b2f;
+        --borda: #f3cfe4;
+        --botao: #d946ef;
+        --botao-hover: #c026d3;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
       body {
         font-family: system-ui, sans-serif;
-        display: grid;
-        place-items: center;
-        min-height: 100vh;
+        background: var(--bg-rosa);
+        color: var(--texto);
         margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      main {
+        width: min(520px, 90vw);
+        background: var(--card);
+        border: 1px solid var(--borda);
+        border-radius: 18px;
+        padding: 32px 24px;
+        box-shadow: 0 12px 28px rgba(217, 70, 239, 0.08);
+      }
+
+      h1 {
+        text-align: center;
+        margin: 0 0 20px;
+      }
+
+      form {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-bottom: 20px;
+      }
+
+      label {
+        font-weight: 600;
+      }
+
+      input {
+        width: 100%;
+        padding: 12px 14px;
+        border: 1px solid var(--borda);
+        border-radius: 10px;
+        font-size: 1rem;
+      }
+
+      button {
+        margin-top: 8px;
+        padding: 12px 16px;
+        background: var(--botao);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background: var(--botao-hover);
+      }
+
+      #aviso {
+        text-align: center;
+        min-height: 24px;
+        margin: 0 0 12px;
       }
     </style>
   </head>
   <body>
-    <h1 id="mensagem">carregando...</h1>
+    <main>
+      <h1>AFYA</h1>
+
+      <form id="form-usuario">
+        <label for="name">Nome</label>
+        <input id="name" name="name" type="text" placeholder="Digite o nome" required />
+        <label for="password">Senha</label>
+        <input id="password" name="password" type="password" placeholder="Mínimo 6 caracteres" required />
+        <button type="submit">Cadastrar</button>
+      </form>
+
+      <p id="aviso">carregando...</p>
+    </main>
 
     <script>
-      // Busca a mensagem na API em vez de escrever no HTML:
-      // e o primeiro contato do time com fetch + JSON.
-      fetch("/health")
-        .then((resposta) => resposta.json())
-        .then((dados) => {
-          document.getElementById("mensagem").textContent = dados.message;
+      const aviso = document.getElementById("aviso");
+      const form = document.getElementById("form-usuario");
+      const inputNome = document.getElementById("name");
+      const inputSenha = document.getElementById("password");
+
+      form.addEventListener("submit", (evento) => {
+        evento.preventDefault();
+
+        const nome = inputNome.value.trim();
+        const senha = inputSenha.value.trim();
+        
+        if (!nome) {
+          aviso.textContent = "Digite um nome válido";
+          return;
+        }
+        
+        if (!senha || senha.length < 6) {
+          aviso.textContent = "Senha deve ter no mínimo 6 caracteres";
+          return;
+        }
+
+        fetch("/users", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ name: nome, password: senha }),
         })
-        .catch(() => {
-          document.getElementById("mensagem").textContent = "erro ao chamar a API";
-        });
+          .then((resposta) => {
+            if (!resposta.ok) {
+              throw new Error("erro no cadastro");
+            }
+            inputNome.value = "";
+            inputSenha.value = "";
+            aviso.textContent = "usuário cadastrado com sucesso";
+          })
+          .catch(() => {
+            aviso.textContent = "erro ao cadastrar usuário";
+          });
+      });
     </script>
   </body>
 </html>
