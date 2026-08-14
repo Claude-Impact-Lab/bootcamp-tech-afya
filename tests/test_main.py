@@ -47,3 +47,18 @@ def test_lista_vazia_continua_sendo_sucesso(monkeypatch):
 
     assert resposta.status_code == 200
     assert resposta.json() == []
+
+
+def test_cria_usuario_com_nome_valido(monkeypatch):
+    monkeypatch.setattr("app.main.USERS", [{"id": 1, "name": "Ada Lovelace"}])
+
+    resposta = client.post("/users", json={"name": "Grace Hopper"})
+
+    assert resposta.status_code == 201
+    assert resposta.json() == {"id": 2, "name": "Grace Hopper"}
+
+
+def test_nao_cria_usuario_com_nome_vazio():
+    resposta = client.post("/users", json={"name": ""})
+
+    assert resposta.status_code == 422
