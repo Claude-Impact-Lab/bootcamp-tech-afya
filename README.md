@@ -222,6 +222,18 @@ uv run alembic upgrade head
 
 Para desfazer a última migration localmente: `uv run alembic downgrade -1`.
 
+### Cadastro público e painel administrativo
+
+A página inicial (`/`) recebe nome e e-mail, mas não revela a lista de cadastros.
+O painel protegido fica em:
+
+<http://127.0.0.1:8000/admin>
+
+No ambiente local de demonstração, use o nome `santanna` e a senha definida em
+`ADMIN_PASSWORD` no arquivo `.env`. Pelo painel, o administrador pode consultar, editar
+ou excluir um cadastro. As rotas de consulta e alteração em `/users` também exigem a
+sessão administrativa, inclusive quando chamadas pela página `/docs`.
+
 ### Se algo der errado
 
 | Mensagem | O que fazer |
