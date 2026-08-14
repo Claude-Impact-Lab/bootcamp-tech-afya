@@ -54,3 +54,26 @@ def test_a_tela_nao_tem_nome_escrito_no_html():
 
     for usuario in main.usuarios:
         assert usuario["nome"] not in html
+
+
+def test_post_users_cria_usuario():
+    resp = client.post(
+        "/users", json={"nome": "Ana", "email": "ana@example.com"})
+    assert resp.status_code == 201
+    data = resp.json()
+    assert "id" in data
+    assert data["nome"] == "Ana"
+
+
+def test_post_users_valida_campos():
+    resp = client.post("/users", json={"nome": "SóNome"})
+    assert resp.status_code == 422
+    resp = client.post("/users", json={"nome": "X", "email": "not-an-email"})
+    assert resp.status_code == 422
+
+
+def test_post_users_duplicado():
+    client.post("/users", json={"nome": "B", "email": "dup@example.com"})
+    resp = client.post(
+        "/users", json={"nome": "C", "email": "dup@example.com"})
+    assert resp.status_code == 409
