@@ -16,7 +16,7 @@ def test_index_renderiza_a_tela():
     resposta = client.get("/")
 
     assert resposta.status_code == 200
-    assert "User Manager" in resposta.text
+    assert "AFYA" in resposta.text
 
 
 def test_a_tela_nao_traz_nenhum_nome_escrito_no_html():
@@ -52,13 +52,19 @@ def test_lista_vazia_continua_sendo_sucesso(monkeypatch):
 def test_cria_usuario_com_nome_valido(monkeypatch):
     monkeypatch.setattr("app.main.USERS", [{"id": 1, "name": "Ada Lovelace"}])
 
-    resposta = client.post("/users", json={"name": "Grace Hopper"})
+    resposta = client.post("/users", json={"name": "Grace Hopper", "password": "senha123"})
 
     assert resposta.status_code == 201
     assert resposta.json() == {"id": 2, "name": "Grace Hopper"}
 
 
 def test_nao_cria_usuario_com_nome_vazio():
-    resposta = client.post("/users", json={"name": ""})
+    resposta = client.post("/users", json={"name": "", "password": "senha123"})
+
+    assert resposta.status_code == 422
+
+
+def test_nao_cria_usuario_com_senha_curta():
+    resposta = client.post("/users", json={"name": "Maria", "password": "123"})
 
     assert resposta.status_code == 422

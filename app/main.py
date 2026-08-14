@@ -12,14 +12,12 @@ templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 # Enquanto nao existe banco, os usuarios moram aqui: uma lista em memoria.
 # Ela volta ao estado original toda vez que o servidor reinicia.
-USERS = [
-    {"id": 1, "name": "Ada Lovelace"},
-    {"id": 2, "name": "Alan Turing"},
-]
+USERS = []
 
 
 class UserCreate(BaseModel):
     name: str = Field(min_length=1)
+    password: str = Field(min_length=6)
 
     @field_validator("name")
     @classmethod
@@ -28,6 +26,13 @@ class UserCreate(BaseModel):
         if not normalized:
             raise ValueError("name must not be empty")
         return normalized
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        if len(value) < 6:
+            raise ValueError("password must be at least 6 characters")
+        return value
 
 
 @app.get("/health")
