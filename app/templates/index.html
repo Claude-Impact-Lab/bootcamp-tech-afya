@@ -17,6 +17,13 @@
   <body>
     <main>
       <h1>Usuários</h1>
+
+      <form id="form-usuario">
+        <label for="name">Nome</label>
+        <input id="name" name="name" type="text" placeholder="Digite o nome" required />
+        <button type="submit">Cadastrar</button>
+      </form>
+
       <p id="aviso">carregando...</p>
       <ul id="usuarios"></ul>
     </main>
@@ -24,27 +31,60 @@
     <script>
       const aviso = document.getElementById("aviso");
       const lista = document.getElementById("usuarios");
+      const form = document.getElementById("form-usuario");
+      const inputNome = document.getElementById("name");
 
-      // Busca os dados na API em vez de escrever no HTML:
-      // e o primeiro contato do time com fetch + JSON.
-      fetch("/users")
-        .then((resposta) => resposta.json())
-        .then((usuarios) => {
-          // Lista vazia nao e erro: e sucesso com zero itens.
-          aviso.textContent =
-            usuarios.length === 0 ? "nenhum usuário cadastrado ainda" : "";
+      function renderizarUsuarios(usuarios) {
+        lista.innerHTML = "";
+        aviso.textContent =
+          usuarios.length === 0 ? "nenhum usuário cadastrado ainda" : "";
 
-          // O HTML nao sabe de antemao quantos usuarios existem,
-          // entao cada <li> nasce aqui, a partir da resposta da API.
-          usuarios.forEach((usuario) => {
-            const item = document.createElement("li");
-            item.textContent = `${usuario.id} — ${usuario.name}`;
-            lista.appendChild(item);
-          });
-        })
-        .catch(() => {
-          aviso.textContent = "erro ao chamar a API";
+        usuarios.forEach((usuario) => {
+          const item = document.createElement("li");
+          item.textContent = `${usuario.id} — ${usuario.name}`;
+          lista.appendChild(item);
         });
+      }
+
+      function carregarUsuarios() {
+        fetch("/users")
+          .then((resposta) => resposta.json())
+          .then((usuarios) => renderizarUsuarios(usuarios))
+          .catch(() => {
+            aviso.textContent = "erro ao chamar a API";
+          });
+      }
+
+      form.addEventListener("submit", (evento) => {
+        evento.preventDefault();
+
+        const nome = inputNome.value.trim();
+        if (!nome) {
+          aviso.textContent = "Digite um nome válido";
+          return;
+        }
+
+        fetch("/users", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ name: nome }),
+        })
+          .then((resposta) => {
+            if (!resposta.ok) {
+              throw new Error("erro no cadastro");
+            }
+            inputNome.value = "";
+            aviso.textContent = "usuário cadastrado com sucesso";
+            return carregarUsuarios();
+          })
+          .catch(() => {
+            aviso.textContent = "erro ao cadastrar usuário";
+          });
+      });
+
+      carregarUsuarios();
     </script>
   </body>
 </html>
