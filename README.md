@@ -224,7 +224,21 @@ Para desfazer a última migration localmente: `uv run alembic downgrade -1`.
 
 ### Cadastro público e painel administrativo
 
-A página inicial (`/`) recebe nome e e-mail, mas não revela a lista de cadastros.
+A página inicial (`/`) recebe nome, e-mail, CRM e UF, mas não revela a lista de cadastros.
+O cadastro cria o usuário e seu perfil médico juntos: se uma parte falhar, nenhuma das
+duas é gravada. A relação é um-para-um — cada usuário pode possuir no máximo um perfil
+médico. A validação de negócio do CRM e da UF será acrescentada na missão 06.
+
+Rotas dessa relação:
+
+| Método e rota | Função |
+|---------------|--------|
+| `POST /registrations` | cria usuário e perfil médico juntos |
+| `PUT /registrations/{user_id}` | edita os dois perfis juntos |
+| `POST /users/{user_id}/doctor` | adiciona perfil médico a um usuário existente |
+| `GET /users/{user_id}/doctor` | consulta o perfil médico |
+| `PUT /users/{user_id}/doctor` | edita CRM e UF |
+
 O painel protegido fica em:
 
 <http://127.0.0.1:8000/admin>

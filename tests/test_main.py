@@ -230,6 +230,163 @@ def test_create_user_email_invalido_retorna_mensagem_em_portugues(db_isolado):
     assert "EMAIL NÃO É VÁLIDO" in resposta.json()["detail"][0]["msg"]
 
 
+def test_registration_cria_usuario_e_perfil_medico_juntos(db_isolado):
+    resposta = client.post(
+        "/registrations",
+        json={
+            "user": {"nome": "Carla Dias", "email": "carla@exemplo.com"},
+            "doctor": {"crm": "123456", "uf": "sp"},
+        },
+    )
+
+    assert resposta.status_code == 201
+    assert resposta.json()["nome"] == "Carla Dias"
+    assert resposta.json()["doctor"]["crm"] == "123456"
+    assert resposta.json()["doctor"]["uf"] == "SP"
+
+    usuarios = client.get("/users").json()
+    assert usuarios[0]["doctor"]["user_id"] == usuarios[0]["id"]
+
+
+def test_registration_com_crm_e_uf_repetidos_retorna_409(db_isolado):
+    client.post(
+        "/registrations",
+        json={
+            "user": {"nome": "Carla Dias", "email": "carla@exemplo.com"},
+            "doctor": {"crm": "123456", "uf": "SP"},
+        },
+    )
+
+    resposta = client.post(
+        "/registrations",
+        json={
+            "user": {"nome": "Dora Reis", "email": "dora@exemplo.com"},
+            "doctor": {"crm": "123456", "uf": "SP"},
+        },
+    )
+
+    assert resposta.status_code == 409
+    assert len(client.get("/users").json()) == 1
+
+
+def test_registration_com_uf_mal_formatada_retorna_422(db_isolado):
+    resposta = client.post(
+        "/registrations",
+        json={
+            "user": {"nome": "Carla Dias", "email": "carla@exemplo.com"},
+            "doctor": {"crm": "123456", "uf": "S"},
+        },
+    )
+
+    assert resposta.status_code == 422
+    assert client.get("/users").json() == []
+
+
+def test_admin_associa_e_consulta_perfil_medico(db_isolado):
+    adicionar_usuarios(db_isolado, [{"nome": "Ana Souza", "email": "ana@exemplo.com"}])
+
+    criacao = client.post("/users/1/doctor", json={"crm": "654321", "uf": "rj"})
+    consulta = client.get("/users/1/doctor")
+
+    assert criacao.status_code == 201
+    assert consulta.status_code == 200
+    assert consulta.json() == {
+        "id": 1,
+        "user_id": 1,
+        "crm": "654321",
+        "uf": "RJ",
+    }
+
+
+def test_usuario_nao_recebe_dois_perfis_medicos_pela_api(db_isolado):
+    adicionar_usuarios(db_isolado, [{"nome": "Ana Souza", "email": "ana@exemplo.com"}])
+    client.post("/users/1/doctor", json={"crm": "123456", "uf": "SP"})
+
+    resposta = client.post("/users/1/doctor", json={"crm": "654321", "uf": "RJ"})
+
+    assert resposta.status_code == 409
+
+
+def test_perfil_medico_de_usuario_inexistente_retorna_404(db_isolado):
+    resposta = client.post("/users/999/doctor", json={"crm": "123456", "uf": "SP"})
+
+    assert resposta.status_code == 404
+
+
+def test_admin_atualiza_usuario_e_perfil_medico_juntos(db_isolado):
+    client.post(
+        "/registrations",
+        json={
+            "user": {"nome": "Carla Dias", "email": "carla@exemplo.com"},
+            "doctor": {"crm": "123456", "uf": "SP"},
+        },
+    )
+
+    resposta = client.put(
+        "/registrations/1",
+        json={
+            "user": {"nome": "Carla de Souza", "email": "carla.souza@exemplo.com"},
+            "doctor": {"crm": "654321", "uf": "RJ"},
+        },
+    )
+
+    assert resposta.status_code == 200
+    assert resposta.json()["nome"] == "Carla de Souza"
+    assert resposta.json()["doctor"]["crm"] == "654321"
+    assert resposta.json()["doctor"]["uf"] == "RJ"
+
+
+def test_admin_nao_atualiza_para_crm_de_outro_medico(db_isolado):
+    for nome, email, crm in (
+        ("Carla Dias", "carla@exemplo.com", "111111"),
+        ("Dora Reis", "dora@exemplo.com", "222222"),
+    ):
+        client.post(
+            "/registrations",
+            json={
+                "user": {"nome": nome, "email": email},
+                "doctor": {"crm": crm, "uf": "SP"},
+            },
+        )
+
+    resposta = client.put(
+        "/registrations/2",
+        json={
+            "user": {"nome": "Dora Reis", "email": "dora@exemplo.com"},
+            "doctor": {"crm": "111111", "uf": "SP"},
+        },
+    )
+
+    assert resposta.status_code == 409
+    assert client.get("/users/2/doctor").json()["crm"] == "222222"
+
+
+def test_admin_pode_adicionar_perfil_ao_editar_usuario_antigo(db_isolado):
+    adicionar_usuarios(db_isolado, [{"nome": "Ana Souza", "email": "ana@exemplo.com"}])
+
+    resposta = client.put(
+        "/registrations/1",
+        json={
+            "user": {"nome": "Ana Souza", "email": "ana@exemplo.com"},
+            "doctor": {"crm": "333333", "uf": "MG"},
+        },
+    )
+
+    assert resposta.status_code == 200
+    assert resposta.json()["doctor"]["uf"] == "MG"
+
+
+def test_admin_atualiza_apenas_o_perfil_medico(db_isolado):
+    adicionar_usuarios(db_isolado, [{"nome": "Ana Souza", "email": "ana@exemplo.com"}])
+    client.post("/users/1/doctor", json={"crm": "123456", "uf": "SP"})
+
+    resposta = client.put("/users/1/doctor", json={"crm": "654321", "uf": "PR"})
+
+    assert resposta.status_code == 200
+    assert resposta.json()["crm"] == "654321"
+    assert resposta.json()["uf"] == "PR"
+
+
 def test_list_users_exige_login_de_admin(db_isolado):
     client.post("/admin/logout")
 
@@ -310,6 +467,10 @@ def test_delete_user_e_idempotente(db_isolado):
 def test_index_tem_formulario_que_envia_post():
     assert '<form id="form-novo"' in INDEX_HTML
     assert 'method: "POST"' in INDEX_HTML
+    assert 'id="campo-crm"' in INDEX_HTML
+    assert '<select id="campo-uf"' in INDEX_HTML
+    assert '<option value="SP">São Paulo (SP)</option>' in INDEX_HTML
+    assert 'fetch("/registrations",' in INDEX_HTML
 
 
 def test_index_nao_tem_nomes_fixos_no_html():
@@ -330,3 +491,7 @@ def test_admin_tem_login_e_acoes():
     assert 'criarBotao("Editar"' in admin_html
     assert 'criarBotao("Excluir"' in admin_html
     assert 'method: "PUT"' in admin_html
+    assert "user.doctor?.crm" in admin_html
+    assert 'id="edicao-crm"' in admin_html
+    assert '<select id="edicao-uf"' in admin_html
+    assert 'requisicao(`/registrations/${usuarioEmEdicao.id}`' in admin_html
