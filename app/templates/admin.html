@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Gestão de acessos médicos</title>
+    <style>
+      :root {
+        --background: #121214; --card: #202024; --input: #121214; --border: #323238;
+        --text: #e1e1e6; --muted: #a8a8b3; --blue: #2563eb; --blue-hover: #1d4ed8;
+        --danger: #dc2626; --danger-hover: #b91c1c; --secondary: #3f3f46;
+        --secondary-hover: #52525b; --row: #29292e;
+      }
+      body.tema-claro {
+        --background: #f4f4f5; --card: #fff; --input: #fff; --border: #d4d4d8;
+        --text: #27272a; --muted: #52525b; --secondary: #71717a;
+        --secondary-hover: #52525b; --row: #f4f4f5;
+      }
+      * { box-sizing: border-box; }
+      body {
+        min-height: 100vh; margin: 0; padding: 2rem 1rem; background: var(--background);
+        color: var(--text); font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      main { position: relative; width: 100%; max-width: 68rem; margin: auto; }
+      h1 { margin: 0; text-align: center; }
+      h2 { margin: .5rem 0 2rem; color: var(--muted); font-size: 1.05rem; font-weight: 400; text-align: center; }
+      h3 { margin: 0; }
+      .card {
+        padding: 1.5rem; border: 1px solid var(--border); border-radius: .75rem;
+        background: var(--card); box-shadow: 0 .75rem 2rem rgba(0, 0, 0, .25);
+      }
+      form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 1rem; align-items: end; }
+      label { display: flex; flex-direction: column; gap: .4rem; font-size: .9rem; font-weight: 600; }
+      input {
+        width: 100%; padding: .75rem; border: 1px solid var(--border); border-radius: .5rem;
+        outline: none; background: var(--input); color: var(--text); font: inherit;
+      }
+      input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37, 99, 235, .25); }
+      button {
+        padding: .65rem 1rem; border: 0; border-radius: .5rem; background: var(--blue);
+        color: #fff; cursor: pointer; font: inherit; font-weight: 700;
+        transition: background .2s, transform .2s;
+      }
+      button:hover { background: var(--blue-hover); transform: translateY(-1px); }
+      button:disabled { opacity: .55; cursor: default; transform: none; }
+      button.secundario { background: var(--secondary); }
+      button.secundario:hover { background: var(--secondary-hover); }
+      button.excluir { background: var(--danger); }
+      button.excluir:hover { background: var(--danger-hover); }
+      #botao-tema {
+        position: absolute; top: 0; right: 0; padding: .4rem .6rem;
+        border: 1px solid var(--border); background: transparent; color: var(--text); font-size: .65rem;
+      }
+      .mensagem { margin: 1rem 0 0; color: #fda4af; }
+      .topo-painel { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: 1.5rem; }
+      .table-container { margin-top: 1rem; overflow-x: auto; border: 1px solid var(--border); border-radius: .75rem; background: var(--card); }
+      table { width: 100%; border-collapse: collapse; text-align: left; }
+      th, td { padding: .9rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+      th { color: var(--muted); font-size: .75rem; letter-spacing: .03em; text-transform: uppercase; }
+      tbody tr:hover { background: var(--row); }
+      tbody tr:last-child td { border-bottom: 0; }
+      .acoes { display: flex; flex-wrap: wrap; gap: .45rem; }
+      .acoes button { padding: .5rem .7rem; font-size: .82rem; }
+      #edicao-card { margin-top: 1rem; }
+      #edicao-card h3 { margin-bottom: 1rem; }
+      .botoes-form { display: flex; gap: .5rem; }
+      .link { display: inline-block; margin-top: 1.25rem; color: var(--muted); }
+      #vazio { padding: 1.25rem; text-align: center; color: var(--muted); }
+      [hidden] { display: none !important; }
+      @media (max-width: 760px) {
+        main { padding-top: 2.5rem; }
+        form { grid-template-columns: 1fr; }
+        form button { width: 100%; }
+        .botoes-form { flex-direction: column; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Gestão de acessos médicos</h1>
+      <h2>Consulte e gerencie os cadastros profissionais.</h2>
+      <button id="botao-tema" type="button">TEMA CLARO/ESCURO</button>
+
+      <section id="login-card" class="card">
+        <form id="form-login" novalidate>
+          <label>Administrador<input id="nome-admin" required autocomplete="username" /></label>
+          <label>Senha<input id="senha-admin" type="password" required autocomplete="current-password" /></label>
+          <button type="submit">Entrar</button>
+        </form>
+        <p id="erro-login" class="mensagem" role="alert" hidden></p>
+      </section>
+
+      <section id="painel" hidden>
+        <div class="topo-painel">
+          <h3>Profissionais cadastrados</h3>
+          <button id="sair" class="secundario" type="button">Sair</button>
+        </div>
+        <p id="aviso-painel" class="mensagem" role="alert" hidden></p>
+
+        <section id="edicao-card" class="card" hidden>
+          <h3>Editar cadastro profissional</h3>
+          <form id="form-edicao" novalidate>
+            <label>Nome completo<input id="edicao-nome" required minlength="2" /></label>
+            <label>E-mail profissional<input id="edicao-email" type="email" required /></label>
+            <div class="botoes-form">
+              <button id="salvar-edicao" type="submit">Salvar</button>
+              <button id="cancelar-edicao" class="secundario" type="button">Cancelar</button>
+            </div>
+          </form>
+          <p id="erro-edicao" class="mensagem" role="alert" hidden></p>
+        </section>
+
+        <div class="table-container">
+          <table>
+            <thead><tr><th>ID</th><th>Nome</th><th>E-mail</th><th>Ações</th></tr></thead>
+            <tbody id="lista"></tbody>
+          </table>
+          <p id="vazio" hidden>Nenhum profissional cadastrado.</p>
+        </div>
+      </section>
+      <a class="link" href="/">Voltar ao cadastro profissional</a>
+    </main>
+
+    <script>
+      const loginCard = document.getElementById("login-card");
+      const painel = document.getElementById("painel");
+      const lista = document.getElementById("lista");
+      const vazio = document.getElementById("vazio");
+      const erroLogin = document.getElementById("erro-login");
+      const avisoPainel = document.getElementById("aviso-painel");
+      const edicaoCard = document.getElementById("edicao-card");
+      const erroEdicao = document.getElementById("erro-edicao");
+      const campoEdicaoNome = document.getElementById("edicao-nome");
+      const campoEdicaoEmail = document.getElementById("edicao-email");
+      const botaoTema = document.getElementById("botao-tema");
+      let usuarioEmEdicao = null;
+
+      function aplicarTema(tema) { document.body.classList.toggle("tema-claro", tema === "claro"); }
+      aplicarTema(localStorage.getItem("tema") || "escuro");
+      botaoTema.addEventListener("click", () => {
+        const tema = document.body.classList.contains("tema-claro") ? "escuro" : "claro";
+        aplicarTema(tema);
+        localStorage.setItem("tema", tema);
+      });
+
+      function detalheDoErro(corpo, statusResposta) {
+        if (typeof corpo?.detail === "string") return corpo.detail;
+        if (Array.isArray(corpo?.detail)) {
+          return corpo.detail.map((erro) => String(erro.msg || "Dados inválidos").replace("Value error, ", "")).join("; ");
+        }
+        return `Não foi possível concluir a operação (${statusResposta}).`;
+      }
+
+      function requisicao(url, opcoes = {}) {
+        return fetch(url, opcoes).then(async (resposta) => {
+          const corpo = resposta.status === 204 ? null : await resposta.json();
+          if (!resposta.ok) throw new Error(detalheDoErro(corpo, resposta.status));
+          return corpo;
+        });
+      }
+
+      function criarBotao(texto, classe, acao) {
+        const botao = document.createElement("button");
+        botao.type = "button";
+        botao.textContent = texto;
+        if (classe) botao.className = classe;
+        botao.addEventListener("click", acao);
+        return botao;
+      }
+
+      function abrirEdicao(user) {
+        usuarioEmEdicao = user.id;
+        campoEdicaoNome.value = user.nome;
+        campoEdicaoEmail.value = user.email;
+        erroEdicao.hidden = true;
+        edicaoCard.hidden = false;
+        campoEdicaoNome.focus();
+        edicaoCard.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+
+      function fecharEdicao() {
+        usuarioEmEdicao = null;
+        edicaoCard.hidden = true;
+        erroEdicao.hidden = true;
+      }
+
+      function desenhar(users) {
+        lista.replaceChildren();
+        vazio.hidden = users.length > 0;
+        users.forEach((user) => {
+          const linha = document.createElement("tr");
+          for (const valor of [user.id, user.nome, user.email]) {
+            const celula = document.createElement("td");
+            celula.textContent = valor;
+            linha.appendChild(celula);
+          }
+          const acoes = document.createElement("td");
+          acoes.className = "acoes";
+          acoes.append(
+            criarBotao("Editar", "secundario", () => abrirEdicao(user)),
+            criarBotao("Excluir", "excluir", () => excluirUsuario(user.id)),
+          );
+          linha.appendChild(acoes);
+          lista.appendChild(linha);
+        });
+      }
+
+      function carregar() {
+        avisoPainel.hidden = true;
+        return requisicao("/users")
+          .then((users) => {
+            loginCard.hidden = true;
+            painel.hidden = false;
+            desenhar(users);
+          })
+          .catch(() => {
+            loginCard.hidden = false;
+            painel.hidden = true;
+          });
+      }
+
+      function excluirUsuario(id) {
+        if (!confirm("Excluir definitivamente este cadastro?")) return;
+        avisoPainel.hidden = true;
+        requisicao(`/users/${id}`, { method: "DELETE" })
+          .then(() => {
+            if (usuarioEmEdicao === id) fecharEdicao();
+            return carregar();
+          })
+          .catch((erro) => {
+            avisoPainel.textContent = erro.message;
+            avisoPainel.hidden = false;
+          });
+      }
+
+      document.getElementById("form-edicao").addEventListener("submit", (evento) => {
+        evento.preventDefault();
+        if (usuarioEmEdicao === null) return;
+        erroEdicao.hidden = true;
+        requisicao(`/users/${usuarioEmEdicao}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nome: campoEdicaoNome.value, email: campoEdicaoEmail.value }),
+        })
+          .then(() => {
+            fecharEdicao();
+            return carregar();
+          })
+          .catch((erro) => {
+            erroEdicao.textContent = erro.message;
+            erroEdicao.hidden = false;
+          });
+      });
+
+      document.getElementById("cancelar-edicao").addEventListener("click", fecharEdicao);
+      document.getElementById("form-login").addEventListener("submit", (evento) => {
+        evento.preventDefault();
+        erroLogin.hidden = true;
+        requisicao("/admin/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            nome: document.getElementById("nome-admin").value,
+            senha: document.getElementById("senha-admin").value,
+          }),
+        }).then(carregar).catch((erro) => {
+          erroLogin.textContent = erro.message;
+          erroLogin.hidden = false;
+        });
+      });
+
+      document.getElementById("sair").addEventListener("click", () => {
+        requisicao("/admin/logout", { method: "POST" }).then(() => {
+          fecharEdicao();
+          painel.hidden = true;
+          loginCard.hidden = false;
+        });
+      });
+      carregar();
+    </script>
+  </body>
+</html>
