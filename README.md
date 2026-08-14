@@ -227,7 +227,8 @@ Para desfazer a última migration localmente: `uv run alembic downgrade -1`.
 A página inicial (`/`) recebe nome, e-mail, CRM e UF, mas não revela a lista de cadastros.
 O cadastro cria o usuário e seu perfil médico juntos: se uma parte falhar, nenhuma das
 duas é gravada. A relação é um-para-um — cada usuário pode possuir no máximo um perfil
-médico. A validação de negócio do CRM e da UF será acrescentada na missão 06.
+médico. Na Missão 06, o CRM passou a aceitar apenas números e a UF passou a aceitar
+somente as 27 siglas oficiais brasileiras. A combinação CRM + UF continua única.
 
 Rotas dessa relação:
 

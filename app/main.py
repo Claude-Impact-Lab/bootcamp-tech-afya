@@ -38,6 +38,13 @@ Nome = Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max
 CRM = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20)]
 UF = Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=2, to_upper=True)]
 email_validator = TypeAdapter(EmailStr)
+UFS_BRASILEIRAS = frozenset(
+    {
+        "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO",
+        "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI",
+        "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO",
+    }
+)
 
 
 class UserIn(BaseModel):
@@ -61,10 +68,24 @@ class UserIn(BaseModel):
 
 
 class DoctorIn(BaseModel):
-    """Dados profissionais do perfil médico; as regras de negócio entram na missão 06."""
+    """Dados profissionais do perfil médico validados pela Missão 06."""
 
     crm: CRM
     uf: UF
+
+    @field_validator("crm")
+    @classmethod
+    def validar_crm(cls, value: str) -> str:
+        if not value.isdigit():
+            raise ValueError("CRM deve conter apenas números")
+        return value
+
+    @field_validator("uf")
+    @classmethod
+    def validar_uf(cls, value: str) -> str:
+        if value not in UFS_BRASILEIRAS:
+            raise ValueError("UF deve ser uma sigla de estado brasileiro válida")
+        return value
 
 
 class DoctorRegistrationIn(BaseModel):

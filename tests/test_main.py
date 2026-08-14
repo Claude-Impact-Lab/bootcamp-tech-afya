@@ -282,6 +282,27 @@ def test_registration_com_uf_mal_formatada_retorna_422(db_isolado):
     assert client.get("/users").json() == []
 
 
+@pytest.mark.parametrize(
+    ("crm", "uf", "mensagem"),
+    [
+        ("12A456", "SP", "CRM deve conter apenas números"),
+        ("123456", "XX", "UF deve ser uma sigla de estado brasileiro válida"),
+    ],
+)
+def test_registration_rejeita_crm_ou_uf_invalidos_na_regra_de_negocio(db_isolado, crm, uf, mensagem):
+    resposta = client.post(
+        "/registrations",
+        json={
+            "user": {"nome": "Carla Dias", "email": "carla@exemplo.com"},
+            "doctor": {"crm": crm, "uf": uf},
+        },
+    )
+
+    assert resposta.status_code == 422
+    assert mensagem in resposta.json()["detail"][0]["msg"]
+    assert client.get("/users").json() == []
+
+
 def test_admin_associa_e_consulta_perfil_medico(db_isolado):
     adicionar_usuarios(db_isolado, [{"nome": "Ana Souza", "email": "ana@exemplo.com"}])
 
