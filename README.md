@@ -216,13 +216,31 @@ recarregue a página, veja a mudança.
 | `src refspec main does not match any` | Você não tem commits ainda. Rode `git status` para ver o que falta. |
 | Travou numa tela de texto após o commit | É o editor de texto do Git. Aperte `Esc`, digite `:q` e Enter. Use `git commit -m "mensagem"` para não cair nele. |
 
+## Status das Missões
+
+| Missão | Descrição | Status |
+|--------|-----------|--------|
+| 01 | GET /users — Listar usuários | ✅ Concluída |
+| 02 | POST /users — Criar usuário com validação | ✅ Concluída |
+| 03 | Banco de dados com SQLAlchemy | ✅ Concluída |
+| 04 | PUT e DELETE — CRUD completo | ✅ Concluída |
+| 05 | Relacionamentos (User ↔ Doctor) | ⏳ Próxima |
+| 06 | Autenticação com JWT | ⏳ Próxima |
+| 07 | Agendamentos (Appointments) | ⏳ Próxima |
+| 08 | Filtros e paginação | ⏳ Próxima |
+
 ## Testes
 
 ```bash
 uv run pytest
 ```
 
-Devem passar 2 testes. Se algum falhar, a mensagem diz qual e por quê.
+Devem passar **12 testes**. Se algum falhar, a mensagem diz qual e por quê.
+
+```bash
+uv run pytest -v      # Modo verbose (detalhado)
+uv run pytest --cov   # Com cobertura de código
+```
 
 ---
 
@@ -230,12 +248,22 @@ Devem passar 2 testes. Se algum falhar, a mensagem diz qual e por quê.
 
 ```
 app/
-  main.py              as rotas da aplicacao
+  main.py              as rotas da aplicação (GET, POST, PUT, DELETE)
+  models.py            modelos SQLAlchemy e schemas Pydantic
+  database.py          configuração de banco de dados
   templates/
-    index.html         a tela
+    index.html         a tela com formulário de registro
 tests/
-  test_main.py         os testes
+  test_main.py         12 testes automatizados
 pyproject.toml         a lista de bibliotecas do projeto
+data.db                banco SQLite (gerado automaticamente)
+
+Documentação:
+  AULA_MISSOES_01_02.md    conceitos HTTP, JSON, validação
+  AULA_MISSOES_03_04.md    banco de dados, CRUD, testes
+  API_REFERENCIA.md        referência completa dos endpoints
+  RESUMO_FINAL.md          resumo visual das missões 01-04
+  PROGRESSO.md             status e próximos passos
 ```
 
 Ainda **não** existem pastas para `services`, `repositories` ou integrações. Elas
@@ -247,6 +275,28 @@ claro antes de ela existir.
 O `index.html` não tem a palavra "Hello World" escrita nele. Ele chama a API com
 `fetch("/health")` e escreve na página o que a API respondeu. É o primeiro contato
 com HTTP + JSON: se a API cair, a tela mostra o erro em vez do texto.
+
+---
+
+## Documentação do Projeto
+
+### Para aprender
+
+- **[AULA_MISSOES_01_02.md](./AULA_MISSOES_01_02.md)** — Conceitos de HTTP, JSON, Validação Pydantic
+- **[AULA_MISSOES_03_04.md](./AULA_MISSOES_03_04.md)** — SQLAlchemy, banco de dados, CRUD, testes
+- **[RESUMO_FINAL.md](./RESUMO_FINAL.md)** — Resumo visual com arquitetura e fluxos
+
+### Para consultar
+
+- **[API_REFERENCIA.md](./API_REFERENCIA.md)** — Todos os endpoints com exemplos curl e PowerShell
+- **[PROGRESSO.md](./PROGRESSO.md)** — Status atual e próximas missões
+
+### Documentação automática
+
+Enquanto o servidor está rodando, acesse:
+
+- **Swagger UI:** http://127.0.0.1:8000/docs — Interface interativa para testar a API
+- **ReDoc:** http://127.0.0.1:8000/redoc — Documentação em formato elegante
 
 ---
 
