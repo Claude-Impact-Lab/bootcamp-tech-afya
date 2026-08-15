@@ -1,9 +1,22 @@
+import pytest
 from fastapi.testclient import TestClient
 
-from app import main
+from app import models
 from app.main import app
+from app.database import SessionLocal
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def limpar_usuarios():
+    """Garante que cada teste comeca com a tabela users vazia,
+    evitando que um teste 'contamine' o resultado do outro."""
+    db = SessionLocal()
+    db.query(models.User).delete()
+    db.commit()
+    db.close()
+    yield
 
 
 def test_health_retorna_ok():
@@ -17,10 +30,12 @@ def test_index_renderiza_a_tela():
     resposta = client.get("/")
 
     assert resposta.status_code == 200
-    assert "User Manager" in resposta.text
+    assert "Afya" in resposta.text
 
 
 def test_users_devolve_a_lista_em_json():
+    client.post("/users", json={"nome": "Zeca", "email": "zeca@example.com"})
+
     resposta = client.get("/users")
 
     assert resposta.status_code == 200
@@ -31,6 +46,8 @@ def test_users_devolve_a_lista_em_json():
 
 
 def test_cada_usuario_tem_id_e_nome():
+    client.post("/users", json={"nome": "Zeca", "email": "zeca@example.com"})
+
     usuarios = client.get("/users").json()
 
     for usuario in usuarios:
@@ -38,10 +55,8 @@ def test_cada_usuario_tem_id_e_nome():
         assert "nome" in usuario
 
 
-def test_users_sem_usuarios_ainda_e_sucesso(monkeypatch):
+def test_users_sem_usuarios_ainda_e_sucesso():
     """Lista vazia nao e erro: continua 200, so que com []."""
-    monkeypatch.setattr(main, "usuarios", [])
-
     resposta = client.get("/users")
 
     assert resposta.status_code == 200
@@ -50,9 +65,12 @@ def test_users_sem_usuarios_ainda_e_sucesso(monkeypatch):
 
 def test_a_tela_nao_tem_nome_escrito_no_html():
     """Os nomes tem que vir da API, nao do template."""
-    html = client.get("/").text
+    client.post("/users", json={"nome": "Zeca", "email": "zeca@example.com"})
 
-    for usuario in main.usuarios:
+    html = client.get("/").text
+    usuarios = client.get("/users").json()
+
+    for usuario in usuarios:
         assert usuario["nome"] not in html
 
 

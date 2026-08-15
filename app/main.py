@@ -1,22 +1,16 @@
 from pathlib import Path
 
-from fastapi import FastAPI, Request, HTTPException, status
+from fastapi import FastAPI, Request, HTTPException, status, Depends
 from fastapi.templating import Jinja2Templates
+from sqlalchemy.orm import Session
 from app.schemas import UserCreate
+from app.database import get_db
+from app import models
 
 BASE_DIR = Path(__file__).resolve().parent
 
 app = FastAPI(title="User Manager")
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
-
-# Base de dados de mentira: uma lista na memória.
-# Quando o servidor reinicia, volta pro estado original - e isso é esperado.
-
-usuarios = [
-    {"id": 1, "nome": "Yuri Mestre", "email": "yuri@example.com"},
-    {"id": 2, "nome": "Torres Diamante", "email": "torres@macbook.com"},
-    {"id": 3, "nome": "Daniel Mestre", "email": "daniel@example.com"}
-]
 
 
 @app.get("/health")
@@ -26,12 +20,8 @@ def health() -> dict[str, str]:
 
 
 @app.get("/users")
-def listar_usuarios() -> list[dict]:
-    """Endpoint JSON: lista todos os usuários.
-
-    Lista vazia nao e erro: devolve 200 com [] e quem chama decide o que mostrar.
-    """
-    return usuarios
+def listar_usuarios(db: Session = Depends(get_db)):
+    return db.query(models.User).all()
 
 
 @app.get("/")
@@ -41,15 +31,18 @@ def index(request: Request):
 
 
 @app.post("/users", status_code=status.HTTP_201_CREATED)
-def criar_usuario(payload: UserCreate):
+def criar_usuario(payload: UserCreate, db: Session = Depends(get_db)):
     """Cria um novo usuário validado por Pydantic.
 
-    Valida o payload, previne emails duplicados e anexa o novo usuário
-    na lista em memória retornando o recurso criado com `id`.
+    Valida o payload, previne emails duplicados e persiste
+    o novo usuário no banco, retornando o recurso criado com `id`.
     """
-    if any(u["email"] == payload.email for u in usuarios):
+    email_existente = db.query(models.User).filter(models.User.email == payload.email).first()
+    if email_existente:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="E-mail já cadastrado")
-    new_id = max((u["id"] for u in usuarios), default=0) + 1
-    novo = {"id": new_id, "nome": payload.nome, "email": payload.email}
-    usuarios.append(novo)
-    return novo
+
+    novo_usuario = models.User(nome=payload.nome, email=payload.email)
+    db.add(novo_usuario)
+    db.commit()
+    db.refresh(novo_usuario)
+    return novo_usuario
