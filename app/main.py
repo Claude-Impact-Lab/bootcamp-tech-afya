@@ -3,6 +3,8 @@ from pathlib import Path
 from fastapi import FastAPI, Request, Depends, HTTPException
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, EmailStr
+import hashlib
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from fastapi import Query
 
@@ -17,6 +19,10 @@ templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
 Base.metadata.create_all(bind=engine)
 
+# adiciona coluna senha caso ainda não exista (migration simples)
+with engine.begin() as conn:
+    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS senha VARCHAR;"))
+
 # Compatibilidade com testes da missão: lista em memória
 USUARIOS: list[dict] = []
 
@@ -24,12 +30,14 @@ USUARIOS: list[dict] = []
 class UsuarioCreate(BaseModel):
     nome: str
     email: EmailStr
+    senha: str | None = None
 
 
 class UsuarioOut(BaseModel):
     id: int
     nome: str
     email: EmailStr
+    senha: str | None = None
 
     class Config:
         orm_mode = True
@@ -89,6 +97,10 @@ def atualizar_usuario(user_id: int, usuario: UsuarioCreate, admin_email: EmailSt
     """Atualiza um usuário — somente admin (André) via `admin_email` query param."""
     if admin_email != "andre.seabra@teste.com":
         raise HTTPException(status_code=403, detail="Acesso negado")
+    # helper de hash simples
+    def _hash(pw: str) -> str:
+        return hashlib.sha256(pw.encode('utf-8')).hexdigest()
+
     # se estamos usando a lista em memória, atualize-a também
     if USUARIOS:
         alvo = next((u for u in USUARIOS if u['id'] == user_id), None)
@@ -100,6 +112,8 @@ def atualizar_usuario(user_id: int, usuario: UsuarioCreate, admin_email: EmailSt
             raise HTTPException(status_code=400, detail="Email já cadastrado por outro usuário")
         alvo['nome'] = usuario.nome
         alvo['email'] = usuario.email
+        if usuario.senha:
+            alvo['senha'] = _hash(usuario.senha)
         return alvo
 
     alvo = db.query(Usuario).filter(Usuario.id == user_id).first()
@@ -113,6 +127,8 @@ def atualizar_usuario(user_id: int, usuario: UsuarioCreate, admin_email: EmailSt
 
     alvo.nome = usuario.nome
     alvo.email = usuario.email
+    if usuario.senha:
+        alvo.senha = _hash(usuario.senha)
     db.add(alvo)
     db.commit()
     db.refresh(alvo)
@@ -149,7 +165,11 @@ def criar_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db)) -> Usua
         if any(u['email'] == usuario.email for u in USUARIOS):
             raise HTTPException(status_code=400, detail="Email já cadastrado")
         novo_id = max((u['id'] for u in USUARIOS), default=0) + 1
-        novo = {"id": novo_id, "nome": usuario.nome, "email": usuario.email}
+        # armazena senha hashed se fornecida
+        senha_hashed = None
+        if usuario.senha:
+            senha_hashed = hashlib.sha256(usuario.senha.encode('utf-8')).hexdigest()
+        novo = {"id": novo_id, "nome": usuario.nome, "email": usuario.email, "senha": senha_hashed}
         USUARIOS.append(novo)
         return novo
 
@@ -157,7 +177,10 @@ def criar_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db)) -> Usua
     if db.query(Usuario).filter(Usuario.email == usuario.email).first():
         raise HTTPException(status_code=400, detail="Email já cadastrado")
 
+    # armazena senha hashed se fornecida
     novo_usuario = Usuario(nome=usuario.nome, email=usuario.email)
+    if usuario.senha:
+        novo_usuario.senha = hashlib.sha256(usuario.senha.encode('utf-8')).hexdigest()
     db.add(novo_usuario)
     db.commit()
     db.refresh(novo_usuario)
