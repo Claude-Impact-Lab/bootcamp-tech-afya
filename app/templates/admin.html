@@ -3,315 +3,74 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Gestão de acessos médicos</title>
+    <title>Validação de acessos</title>
     <style>
-      :root {
-        --background: #121214; --card: #202024; --input: #121214; --border: #323238;
-        --text: #e1e1e6; --muted: #a8a8b3; --blue: #2563eb; --blue-hover: #1d4ed8;
-        --danger: #dc2626; --danger-hover: #b91c1c; --secondary: #3f3f46;
-        --secondary-hover: #52525b; --row: #29292e;
-      }
-      body.tema-claro {
-        --background: #f4f4f5; --card: #fff; --input: #fff; --border: #d4d4d8;
-        --text: #27272a; --muted: #52525b; --secondary: #71717a;
-        --secondary-hover: #52525b; --row: #f4f4f5;
-      }
-      * { box-sizing: border-box; }
-      body {
-        min-height: 100vh; margin: 0; padding: 2rem 1rem; background: var(--background);
-        color: var(--text); font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      }
-      main { position: relative; width: 100%; max-width: 68rem; margin: auto; }
-      h1 { margin: 0; text-align: center; }
-      h2 { margin: .5rem 0 2rem; color: var(--muted); font-size: 1.05rem; font-weight: 400; text-align: center; }
-      h3 { margin: 0; }
-      .card {
-        padding: 1.5rem; border: 1px solid var(--border); border-radius: .75rem;
-        background: var(--card); box-shadow: 0 .75rem 2rem rgba(0, 0, 0, .25);
-      }
-      form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 1rem; align-items: end; }
-      label { display: flex; flex-direction: column; gap: .4rem; font-size: .9rem; font-weight: 600; }
-      input, select {
-        width: 100%; padding: .75rem; border: 1px solid var(--border); border-radius: .5rem;
-        outline: none; background: var(--input); color: var(--text); font: inherit;
-      }
-      input:focus, select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(37, 99, 235, .25); }
-      button {
-        padding: .65rem 1rem; border: 0; border-radius: .5rem; background: var(--blue);
-        color: #fff; cursor: pointer; font: inherit; font-weight: 700;
-        transition: background .2s, transform .2s;
-      }
-      button:hover { background: var(--blue-hover); transform: translateY(-1px); }
-      button:disabled { opacity: .55; cursor: default; transform: none; }
-      button.secundario { background: var(--secondary); }
-      button.secundario:hover { background: var(--secondary-hover); }
-      button.excluir { background: var(--danger); }
-      button.excluir:hover { background: var(--danger-hover); }
-      #botao-tema {
-        position: absolute; top: 0; right: 0; padding: .4rem .6rem;
-        border: 1px solid var(--border); background: transparent; color: var(--text); font-size: .65rem;
-      }
-      .mensagem { margin: 1rem 0 0; color: #fda4af; }
-      .topo-painel { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: 1.5rem; }
-      .table-container { margin-top: 1rem; overflow-x: auto; border: 1px solid var(--border); border-radius: .75rem; background: var(--card); }
-      table { width: 100%; border-collapse: collapse; text-align: left; }
-      th, td { padding: .9rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
-      th { color: var(--muted); font-size: .75rem; letter-spacing: .03em; text-transform: uppercase; }
-      tbody tr:hover { background: var(--row); }
-      tbody tr:last-child td { border-bottom: 0; }
-      .acoes { display: flex; flex-wrap: wrap; gap: .45rem; }
-      .acoes button { padding: .5rem .7rem; font-size: .82rem; }
-      #edicao-card { margin-top: 1rem; }
-      #edicao-card h3 { margin-bottom: 1rem; }
-      #form-edicao { grid-template-columns: 1fr 1fr; }
-      .botoes-form { display: flex; gap: .5rem; }
-      #form-edicao .botoes-form { grid-column: 1 / -1; }
-      .link { display: inline-block; margin-top: 1.25rem; color: var(--muted); }
-      #vazio { padding: 1.25rem; text-align: center; color: var(--muted); }
-      [hidden] { display: none !important; }
-      @media (max-width: 760px) {
-        main { padding-top: 2.5rem; }
-        form, #form-edicao { grid-template-columns: 1fr; }
-        form button { width: 100%; }
-        .botoes-form { flex-direction: column; }
-      }
+      :root { color-scheme:dark; --bg:#121214;--card:#202024;--input:#121214;--border:#323238;--text:#e1e1e6;--muted:#a8a8b3;--blue:#2563eb;--danger:#dc2626;--green:#16803c;--row:#29292e;--warning:#f59e0b }
+      *{box-sizing:border-box} body{min-height:100vh;margin:0;padding:2rem 1rem;background:var(--bg);color:var(--text);font-family:system-ui,sans-serif}main{width:min(78rem,100%);margin:auto}h1{margin:0}h2{color:var(--muted);font-size:1rem;font-weight:400;margin:.5rem 0 2rem}.card{padding:1.5rem;border:1px solid var(--border);border-radius:.75rem;background:var(--card)}form{display:grid;grid-template-columns:1fr 1fr auto;gap:1rem;align-items:end}label{display:grid;gap:.4rem;font-weight:700;font-size:.9rem}input,select,textarea{width:100%;padding:.75rem;border:1px solid var(--border);border-radius:.5rem;background:var(--input);color:var(--text);font:inherit}button{padding:.65rem 1rem;border:0;border-radius:.5rem;background:var(--blue);color:#fff;cursor:pointer;font:inherit;font-weight:750}button.secondary{background:#52525b}button.danger{background:var(--danger)}button.approve{background:var(--green)}button.small{padding:.45rem .65rem;font-size:.82rem}.top{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin:1.5rem 0 1rem}.alert{padding:1rem;border:1px solid var(--warning);border-radius:.75rem;background:#422006;color:#fde68a;font-weight:800}.table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:.75rem;background:var(--card)}table{width:100%;border-collapse:collapse;text-align:left}th,td{padding:.85rem;border-bottom:1px solid var(--border);vertical-align:middle}th{color:var(--muted);font-size:.72rem;text-transform:uppercase}tbody tr:hover{background:var(--row)}.actions{display:flex;gap:.4rem;flex-wrap:wrap}.status{white-space:nowrap}.message{padding:.8rem;border-radius:.5rem;background:#3a1f25;color:#fecdd3}.detail-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin:1rem 0}.detail-grid div{padding:.8rem;border:1px solid var(--border);border-radius:.5rem}.detail-grid span{display:block;color:var(--muted);font-size:.75rem;margin-bottom:.25rem}.review{margin-bottom:1rem}.review-actions{display:flex;gap:.6rem;flex-wrap:wrap}.reject-box{margin-top:1rem;display:grid;gap:.6rem}.edit-form{grid-template-columns:1fr 1fr}.links{display:flex;gap:1rem;margin-top:1.5rem}a{color:var(--muted)}[hidden]{display:none!important}@media(max-width:760px){form,.edit-form,.detail-grid{grid-template-columns:1fr}.top{align-items:flex-start;flex-direction:column}}
     </style>
   </head>
   <body>
     <main>
-      <h1>Gestão de acessos médicos</h1>
-      <h2>Consulte e gerencie os cadastros profissionais.</h2>
-      <button id="botao-tema" type="button">TEMA CLARO/ESCURO</button>
+      <h1>Gestão de acessos</h1>
+      <h2>Aprovação manual de médicos e usuários sem CRM.</h2>
 
       <section id="login-card" class="card">
-        <form id="form-login" novalidate>
-          <label>Administrador<input id="nome-admin" required autocomplete="username" /></label>
-          <label>Senha<input id="senha-admin" type="password" required autocomplete="current-password" /></label>
+        <form id="login-form">
+          <label>Administrador<input id="admin-name" required autocomplete="username" /></label>
+          <label>Senha<input id="admin-password" type="password" required autocomplete="current-password" /></label>
           <button type="submit">Entrar</button>
         </form>
-        <p id="erro-login" class="mensagem" role="alert" hidden></p>
+        <p id="login-error" class="message" hidden></p>
       </section>
 
-      <section id="painel" hidden>
-        <div class="topo-painel">
-          <h3>Profissionais cadastrados</h3>
-          <button id="sair" class="secundario" type="button">Sair</button>
-        </div>
-        <p id="aviso-painel" class="mensagem" role="alert" hidden></p>
-
-        <section id="edicao-card" class="card" hidden>
-          <h3>Editar cadastro profissional</h3>
-          <form id="form-edicao" novalidate>
-            <label>Nome completo<input id="edicao-nome" required minlength="2" /></label>
-            <label>E-mail profissional<input id="edicao-email" type="email" required /></label>
-            <label>CRM<input id="edicao-crm" required maxlength="20" /></label>
-            <label>UF do CRM
-              <select id="edicao-uf" required>
-                <option value="">Selecione o estado</option>
-                <option value="AC">Acre (AC)</option><option value="AL">Alagoas (AL)</option>
-                <option value="AP">Amapá (AP)</option><option value="AM">Amazonas (AM)</option>
-                <option value="BA">Bahia (BA)</option><option value="CE">Ceará (CE)</option>
-                <option value="DF">Distrito Federal (DF)</option><option value="ES">Espírito Santo (ES)</option>
-                <option value="GO">Goiás (GO)</option><option value="MA">Maranhão (MA)</option>
-                <option value="MT">Mato Grosso (MT)</option><option value="MS">Mato Grosso do Sul (MS)</option>
-                <option value="MG">Minas Gerais (MG)</option><option value="PA">Pará (PA)</option>
-                <option value="PB">Paraíba (PB)</option><option value="PR">Paraná (PR)</option>
-                <option value="PE">Pernambuco (PE)</option><option value="PI">Piauí (PI)</option>
-                <option value="RJ">Rio de Janeiro (RJ)</option><option value="RN">Rio Grande do Norte (RN)</option>
-                <option value="RS">Rio Grande do Sul (RS)</option><option value="RO">Rondônia (RO)</option>
-                <option value="RR">Roraima (RR)</option><option value="SC">Santa Catarina (SC)</option>
-                <option value="SP">São Paulo (SP)</option><option value="SE">Sergipe (SE)</option>
-                <option value="TO">Tocantins (TO)</option>
-              </select>
-            </label>
-            <div class="botoes-form">
-              <button id="salvar-edicao" type="submit">Salvar</button>
-              <button id="cancelar-edicao" class="secundario" type="button">Cancelar</button>
-            </div>
-          </form>
-          <p id="erro-edicao" class="mensagem" role="alert" hidden></p>
+      <section id="panel" hidden>
+        <div class="top"><div id="pending-alert" class="alert">🔔 Cadastros pendentes: 0</div><button id="logout" class="secondary">Sair</button></div>
+        <section id="review-card" class="card review" hidden>
+          <div class="top"><h3>Análise da solicitação</h3><button id="close-review" class="secondary small">Fechar</button></div>
+          <div id="review-data" class="detail-grid"></div>
+          <p id="cfm-guidance">Confira manualmente o CRM no <a href="https://portal.cfm.org.br/busca-medicos/" target="_blank" rel="noopener noreferrer">portal oficial do CFM</a> antes de aprovar.</p>
+          <div class="review-actions"><button id="approve" class="approve">Aprovar cadastro</button><button id="show-reject" class="danger">Rejeitar cadastro</button></div>
+          <div id="reject-box" class="reject-box" hidden><label>Motivo da rejeição<textarea id="rejection-reason" rows="3" maxlength="500" placeholder="CRM ou dados informados não correspondem aos registros consultados."></textarea></label><button id="confirm-reject" class="danger">Confirmar rejeição</button></div>
+          <p id="review-error" class="message" hidden></p>
         </section>
 
-        <div class="table-container">
-          <table>
-            <thead><tr><th>ID</th><th>Nome</th><th>E-mail</th><th>CRM</th><th>UF</th><th>Ações</th></tr></thead>
-            <tbody id="lista"></tbody>
-          </table>
-          <p id="vazio" hidden>Nenhum profissional cadastrado.</p>
-        </div>
+        <section id="edit-card" class="card review" hidden>
+          <div class="top"><h3>Editar cadastro</h3><button id="close-edit" class="secondary small">Fechar</button></div>
+          <form id="edit-form" class="edit-form">
+            <label>Nome<input id="edit-name" required minlength="2" /></label>
+            <label>E-mail<input id="edit-email" type="email" required /></label>
+            <label id="edit-crm-label">CRM<input id="edit-crm" maxlength="20" inputmode="text" pattern="[0-9]+(-[0-9]+)?" /></label>
+            <label id="edit-uf-label">UF<select id="edit-uf"><option value="">Selecione</option><option>AC</option><option>AL</option><option>AP</option><option>AM</option><option>BA</option><option>CE</option><option>DF</option><option>ES</option><option>GO</option><option>MA</option><option>MT</option><option>MS</option><option>MG</option><option>PA</option><option>PB</option><option>PR</option><option>PE</option><option>PI</option><option>RJ</option><option>RN</option><option>RS</option><option>RO</option><option>RR</option><option>SC</option><option>SP</option><option>SE</option><option>TO</option></select></label>
+            <button type="submit">Salvar alterações</button>
+          </form>
+          <p id="edit-error" class="message" hidden></p>
+        </section>
+
+        <div class="top"><h3>Validação de médicos e usuários</h3><select id="status-filter"><option value="">Todos os status</option><option value="pending_verification">Pendentes</option><option value="approved_incomplete">Aprovados — perfil incompleto</option><option value="active">Ativos</option><option value="rejected">Rejeitados</option></select></div>
+        <p id="panel-error" class="message" hidden></p>
+        <div class="table-wrap"><table><thead><tr><th>Nome</th><th>Tipo</th><th>CRM/UF</th><th>E-mail</th><th>Cadastro</th><th>Status</th><th>Ações</th></tr></thead><tbody id="list"></tbody></table><p id="empty" style="padding:1rem;text-align:center" hidden>Nenhum cadastro encontrado.</p></div>
       </section>
-      <a class="link" href="/">Voltar ao cadastro profissional</a>
+      <div class="links"><a href="/">Cadastro médico</a><a href="/non-medical/register">Cadastro sem CRM</a></div>
     </main>
-
     <script>
-      const loginCard = document.getElementById("login-card");
-      const painel = document.getElementById("painel");
-      const lista = document.getElementById("lista");
-      const vazio = document.getElementById("vazio");
-      const erroLogin = document.getElementById("erro-login");
-      const avisoPainel = document.getElementById("aviso-painel");
-      const edicaoCard = document.getElementById("edicao-card");
-      const erroEdicao = document.getElementById("erro-edicao");
-      const campoEdicaoNome = document.getElementById("edicao-nome");
-      const campoEdicaoEmail = document.getElementById("edicao-email");
-      const campoEdicaoCrm = document.getElementById("edicao-crm");
-      const campoEdicaoUf = document.getElementById("edicao-uf");
-      const botaoTema = document.getElementById("botao-tema");
-      let usuarioEmEdicao = null;
-
-      function aplicarTema(tema) { document.body.classList.toggle("tema-claro", tema === "claro"); }
-      aplicarTema(localStorage.getItem("tema") || "escuro");
-      botaoTema.addEventListener("click", () => {
-        const tema = document.body.classList.contains("tema-claro") ? "escuro" : "claro";
-        aplicarTema(tema);
-        localStorage.setItem("tema", tema);
-      });
-
-      function detalheDoErro(corpo, statusResposta) {
-        if (typeof corpo?.detail === "string") return corpo.detail;
-        if (Array.isArray(corpo?.detail)) {
-          return corpo.detail.map((erro) => String(erro.msg || "Dados inválidos").replace("Value error, ", "")).join("; ");
-        }
-        return `Não foi possível concluir a operação (${statusResposta}).`;
-      }
-
-      function requisicao(url, opcoes = {}) {
-        return fetch(url, opcoes).then(async (resposta) => {
-          const corpo = resposta.status === 204 ? null : await resposta.json();
-          if (!resposta.ok) throw new Error(detalheDoErro(corpo, resposta.status));
-          return corpo;
-        });
-      }
-
-      function criarBotao(texto, classe, acao) {
-        const botao = document.createElement("button");
-        botao.type = "button";
-        botao.textContent = texto;
-        if (classe) botao.className = classe;
-        botao.addEventListener("click", acao);
-        return botao;
-      }
-
-      function abrirEdicao(user) {
-        usuarioEmEdicao = user;
-        campoEdicaoNome.value = user.nome;
-        campoEdicaoEmail.value = user.email;
-        campoEdicaoCrm.value = user.doctor?.crm ?? "";
-        campoEdicaoUf.value = user.doctor?.uf ?? "";
-        erroEdicao.hidden = true;
-        edicaoCard.hidden = false;
-        campoEdicaoNome.focus();
-        edicaoCard.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
-
-      function fecharEdicao() {
-        usuarioEmEdicao = null;
-        edicaoCard.hidden = true;
-        erroEdicao.hidden = true;
-      }
-
-      function desenhar(users) {
-        lista.replaceChildren();
-        vazio.hidden = users.length > 0;
-        users.forEach((user) => {
-          const linha = document.createElement("tr");
-          for (const valor of [
-            user.id,
-            user.nome,
-            user.email,
-            user.doctor?.crm ?? "—",
-            user.doctor?.uf ?? "—",
-          ]) {
-            const celula = document.createElement("td");
-            celula.textContent = valor;
-            linha.appendChild(celula);
-          }
-          const acoes = document.createElement("td");
-          acoes.className = "acoes";
-          acoes.append(
-            criarBotao("Editar", "secundario", () => abrirEdicao(user)),
-            criarBotao("Excluir", "excluir", () => excluirUsuario(user.id)),
-          );
-          linha.appendChild(acoes);
-          lista.appendChild(linha);
-        });
-      }
-
-      function carregar() {
-        avisoPainel.hidden = true;
-        return requisicao("/users")
-          .then((users) => {
-            loginCard.hidden = true;
-            painel.hidden = false;
-            desenhar(users);
-          })
-          .catch(() => {
-            loginCard.hidden = false;
-            painel.hidden = true;
-          });
-      }
-
-      function excluirUsuario(id) {
-        if (!confirm("Excluir definitivamente este cadastro?")) return;
-        avisoPainel.hidden = true;
-        requisicao(`/users/${id}`, { method: "DELETE" })
-          .then(() => {
-            if (usuarioEmEdicao?.id === id) fecharEdicao();
-            return carregar();
-          })
-          .catch((erro) => {
-            avisoPainel.textContent = erro.message;
-            avisoPainel.hidden = false;
-          });
-      }
-
-      document.getElementById("form-edicao").addEventListener("submit", (evento) => {
-        evento.preventDefault();
-        if (usuarioEmEdicao === null) return;
-        erroEdicao.hidden = true;
-        requisicao(`/registrations/${usuarioEmEdicao.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            user: { nome: campoEdicaoNome.value, email: campoEdicaoEmail.value },
-            doctor: { crm: campoEdicaoCrm.value, uf: campoEdicaoUf.value },
-          }),
-        })
-          .then(() => {
-            fecharEdicao();
-            return carregar();
-          })
-          .catch((erro) => {
-            erroEdicao.textContent = erro.message;
-            erroEdicao.hidden = false;
-          });
-      });
-
-      document.getElementById("cancelar-edicao").addEventListener("click", fecharEdicao);
-      document.getElementById("form-login").addEventListener("submit", (evento) => {
-        evento.preventDefault();
-        erroLogin.hidden = true;
-        requisicao("/admin/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            nome: document.getElementById("nome-admin").value,
-            senha: document.getElementById("senha-admin").value,
-          }),
-        }).then(carregar).catch((erro) => {
-          erroLogin.textContent = erro.message;
-          erroLogin.hidden = false;
-        });
-      });
-
-      document.getElementById("sair").addEventListener("click", () => {
-        requisicao("/admin/logout", { method: "POST" }).then(() => {
-          fecharEdicao();
-          painel.hidden = true;
-          loginCard.hidden = false;
-        });
-      });
-      carregar();
+      const loginCard=document.getElementById("login-card"),panel=document.getElementById("panel"),list=document.getElementById("list"),empty=document.getElementById("empty"),reviewCard=document.getElementById("review-card"),editCard=document.getElementById("edit-card");
+      let selected=null;
+      const statusLabels={pending_verification:"Aguardando validação",approved_incomplete:"Aprovado — perfil incompleto",active:"Ativo",rejected:"Rejeitado"};
+      async function request(url,options={}){const response=await fetch(url,options);const body=response.status===204?null:await response.json();if(!response.ok){const detail=Array.isArray(body?.detail)?body.detail.map(x=>x.msg).join("; "):body?.detail;throw new Error(detail||`Erro ${response.status}`)}return body}
+      function button(text,css,action){const element=document.createElement("button");element.type="button";element.textContent=text;element.className=`small ${css||""}`;element.addEventListener("click",action);return element}
+      function detail(label,value){const box=document.createElement("div"),caption=document.createElement("span"),content=document.createElement("strong");caption.textContent=label;content.textContent=value??"—";box.append(caption,content);return box}
+      function openReview(user){selected=user;const data=document.getElementById("review-data");data.replaceChildren(detail("Nome",user.nome),detail("Tipo",user.account_type==="doctor"?"Médico":"Não médico"),detail("E-mail",user.email),detail("CRM",user.doctor?.crm),detail("UF",user.doctor?.uf),detail("Status",statusLabels[user.registration_status]||user.registration_status),detail("Cadastrado em",new Date(user.created_at).toLocaleString("pt-BR")),detail("Método",user.verification_method),detail("Motivo",user.rejection_reason));document.getElementById("cfm-guidance").hidden=user.account_type!=="doctor";document.getElementById("approve").hidden=user.registration_status!=="pending_verification";document.getElementById("show-reject").hidden=user.registration_status!=="pending_verification";document.getElementById("reject-box").hidden=true;document.getElementById("review-error").hidden=true;reviewCard.hidden=false;reviewCard.scrollIntoView({behavior:"smooth"})}
+      function openEdit(user){selected=user;document.getElementById("edit-name").value=user.nome;document.getElementById("edit-email").value=user.email;document.getElementById("edit-crm").value=user.doctor?.crm||"";document.getElementById("edit-uf").value=user.doctor?.uf||"";const medical=user.account_type==="doctor";document.getElementById("edit-crm-label").hidden=!medical;document.getElementById("edit-uf-label").hidden=!medical;document.getElementById("edit-error").hidden=true;editCard.hidden=false;editCard.scrollIntoView({behavior:"smooth"})}
+      function draw(users){list.replaceChildren();empty.hidden=users.length>0;users.forEach(user=>{const row=document.createElement("tr");for(const value of [user.nome,user.account_type==="doctor"?"Médico":"Não médico",user.doctor?`${user.doctor.crm}/${user.doctor.uf}`:"—",user.email,new Date(user.created_at).toLocaleDateString("pt-BR"),statusLabels[user.registration_status]||user.registration_status]){const cell=document.createElement("td");cell.textContent=value;row.appendChild(cell)}const actions=document.createElement("td");actions.className="actions";actions.append(button("Analisar","",()=>openReview(user)),button("Editar","secondary",()=>openEdit(user)),button("Excluir","danger",()=>removeUser(user.id)));row.appendChild(actions);list.appendChild(row)})}
+      async function load(){const filter=document.getElementById("status-filter").value;const query=filter?`?registration_status=${encodeURIComponent(filter)}`:"";const [users,summary]=await Promise.all([request(`/admin/registrations${query}`),request("/admin/registrations/summary")]);draw(users);document.getElementById("pending-alert").textContent=`🔔 Cadastros pendentes: ${summary.pending_count}`;loginCard.hidden=true;panel.hidden=false}
+      async function removeUser(id){if(!confirm("Excluir definitivamente este cadastro?"))return;await request(`/users/${id}`,{method:"DELETE"});reviewCard.hidden=true;editCard.hidden=true;await load()}
+      document.getElementById("login-form").addEventListener("submit",async event=>{event.preventDefault();const error=document.getElementById("login-error");error.hidden=true;try{await request("/admin/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({nome:document.getElementById("admin-name").value,senha:document.getElementById("admin-password").value})});await load()}catch(reason){error.textContent=reason.message;error.hidden=false}});
+      document.getElementById("approve").addEventListener("click",async()=>{try{await request(`/admin/registrations/${selected.id}/approve`,{method:"POST"});reviewCard.hidden=true;await load()}catch(reason){const error=document.getElementById("review-error");error.textContent=reason.message;error.hidden=false}});
+      document.getElementById("show-reject").addEventListener("click",()=>{document.getElementById("reject-box").hidden=false});
+      document.getElementById("confirm-reject").addEventListener("click",async()=>{try{await request(`/admin/registrations/${selected.id}/reject`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({motivo:document.getElementById("rejection-reason").value})});reviewCard.hidden=true;document.getElementById("rejection-reason").value="";await load()}catch(reason){const error=document.getElementById("review-error");error.textContent=reason.message;error.hidden=false}});
+      document.getElementById("edit-form").addEventListener("submit",async event=>{event.preventDefault();const medical=selected.account_type==="doctor",url=medical?`/registrations/${selected.id}`:`/users/${selected.id}`,body=medical?{user:{nome:document.getElementById("edit-name").value,email:document.getElementById("edit-email").value},doctor:{crm:document.getElementById("edit-crm").value,uf:document.getElementById("edit-uf").value}}:{nome:document.getElementById("edit-name").value,email:document.getElementById("edit-email").value};try{await request(url,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});editCard.hidden=true;await load()}catch(reason){const error=document.getElementById("edit-error");error.textContent=reason.message;error.hidden=false}});
+      document.getElementById("close-review").addEventListener("click",()=>reviewCard.hidden=true);document.getElementById("close-edit").addEventListener("click",()=>editCard.hidden=true);document.getElementById("status-filter").addEventListener("change",load);document.getElementById("logout").addEventListener("click",async()=>{await request("/admin/logout",{method:"POST"});panel.hidden=true;loginCard.hidden=false});
+      load().catch(()=>{loginCard.hidden=false;panel.hidden=true});
     </script>
   </body>
 </html>

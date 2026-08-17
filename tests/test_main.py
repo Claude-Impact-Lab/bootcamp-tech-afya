@@ -1,3 +1,4 @@
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -6,11 +7,43 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import get_db
+from app.dependencies import get_doctor_verification_service
 from app.main import BASE_DIR, app
 from app.models import Base, User
+from app.services.cfm import CFMDoctor, CFMSpecialty, CFMUnavailableError
+from app.services.doctor_verification import DoctorIrregular, DoctorNameMismatch, DoctorNotFound
 
 client = TestClient(app)
 INDEX_HTML = Path(BASE_DIR / "templates" / "index.html").read_text(encoding="utf-8")
+
+
+class SuccessfulDoctorVerifier:
+    """Substitui o CFM nos testes de rota sem fazer chamadas externas."""
+
+    def verify(self, name, crm, uf):
+        return CFMDoctor(
+            crm_display=crm,
+            uf=uf,
+            official_name=name,
+            registration_status="A",
+            registration_type="P",
+            source_updated_at=date(2026, 8, 14),
+            specialties=(
+                CFMSpecialty(
+                    name="CARDIOLOGIA",
+                    rqe="1111",
+                    official_description="CARDIOLOGIA - RQE Nº: 1111",
+                ),
+            ),
+        )
+
+
+class FailingDoctorVerifier:
+    def __init__(self, error):
+        self.error = error
+
+    def verify(self, name, crm, uf):
+        raise self.error
 
 
 @pytest.fixture
@@ -28,6 +61,7 @@ def db_isolado(tmp_path):
             db.close()
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_doctor_verification_service] = SuccessfulDoctorVerifier
     client.cookies.clear()
     login = client.post("/admin/login", json={"nome": "santanna", "senha": "12345"})
     assert login.status_code == 200
@@ -57,7 +91,7 @@ def test_index_renderiza_a_tela():
     resposta = client.get("/")
 
     assert resposta.status_code == 200
-    assert "Portal médico" in resposta.text
+    assert "Portal de acessos" in resposta.text
 
 
 def test_list_users_retorna_a_lista(db_isolado):
@@ -236,6 +270,8 @@ def test_registration_cria_usuario_e_perfil_medico_juntos(db_isolado):
         json={
             "user": {"nome": "Carla Dias", "email": "carla@exemplo.com"},
             "doctor": {"crm": "123456", "uf": "sp"},
+            "senha": "senha-segura",
+            "confirmacao_senha": "senha-segura",
         },
     )
 
@@ -243,6 +279,9 @@ def test_registration_cria_usuario_e_perfil_medico_juntos(db_isolado):
     assert resposta.json()["nome"] == "Carla Dias"
     assert resposta.json()["doctor"]["crm"] == "123456"
     assert resposta.json()["doctor"]["uf"] == "SP"
+    assert resposta.json()["doctor"]["crm_verified"] is False
+    assert resposta.json()["doctor"]["verification_status"] == "pending_manual"
+    assert resposta.json()["registration_status"] == "pending_verification"
 
     usuarios = client.get("/users").json()
     assert usuarios[0]["doctor"]["user_id"] == usuarios[0]["id"]
@@ -254,6 +293,8 @@ def test_registration_com_crm_e_uf_repetidos_retorna_409(db_isolado):
         json={
             "user": {"nome": "Carla Dias", "email": "carla@exemplo.com"},
             "doctor": {"crm": "123456", "uf": "SP"},
+            "senha": "senha-segura",
+            "confirmacao_senha": "senha-segura",
         },
     )
 
@@ -262,6 +303,8 @@ def test_registration_com_crm_e_uf_repetidos_retorna_409(db_isolado):
         json={
             "user": {"nome": "Dora Reis", "email": "dora@exemplo.com"},
             "doctor": {"crm": "123456", "uf": "SP"},
+            "senha": "senha-segura",
+            "confirmacao_senha": "senha-segura",
         },
     )
 
@@ -275,11 +318,28 @@ def test_registration_com_uf_mal_formatada_retorna_422(db_isolado):
         json={
             "user": {"nome": "Carla Dias", "email": "carla@exemplo.com"},
             "doctor": {"crm": "123456", "uf": "S"},
+            "senha": "senha-segura",
+            "confirmacao_senha": "senha-segura",
         },
     )
 
     assert resposta.status_code == 422
     assert client.get("/users").json() == []
+
+
+def test_registration_aceita_crm_longo_com_hifen(db_isolado):
+    resposta = client.post(
+        "/registrations",
+        json={
+            "user": {"nome": "Raphael Costa", "email": "raphael@exemplo.com"},
+            "doctor": {"crm": "42106072-4", "uf": "RJ"},
+            "senha": "senha-segura",
+            "confirmacao_senha": "senha-segura",
+        },
+    )
+
+    assert resposta.status_code == 201
+    assert resposta.json()["doctor"]["crm"] == "42106072-4"
 
 
 @pytest.mark.parametrize(
@@ -295,12 +355,64 @@ def test_registration_rejeita_crm_ou_uf_invalidos_na_regra_de_negocio(db_isolado
         json={
             "user": {"nome": "Carla Dias", "email": "carla@exemplo.com"},
             "doctor": {"crm": crm, "uf": uf},
+            "senha": "senha-segura",
+            "confirmacao_senha": "senha-segura",
         },
     )
 
     assert resposta.status_code == 422
     assert mensagem in resposta.json()["detail"][0]["msg"]
     assert client.get("/users").json() == []
+
+
+def test_registration_exige_senha_e_confirmacao_iguais(db_isolado):
+    resposta = client.post(
+        "/registrations",
+        json={
+            "user": {"nome": "Carla Dias", "email": "carla@exemplo.com"},
+            "doctor": {"crm": "123456", "uf": "SP"},
+            "senha": "senha-segura",
+            "confirmacao_senha": "outra-senha",
+        },
+    )
+
+    assert resposta.status_code == 422
+    assert "não coincidem" in resposta.json()["detail"][0]["msg"]
+
+
+def test_registration_informa_tamanho_da_senha_em_portugues(db_isolado):
+    resposta = client.post(
+        "/registrations",
+        json={
+            "user": {"nome": "Carla Dias", "email": "carla@exemplo.com"},
+            "doctor": {"crm": "123456", "uf": "SP"},
+            "senha": "12345",
+            "confirmacao_senha": "12345",
+        },
+    )
+
+    assert resposta.status_code == 422
+    assert "A senha deve ter entre 8 e 128 caracteres" in resposta.json()["detail"][0]["msg"]
+
+
+def test_medico_pendente_faz_login_mas_nao_acessa_painel(db_isolado):
+    client.post(
+        "/registrations",
+        json={
+            "user": {"nome": "Carla Dias", "email": "carla@exemplo.com"},
+            "doctor": {"crm": "123456", "uf": "SP"},
+            "senha": "senha-segura",
+            "confirmacao_senha": "senha-segura",
+        },
+    )
+    client.post("/admin/logout")
+
+    login = client.post("/doctor/login", json={"email": "carla@exemplo.com", "senha": "senha-segura"})
+    painel = client.get("/doctor/profile")
+
+    assert login.status_code == 200
+    assert login.json()["redirect_url"] == "/account/status"
+    assert painel.status_code == 403
 
 
 def test_admin_associa_e_consulta_perfil_medico(db_isolado):
@@ -311,12 +423,11 @@ def test_admin_associa_e_consulta_perfil_medico(db_isolado):
 
     assert criacao.status_code == 201
     assert consulta.status_code == 200
-    assert consulta.json() == {
-        "id": 1,
-        "user_id": 1,
-        "crm": "654321",
-        "uf": "RJ",
-    }
+    assert consulta.json()["id"] == 1
+    assert consulta.json()["user_id"] == 1
+    assert consulta.json()["crm"] == "654321"
+    assert consulta.json()["uf"] == "RJ"
+    assert consulta.json()["crm_verified"] is False
 
 
 def test_usuario_nao_recebe_dois_perfis_medicos_pela_api(db_isolado):
@@ -340,6 +451,8 @@ def test_admin_atualiza_usuario_e_perfil_medico_juntos(db_isolado):
         json={
             "user": {"nome": "Carla Dias", "email": "carla@exemplo.com"},
             "doctor": {"crm": "123456", "uf": "SP"},
+            "senha": "senha-segura",
+            "confirmacao_senha": "senha-segura",
         },
     )
 
@@ -367,6 +480,8 @@ def test_admin_nao_atualiza_para_crm_de_outro_medico(db_isolado):
             json={
                 "user": {"nome": nome, "email": email},
                 "doctor": {"crm": crm, "uf": "SP"},
+                "senha": "senha-segura",
+                "confirmacao_senha": "senha-segura",
             },
         )
 
@@ -492,6 +607,9 @@ def test_index_tem_formulario_que_envia_post():
     assert '<select id="campo-uf"' in INDEX_HTML
     assert '<option value="SP">São Paulo (SP)</option>' in INDEX_HTML
     assert 'fetch("/registrations",' in INDEX_HTML
+    assert 'maxlength="20"' in INDEX_HTML
+    assert "Cadastro realizado. Seus dados estão aguardando validação." in INDEX_HTML
+    assert 'id="campo-senha"' in INDEX_HTML
 
 
 def test_index_nao_tem_nomes_fixos_no_html():
@@ -502,17 +620,15 @@ def test_index_nao_tem_nomes_fixos_no_html():
 def test_index_nao_exibe_a_lista_de_usuarios():
     assert 'fetch("/users")' not in INDEX_HTML
     assert "<table" not in INDEX_HTML
-    assert "Aguarde a aprovação" not in INDEX_HTML
+    assert 'fetch("/users")' not in INDEX_HTML
 
 
 def test_admin_tem_login_e_acoes():
     admin_html = Path(BASE_DIR / "templates" / "admin.html").read_text(encoding="utf-8")
 
-    assert 'id="form-login"' in admin_html
-    assert 'criarBotao("Editar"' in admin_html
-    assert 'criarBotao("Excluir"' in admin_html
-    assert 'method: "PUT"' in admin_html
-    assert "user.doctor?.crm" in admin_html
-    assert 'id="edicao-crm"' in admin_html
-    assert '<select id="edicao-uf"' in admin_html
-    assert 'requisicao(`/registrations/${usuarioEmEdicao.id}`' in admin_html
+    assert 'id="login-form"' in admin_html
+    assert "Cadastros pendentes" in admin_html
+    assert "Aprovar cadastro" in admin_html
+    assert "Rejeitar cadastro" in admin_html
+    assert "/admin/registrations/${selected.id}/approve" in admin_html
+    assert "/admin/registrations/${selected.id}/reject" in admin_html

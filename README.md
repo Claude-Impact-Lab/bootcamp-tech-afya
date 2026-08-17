@@ -1,10 +1,10 @@
 # User Manager
 
-Projeto do treinamento de programação: um cadastro de usuários que vai evoluir até
-validar médicos no Webservice oficial do CFM.
+Projeto do treinamento de programação: cadastro de médicos e usuários, com aprovação
+manual pelo administrador e acessos separados por tipo de conta.
 
-Hoje a tela lista os usuários que vêm da própria API (`GET /users`) e cadastra novos
-pelo formulário (`POST /users`). Cada missão adiciona uma camada a partir daqui.
+Hoje a tela pública cria pré-cadastros por `POST /registrations`; a lista completa e a
+aprovação ficam protegidas no painel administrativo.
 
 ---
 
@@ -224,18 +224,28 @@ Para desfazer a última migration localmente: `uv run alembic downgrade -1`.
 
 ### Cadastro público e painel administrativo
 
-A página inicial (`/`) recebe nome, e-mail, CRM e UF, mas não revela a lista de cadastros.
-O cadastro cria o usuário e seu perfil médico juntos: se uma parte falhar, nenhuma das
-duas é gravada. A relação é um-para-um — cada usuário pode possuir no máximo um perfil
-médico. Na Missão 06, o CRM passou a aceitar apenas números e a UF passou a aceitar
-somente as 27 siglas oficiais brasileiras. A combinação CRM + UF continua única.
+A página inicial (`/`) recebe nome, e-mail, CRM, UF e senha. O perfil começa como
+`pending_verification`; a senha é armazenada somente como hash. A conferência do CRM é
+manual e o cadastro não depende de uma chave do CFM. Usuários sem CRM possuem cadastro
+e login próprios em `/non-medical/register` e `/non-medical/login`.
+
+O administrador aprova ou rejeita cada solicitação. Um médico aprovado passa por
+`approved_incomplete` e precisa concluir a segunda etapa antes de ficar `active`. Um
+usuário sem CRM aprovado fica `active` imediatamente. Pendentes e rejeitados conseguem
+se autenticar, mas o backend bloqueia os painéis e mostra apenas o status da solicitação.
 
 Rotas dessa relação:
 
 | Método e rota | Função |
 |---------------|--------|
-| `POST /registrations` | cria usuário e perfil médico juntos |
-| `PUT /registrations/{user_id}` | edita os dois perfis juntos |
+| `POST /registrations` | cria pré-cadastro médico pendente |
+| `POST /non-medical/registrations` | cria pré-cadastro sem CRM pendente |
+| `POST /doctor/login` | autentica um médico e direciona conforme seu status |
+| `POST /non-medical/login` | autentica um usuário sem CRM |
+| `POST /admin/registrations/{id}/approve` | aprova manualmente uma solicitação |
+| `POST /admin/registrations/{id}/reject` | rejeita uma solicitação com motivo |
+| `POST /doctor/complete-profile` | conclui a segunda etapa do médico aprovado |
+| `PUT /registrations/{user_id}` | administrador edita usuário e perfil médico |
 | `POST /users/{user_id}/doctor` | adiciona perfil médico a um usuário existente |
 | `GET /users/{user_id}/doctor` | consulta o perfil médico |
 | `PUT /users/{user_id}/doctor` | edita CRM e UF |
@@ -269,7 +279,7 @@ sessão administrativa, inclusive quando chamadas pela página `/docs`.
 uv run pytest
 ```
 
-Devem passar 28 testes. Se algum falhar, a mensagem diz qual e por quê.
+Devem passar 73 testes. Se algum falhar, a mensagem diz qual e por quê.
 
 ---
 
@@ -277,17 +287,23 @@ Devem passar 28 testes. Se algum falhar, a mensagem diz qual e por quê.
 
 ```
 app/
-  main.py              as rotas da aplicacao
+  main.py              rotas e persistência da aplicação
+  models.py            tabelas User, Doctor e DoctorSpecialty
+  dependencies.py      injeção dos serviços nas rotas
+  services/            contrato do CFM e regras de validação
+  integrations/        cliente SOAP oficial do CFM
   templates/
-    index.html         a tela
+    index.html         cadastro público
+    admin.html         painel protegido
+alembic/versions/      migrations do PostgreSQL
 tests/
-  test_main.py         os testes
+  test_main.py         testes das rotas
+  test_cfm_service.py  testes do adaptador com respostas SOAP simuladas
 pyproject.toml         a lista de bibliotecas do projeto
 ```
 
-Ainda **não** existem pastas para `services`, `repositories` ou integrações. Elas
-entram nas missões em que forem necessárias, para que o motivo de cada camada fique
-claro antes de ela existir.
+O contrato `CFMService` impede que as rotas dependam diretamente de SOAP ou XML. A
+implementação oficial pode ser substituída nos testes sem fazer chamadas externas.
 
 ### Como a tela funciona
 
@@ -343,15 +359,26 @@ e [primeiros passos](https://code.claude.com/docs/en/quickstart).
 
 ---
 
-## Sobre a integração com o CFM (missão 07 em diante)
+## Integração opcional com o CFM (histórico da missão 07)
 
-- Usar o **Webservice oficial** de listagem de médicos. Não fazer scraping.
-- O CFM devolve dados públicos: nome, CRM, UF, tipo e situação da inscrição e
-  especialidade registrada. CPF, endereço, telefone e e-mail **não** vêm nesse
-  serviço.
-- Guardar `cfm_validated_at` para saber quando a validação foi feita.
-- A dependência externa fica isolada em um client com contrato próprio
-  (`find_doctor(crm, uf)`), para o domínio não se acoplar ao formato do CFM.
+O projeto mantém o adapter do **Webservice oficial** de Listagem de Médicos, sem scraping. O adapter
+`CFMSoapService` envia `Consultar(CRM, UF, chave)` por SOAP 1.1/TLS 1.2 e transforma o
+XML em um objeto interno. O CFM devolve nome, CRM, UF, tipo e situação da inscrição,
+data de atualização e zero ou várias especialidades. CPF, endereço, telefone e e-mail
+não vêm nessa consulta.
 
-Referências: [Webservice do CFM](https://sistemas.cfm.org.br/listamedicos/informacoes)
-e a Resolução CFM nº 2.309/2022.
+Para usar a integração real, uma pessoa jurídica precisa contratar o serviço junto ao
+CFM e colocar a chave somente no `.env`:
+
+```env
+CFM_ACCESS_KEY=sua-chave-de-8-caracteres
+CFM_WS_URL=https://ws.cfm.org.br:8080/WebServiceConsultaMedicos/ServicoConsultaMedicos
+CFM_TIMEOUT_SECONDS=10
+```
+
+Essa integração não é chamada pelo fluxo atual. Sem uma chave válida, o servidor e o
+pré-cadastro continuam funcionando normalmente; a validação é feita pelo administrador.
+
+Referências: [Webservice do CFM](https://sistemas.cfm.org.br/listamedicos/informacoes),
+[manual oficial](https://sistemas.cfm.org.br/listamedicos/arquivos/manualwebservices.pdf)
+e [Resolução CFM nº 2.309/2022](https://sistemas.cfm.org.br/normas/arquivos/resolucoes/BR/2022/2309_2022.pdf).

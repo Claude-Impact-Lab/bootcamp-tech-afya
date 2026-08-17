@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Cadastro profissional médico</title>
+    <title>Pré-cadastro médico</title>
     <style>
       :root {
         --background: #07111f;
@@ -124,7 +124,8 @@
       }
       #resultado.erro { border-color: var(--danger-border); background: var(--danger-bg); color: var(--danger-text); }
       .privacidade { margin: 1rem 0 0; color: var(--muted); font-size: .76rem; line-height: 1.5; text-align: center; }
-      .admin-link { display: inline-block; margin-top: 1.5rem; color: var(--muted); font-size: .82rem; }
+      .links { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1.5rem; }
+      .admin-link { color: var(--muted); font-size: .82rem; }
       [hidden] { display: none !important; }
 
       @media (max-width: 820px) {
@@ -143,28 +144,28 @@
   <body>
     <main>
       <button id="botao-tema" type="button">TEMA CLARO/ESCURO</button>
-      <div class="brand"><span class="brand-mark">+</span><span>Portal médico</span></div>
+      <div class="brand"><span class="brand-mark">+</span><span>Portal de acessos</span></div>
 
       <div class="layout">
         <section class="intro">
           <span class="eyebrow">ACESSO PARA PROFISSIONAIS</span>
           <h1>Seu perfil médico em um só lugar.</h1>
-          <p>Cadastre seus dados pessoais e profissionais de forma simples para acessar o portal.</p>
+          <p>Faça seu pré-cadastro. Um administrador conferirá os dados antes de liberar o acesso.</p>
           <ul class="beneficios">
             <li>Dados pessoais e profissionais conectados</li>
-            <li>CRM vinculado ao seu usuário</li>
+            <li>CRM conferido manualmente pelo administrador</li>
             <li>Informações protegidas no painel administrativo</li>
           </ul>
         </section>
 
         <section class="card">
           <span class="form-tag">CADASTRO MÉDICO</span>
-          <h2>Crie seu perfil profissional</h2>
-          <p class="card-intro">Preencha os dados abaixo para começar.</p>
+          <h2>Solicite seu acesso</h2>
+          <p class="card-intro">Preencha os dados abaixo. Você poderá entrar para acompanhar a análise.</p>
           <form id="form-novo" novalidate>
             <label>Nome completo<input id="campo-nome" name="nome" autocomplete="name" required minlength="2" /></label>
             <label>E-mail profissional<input id="campo-email" name="email" type="email" autocomplete="email" required /></label>
-            <label>CRM<input id="campo-crm" name="crm" placeholder="Ex.: 123456" required maxlength="20" /></label>
+            <label>CRM<input id="campo-crm" name="crm" placeholder="Ex.: 42106072-4" required maxlength="20" inputmode="text" pattern="[0-9]+(-[0-9]+)?" /></label>
             <label>UF do CRM
               <select id="campo-uf" name="uf" required>
                 <option value="">Selecione o estado</option>
@@ -184,14 +185,20 @@
                 <option value="TO">Tocantins (TO)</option>
               </select>
             </label>
-            <button id="botao-salvar" type="submit">Criar perfil médico</button>
+            <label>Senha<input id="campo-senha" name="senha" type="password" autocomplete="new-password" required minlength="8" /></label>
+            <label>Confirme a senha<input id="campo-confirmacao" name="confirmacao" type="password" autocomplete="new-password" required minlength="8" /></label>
+            <button id="botao-salvar" type="submit">Enviar pré-cadastro</button>
           </form>
           <p id="resultado" role="status" hidden></p>
           <p class="privacidade">Seus dados ficam disponíveis somente no ambiente administrativo.</p>
         </section>
       </div>
 
-      <a class="admin-link" href="/admin">Acesso administrativo</a>
+      <div class="links">
+        <a class="admin-link" href="/doctor/login">Já sou médico cadastrado</a>
+        <a class="admin-link" href="/non-medical/register">Não sou médico</a>
+        <a class="admin-link" href="/admin">Acesso administrativo</a>
+      </div>
     </main>
 
     <script>
@@ -200,6 +207,8 @@
       const campoEmail = document.getElementById("campo-email");
       const campoCrm = document.getElementById("campo-crm");
       const campoUf = document.getElementById("campo-uf");
+      const campoSenha = document.getElementById("campo-senha");
+      const campoConfirmacao = document.getElementById("campo-confirmacao");
       const botaoSalvar = document.getElementById("botao-salvar");
       const botaoTema = document.getElementById("botao-tema");
       const resultado = document.getElementById("resultado");
@@ -232,6 +241,8 @@
           body: JSON.stringify({
             user: { nome: campoNome.value, email: campoEmail.value },
             doctor: { crm: campoCrm.value, uf: campoUf.value },
+            senha: campoSenha.value,
+            confirmacao_senha: campoConfirmacao.value,
           }),
         })
           .then((resposta) => resposta.json().then((corpo) => {
@@ -240,7 +251,7 @@
           }))
           .then(() => {
             form.reset();
-            resultado.textContent = "Perfil médico criado com sucesso.";
+            resultado.textContent = "Cadastro realizado. Seus dados estão aguardando validação.";
             resultado.hidden = false;
             campoNome.focus();
           })

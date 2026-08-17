@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cadastro de usuário</title>
+    <style>
+      :root { color-scheme: dark; --bg:#07111f; --card:#122236; --border:#284058; --text:#f8fafc; --muted:#a9b8c8; --primary:#18a8a3; --danger:#fecdd3; }
+      * { box-sizing:border-box } body { min-height:100vh; margin:0; padding:1rem; display:grid; place-items:center; background:var(--bg); color:var(--text); font-family:system-ui,sans-serif }
+      main { width:min(34rem,100%); padding:2rem; border:1px solid var(--border); border-radius:1rem; background:var(--card) }
+      h1 { margin-top:0 } p { color:var(--muted); line-height:1.5 } form { display:grid; gap:1rem } label { display:grid; gap:.4rem; font-weight:700 }
+      input { padding:.8rem; border:1px solid var(--border); border-radius:.6rem; background:#0a1727; color:var(--text); font:inherit }
+      button { padding:.85rem; border:0; border-radius:.6rem; background:var(--primary); color:white; font-weight:800; cursor:pointer }
+      .message { padding:.8rem; border:1px solid var(--primary); border-radius:.6rem } .error { color:var(--danger); border-color:#7f1d2d } nav { display:flex; gap:1rem; margin-top:1.4rem; flex-wrap:wrap } a { color:var(--muted) }
+      [hidden] { display:none!important }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Acesso para não médicos</h1>
+      <p>Crie sua conta sem CRM. O administrador analisará a solicitação antes de liberar seu painel.</p>
+      <form id="register-form">
+        <label>Nome completo<input id="name" required minlength="2" autocomplete="name" /></label>
+        <label>E-mail<input id="email" type="email" required autocomplete="email" /></label>
+        <label>Senha<input id="password" type="password" required minlength="8" autocomplete="new-password" /></label>
+        <label>Confirme a senha<input id="confirmation" type="password" required minlength="8" autocomplete="new-password" /></label>
+        <button type="submit">Enviar pré-cadastro</button>
+      </form>
+      <p id="message" class="message" role="status" hidden></p>
+      <nav><a href="/non-medical/login">Já tenho cadastro</a><a href="/">Sou médico</a></nav>
+    </main>
+    <script>
+      const form = document.getElementById("register-form");
+      const message = document.getElementById("message");
+      function detail(body, response) {
+        if (typeof body?.detail === "string") return body.detail;
+        if (Array.isArray(body?.detail)) return body.detail.map((item) => String(item.msg).replace("Value error, ", "")).join("; ");
+        return `Não foi possível concluir (${response.status}).`;
+      }
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault(); message.hidden = true; message.classList.remove("error");
+        const response = await fetch("/non-medical/registrations", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ user:{nome:document.getElementById("name").value,email:document.getElementById("email").value}, senha:document.getElementById("password").value, confirmacao_senha:document.getElementById("confirmation").value }) });
+        const body = await response.json();
+        if (!response.ok) { message.textContent = detail(body,response); message.classList.add("error"); }
+        else { form.reset(); message.textContent = "Cadastro realizado. Seus dados estão aguardando validação."; }
+        message.hidden = false;
+      });
+    </script>
+  </body>
+</html>
