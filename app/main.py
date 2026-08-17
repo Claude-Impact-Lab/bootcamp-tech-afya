@@ -46,3 +46,28 @@ def criar_usuario(payload: UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(novo_usuario)
     return novo_usuario
+
+@app.put("/users/{user_id}")
+def atualizar_usuario(user_id: int, payload: UserCreate, db: Session = Depends(get_db)):
+    """Substitui os dados de um usuário existente pelo id."""
+    usuario = db.query(models.User).filter(models.User.id == user_id).first()
+    if usuario is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado")
+
+    usuario.nome = payload.nome
+    usuario.email = payload.email
+    db.commit()
+    db.refresh(usuario)
+    return usuario
+
+@app.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def deletar_usuario(user_id: int, db: Session = Depends(get_db)):
+    """Remove um usuário pelo id. Retorna 404 se o usuário não existir."""
+    usuario = db.query(models.User).filter(models.User.id == user_id).first()
+
+    if usuario is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado")
+
+    db.delete(usuario)
+    db.commit()
+    return None

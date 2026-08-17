@@ -95,3 +95,74 @@ def test_post_users_duplicado():
     resp = client.post(
         "/users", json={"nome": "C", "email": "dup@example.com"})
     assert resp.status_code == 409
+
+def test_put_users_atualiza_usuario():
+    criado = client.post(
+        "/users", json={"nome": "Original", "email": "original@example.com"}
+    ).json()
+
+    resp = client.put(
+        f"/users/{criado['id']}",
+        json={"nome": "Atualizado", "email": "atualizado@example.com"},
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["id"] == criado["id"]
+    assert data["nome"] == "Atualizado"
+    assert data["email"] == "atualizado@example.com"
+
+
+def test_put_users_idempotente():
+    criado = client.post(
+        "/users", json={"nome": "Original", "email": "original@example.com"}
+    ).json()
+
+    payload = {"nome": "Atualizado", "email": "atualizado@example.com"}
+
+    primeira = client.put(f"/users/{criado['id']}", json=payload)
+    segunda = client.put(f"/users/{criado['id']}", json=payload)
+
+    assert primeira.status_code == 200
+    assert segunda.status_code == 200
+    assert primeira.json() == segunda.json()
+
+
+def test_put_users_inexistente_retorna_404():
+    resp = client.put(
+        "/users/99999",
+        json={"nome": "Fantasma", "email": "fantasma@example.com"},
+    )
+
+    assert resp.status_code == 404
+
+
+def test_delete_users_remove_usuario():
+    criado = client.post(
+        "/users", json={"nome": "Deletar", "email": "deletar@example.com"}
+    ).json()
+
+    resp = client.delete(f"/users/{criado['id']}")
+
+    assert resp.status_code == 204
+
+    usuarios = client.get("/users").json()
+    assert all(u["id"] != criado["id"] for u in usuarios)
+
+
+def test_delete_users_duas_vezes_retorna_404_na_segunda():
+    criado = client.post(
+        "/users", json={"nome": "Deletar", "email": "deletar2@example.com"}
+    ).json()
+
+    primeira = client.delete(f"/users/{criado['id']}")
+    segunda = client.delete(f"/users/{criado['id']}")
+
+    assert primeira.status_code == 204
+    assert segunda.status_code == 404
+
+
+def test_delete_users_inexistente_retorna_404():
+    resp = client.delete("/users/99999")
+
+    assert resp.status_code == 404
