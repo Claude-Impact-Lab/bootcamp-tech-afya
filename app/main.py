@@ -14,6 +14,13 @@ def health() -> dict[str, str]:
     """Endpoint JSON: e daqui que o HTML busca a mensagem."""
     return {"status": "ok", "message": "Hello World"}
 
+@app.get("/users")
+def get_users():
+    return [
+        {"id": 1, "name": "Gabriel"},
+        {"id": 2, "name": "Maria"}
+    ]
+
 
 @app.get("/")
 def index(request: Request):
