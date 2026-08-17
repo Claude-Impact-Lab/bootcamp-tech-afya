@@ -19,4 +19,9 @@ def health() -> dict[str, str]:
 def index(request: Request):
     """A tela. Por enquanto so mostra o Hello World."""
     return templates.TemplateResponse(request=request, name="index.html")
+<<<<<<< Updated upstream
 #Testando minha branch, Gabriel
+=======
+
+# Minha primeira alteração na branch Gabriel.
+>>>>>>> Stashed changes
