@@ -4,11 +4,18 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 from app.database import get_db
+from app.dependencies import get_doctor_verification_service
 from app.main import app
 from app.models import Base, User
 from app.security import verify_password
+from app.services.cfm import CFMUnavailableError
 
 client = TestClient(app)
+
+
+class PendingDoctorVerifier:
+    def verify(self, name, crm, uf):
+        raise CFMUnavailableError("Consulta indisponível no teste", code="TEST_PENDING")
 
 
 @pytest.fixture
@@ -25,6 +32,7 @@ def db_isolado(tmp_path):
             db.close()
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_doctor_verification_service] = PendingDoctorVerifier
     client.cookies.clear()
     login = client.post("/admin/login", json={"nome": "santanna", "senha": "12345"})
     assert login.status_code == 200
@@ -70,7 +78,7 @@ def test_admin_recebe_contagem_de_cadastros_pendentes(db_isolado):
     client.post("/non-medical/registrations", json=non_doctor_payload())
 
     summary = client.get("/admin/registrations/summary")
-    pending = client.get("/admin/registrations", params={"registration_status": "pending_verification"})
+    pending = client.get("/admin/registrations")
 
     assert summary.json() == {"pending_count": 2}
     assert len(pending.json()) == 2

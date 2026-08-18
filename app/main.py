@@ -6,7 +6,8 @@ from pathlib import Path
 from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
-from fastapi.responses import RedirectResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import (
     BaseModel,
@@ -20,12 +21,16 @@ from pydantic import (
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.database import get_db
-from app.dependencies import get_notification_publisher
-from app.models import Doctor, User
+from app.dependencies import get_doctor_verification_service, get_notification_publisher
+from app.models import Doctor, DoctorSpecialty, User
 from app.security import hash_password, verify_password
+from app.services.cfm import CFMDoctor, CFMServiceError
+from app.services.crm_numbers import crm_digits
+from app.services.doctor_verification import DoctorVerificationFailure, DoctorVerificationService
 from app.services.notifications import NotificationPublisher
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -33,6 +38,9 @@ BASE_DIR = Path(__file__).resolve().parent
 ACCOUNT_DOCTOR = "doctor"
 ACCOUNT_NON_DOCTOR = "non_doctor"
 STATUS_PENDING = "pending_verification"
+STATUS_ADMIN_PENDING = "pending_admin_approval"
+STATUS_CRM_PENDING = "crm_verification_pending"
+STATUS_CRM_FAILED = "crm_verification_failed"
 STATUS_APPROVED_INCOMPLETE = "approved_incomplete"
 STATUS_ACTIVE = "active"
 STATUS_REJECTED = "rejected"
@@ -53,6 +61,85 @@ app.add_middleware(
     https_only=os.getenv("SESSION_HTTPS_ONLY", "false").lower() == "true",
 )
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+
+
+def validation_message_in_portuguese(error: dict) -> str:
+    """Traduz mensagens estruturais do Pydantic sem devolver dados sensíveis."""
+
+    error_type = str(error.get("type", ""))
+    context = error.get("ctx") or {}
+    message = str(error.get("msg", "Dados inválidos")).removeprefix("Value error, ")
+    if error_type == "missing":
+        return "Campo obrigatório"
+    if error_type == "string_type":
+        return "O campo deve ser um texto"
+    if error_type == "string_too_short":
+        return f"O campo deve ter pelo menos {context.get('min_length')} caracteres"
+    if error_type == "string_too_long":
+        return f"O campo deve ter no máximo {context.get('max_length')} caracteres"
+    if error_type in {"json_invalid", "json_type"}:
+        return "O conteúdo enviado não é um JSON válido"
+    if error_type == "literal_error":
+        return "O valor informado não é permitido"
+    if error_type == "extra_forbidden":
+        return "Este campo não é permitido"
+    if error_type == "enum":
+        return "O valor informado não é uma opção válida"
+    if error_type.endswith("_parsing"):
+        return "O valor informado possui formato inválido"
+    if error_type.endswith("_type"):
+        return "O tipo do campo é inválido"
+    if error_type == "value_error":
+        return message
+    return "O valor informado é inválido"
+
+
+@app.exception_handler(RequestValidationError)
+async def request_validation_error_handler(
+    _: Request, exc: RequestValidationError
+) -> JSONResponse:
+    errors = [
+        {
+            "loc": list(error.get("loc", ())),
+            "msg": validation_message_in_portuguese(error),
+            "type": error.get("type", "value_error"),
+        }
+        for error in exc.errors()
+    ]
+    return JSONResponse(status_code=422, content={"detail": errors})
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_error_handler(_: Request, exc: StarletteHTTPException) -> JSONResponse:
+    """Mantém em português também os erros padrão do framework."""
+
+    standard_messages = {
+        400: "Solicitação inválida",
+        401: "Autenticação necessária",
+        403: "Acesso não permitido",
+        404: "Página ou recurso não encontrado",
+        405: "Método não permitido",
+        500: "Erro interno da aplicação",
+    }
+    english_defaults = {
+        "Bad Request",
+        "Unauthorized",
+        "Forbidden",
+        "Not Found",
+        "Method Not Allowed",
+        "Internal Server Error",
+    }
+    detail = exc.detail
+    if not isinstance(detail, str) or detail in english_defaults:
+        detail = standard_messages.get(
+            exc.status_code, "Não foi possível concluir a solicitação"
+        )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": detail},
+        headers=exc.headers,
+    )
+
 
 Nome = Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=80)]
 CRM = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20)]
@@ -102,7 +189,6 @@ class DoctorIn(BaseModel):
         if value not in UFS_BRASILEIRAS:
             raise ValueError("UF deve ser uma sigla de estado brasileiro válida")
         return value
-
 
 class PasswordRegistration(BaseModel):
     user: UserIn
@@ -195,9 +281,10 @@ def basic_user_dict(user: User) -> dict:
 
 
 def ensure_doctor_is_available(novo: DoctorIn, db: Session, ignore_doctor_id: int | None = None) -> None:
-    doctor = db.scalar(select(Doctor).where(Doctor.crm == novo.crm, Doctor.uf == novo.uf))
-    if doctor and doctor.id != ignore_doctor_id:
-        raise HTTPException(status_code=409, detail=f"O CRM {novo.crm}/{novo.uf} já está cadastrado")
+    doctors = db.scalars(select(Doctor).where(Doctor.uf == novo.uf)).all()
+    for doctor in doctors:
+        if crm_digits(doctor.crm) == crm_digits(novo.crm) and doctor.id != ignore_doctor_id:
+            raise HTTPException(status_code=409, detail=f"O CRM {novo.crm}/{novo.uf} já está cadastrado")
 
 
 def commit_registration(db: Session, user: User, conflict_message: str) -> dict:
@@ -212,7 +299,9 @@ def commit_registration(db: Session, user: User, conflict_message: str) -> dict:
 
 
 def destination_for(user: User) -> str:
-    if user.registration_status in {STATUS_PENDING, STATUS_REJECTED}:
+    if user.registration_status in {
+        STATUS_PENDING, STATUS_ADMIN_PENDING, STATUS_CRM_PENDING, STATUS_CRM_FAILED, STATUS_REJECTED
+    }:
         return "/account/status"
     if user.registration_status == STATUS_APPROVED_INCOMPLETE:
         return "/doctor/complete-profile"
@@ -237,12 +326,89 @@ def authenticate_account(
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "message": "Hello World"}
+    return {"status": "ok", "message": "Aplicação funcionando"}
+
+
+def apply_cfm_result(user: User, result: CFMDoctor) -> None:
+    doctor = user.doctor
+    if doctor is None:
+        raise RuntimeError("Cadastro médico sem perfil profissional")
+    now = datetime.now(UTC)
+    user.registration_status = STATUS_APPROVED_INCOMPLETE
+    user.approved_at = now
+    user.approved_by_admin = None
+    user.reviewed_by_admin = None
+    user.verification_method = "cfm_browser"
+    user.rejection_reason = None
+    user.rejected_at = None
+    doctor.crm_verified = True
+    doctor.verification_status = "verified"
+    doctor.verification_method = "cfm_browser"
+    doctor.verification_last_error = None
+    doctor.cfm_crm_display = result.crm_display
+    doctor.cfm_official_name = result.official_name
+    doctor.cfm_registration_status = result.registration_status
+    doctor.cfm_registration_type = result.registration_type
+    doctor.cfm_photo_url = result.photo_url
+    doctor.cfm_validated_at = now
+    doctor.cfm_source_updated_at = result.source_updated_at
+    doctor.crm_registration_date = result.registration_date
+    doctor.crm_first_registration_uf = result.first_registration_uf
+    doctor.graduation_institution = result.graduation_institution
+    doctor.graduation_year = result.graduation_year
+    doctor.specialties.clear()
+    doctor.specialties.extend(
+        DoctorSpecialty(
+            official_name=specialty.name,
+            rqe=specialty.rqe,
+            official_description=specialty.official_description,
+        )
+        for specialty in result.specialties
+    )
+
+
+def attempt_automatic_verification(
+    user: User,
+    verifier: DoctorVerificationService,
+    db: Session,
+    *,
+    discard_on_professional_failure: bool = False,
+) -> dict:
+    doctor = user.doctor
+    if doctor is None:
+        raise RuntimeError("Cadastro médico sem perfil profissional")
+    doctor.verification_last_attempt_at = datetime.now(UTC)
+    doctor.verification_method = "cfm_browser"
+    try:
+        result = verifier.verify(user.nome, doctor.crm, doctor.uf)
+        apply_cfm_result(user, result)
+    except DoctorVerificationFailure as exc:
+        if discard_on_professional_failure:
+            db.rollback()
+            raise HTTPException(status_code=422, detail=exc.public_message) from exc
+        user.registration_status = STATUS_CRM_FAILED
+        user.verification_method = "cfm_browser"
+        doctor.crm_verified = False
+        doctor.verification_status = exc.__class__.__name__.lower()
+        doctor.verification_last_error = exc.public_message
+    except CFMServiceError as exc:
+        user.registration_status = STATUS_CRM_PENDING
+        user.verification_method = "cfm_browser"
+        doctor.crm_verified = False
+        doctor.verification_status = "pending_retry"
+        doctor.verification_last_error = str(exc)
+    db.commit()
+    db.refresh(user)
+    return user_with_doctor_dict(user)
 
 
 @app.post("/registrations", status_code=201)
-def create_doctor_registration(novo: DoctorRegistrationIn, db: Session = Depends(get_db)) -> dict:
-    """Pré-cadastro médico sem consulta automática ao CFM."""
+def create_doctor_registration(
+    novo: DoctorRegistrationIn,
+    db: Session = Depends(get_db),
+    verifier: DoctorVerificationService = Depends(get_doctor_verification_service),
+) -> dict:
+    """Só confirma o cadastro após validar os dados profissionais no CFM."""
     if db.scalar(select(User).where(User.email == novo.user.email)):
         raise HTTPException(status_code=409, detail=f"O e-mail {novo.user.email} já está cadastrado")
     ensure_doctor_is_available(novo.doctor, db)
@@ -251,10 +417,24 @@ def create_doctor_registration(novo: DoctorRegistrationIn, db: Session = Depends
         email=novo.user.email,
         password_hash=hash_password(novo.senha),
         account_type=ACCOUNT_DOCTOR,
-        registration_status=STATUS_PENDING,
-        doctor=Doctor(crm=novo.doctor.crm, uf=novo.doctor.uf, verification_status="pending_manual"),
+        registration_status=STATUS_CRM_PENDING,
+        doctor=Doctor(crm=novo.doctor.crm, uf=novo.doctor.uf, verification_status="pending_browser"),
     )
-    return commit_registration(db, user, "Não foi possível concluir: e-mail ou CRM já cadastrado")
+    db.add(user)
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Não foi possível concluir: e-mail ou CRM já cadastrado",
+        )
+    return attempt_automatic_verification(
+        user,
+        verifier,
+        db,
+        discard_on_professional_failure=True,
+    )
 
 
 @app.post("/non-medical/registrations", status_code=201)
@@ -266,7 +446,7 @@ def create_non_doctor_registration(novo: NonDoctorRegistrationIn, db: Session = 
         email=novo.user.email,
         password_hash=hash_password(novo.senha),
         account_type=ACCOUNT_NON_DOCTOR,
-        registration_status=STATUS_PENDING,
+        registration_status=STATUS_ADMIN_PENDING,
     )
     return commit_registration(db, user, "Não foi possível concluir: e-mail já cadastrado")
 
@@ -336,7 +516,13 @@ def admin_registrations(
 def admin_registration_summary(
     db: Session = Depends(get_db), _: str = Depends(require_admin)
 ) -> dict[str, int]:
-    count = db.scalar(select(func.count()).select_from(User).where(User.registration_status == STATUS_PENDING))
+    count = db.scalar(
+        select(func.count()).select_from(User).where(
+            User.registration_status.in_(
+                {STATUS_PENDING, STATUS_ADMIN_PENDING, STATUS_CRM_PENDING, STATUS_CRM_FAILED}
+            )
+        )
+    )
     return {"pending_count": count or 0}
 
 
@@ -364,7 +550,9 @@ def approve_registration(
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail=f"Usuário {user_id} não encontrado")
-    if user.registration_status != STATUS_PENDING:
+    if user.registration_status not in {
+        STATUS_PENDING, STATUS_ADMIN_PENDING, STATUS_CRM_PENDING, STATUS_CRM_FAILED
+    }:
         raise HTTPException(status_code=409, detail="Somente cadastros pendentes podem ser aprovados")
     now = datetime.now(UTC)
     user.registration_status = STATUS_APPROVED_INCOMPLETE if user.account_type == ACCOUNT_DOCTOR else STATUS_ACTIVE
@@ -394,7 +582,9 @@ def reject_registration(
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail=f"Usuário {user_id} não encontrado")
-    if user.registration_status != STATUS_PENDING:
+    if user.registration_status not in {
+        STATUS_PENDING, STATUS_ADMIN_PENDING, STATUS_CRM_PENDING, STATUS_CRM_FAILED
+    }:
         raise HTTPException(status_code=409, detail="Somente cadastros pendentes podem ser rejeitados")
     user.registration_status = STATUS_REJECTED
     user.rejected_at = datetime.now(UTC)
@@ -409,6 +599,28 @@ def reject_registration(
     db.refresh(user)
     notifications.account_status_changed(user.id, user.email, user.registration_status)
     return user_with_doctor_dict(user)
+
+
+@app.post("/admin/registrations/{user_id}/retry-cfm")
+def retry_cfm_verification(
+    user_id: int,
+    db: Session = Depends(get_db),
+    _: str = Depends(require_admin),
+    verifier: DoctorVerificationService = Depends(get_doctor_verification_service),
+) -> dict:
+    user = db.scalar(
+        select(User).options(selectinload(User.doctor)).where(User.id == user_id)
+    )
+    if not user:
+        raise HTTPException(status_code=404, detail=f"Usuário {user_id} não encontrado")
+    if user.account_type != ACCOUNT_DOCTOR or user.doctor is None:
+        raise HTTPException(status_code=409, detail="Este cadastro não pertence a um médico")
+    if user.registration_status not in {STATUS_CRM_PENDING, STATUS_CRM_FAILED, STATUS_PENDING}:
+        raise HTTPException(status_code=409, detail="Este cadastro não está aguardando validação do CRM")
+    user.registration_status = STATUS_CRM_PENDING
+    user.doctor.verification_status = "pending_browser"
+    db.commit()
+    return attempt_automatic_verification(user, verifier, db)
 
 
 @app.get("/users")
@@ -471,14 +683,14 @@ def update_doctor_registration(
     else:
         user.doctor = Doctor(crm=novo.doctor.crm, uf=novo.doctor.uf)
     if needs_new_review:
-        user.registration_status = STATUS_PENDING
+        user.registration_status = STATUS_CRM_PENDING
         user.approved_at = None
         user.approved_by_admin = None
         user.reviewed_by_admin = None
         user.verification_method = None
         user.profile_completed_at = None
         user.doctor.crm_verified = False
-        user.doctor.verification_status = "pending_manual"
+        user.doctor.verification_status = "pending_browser"
     try:
         db.commit()
     except IntegrityError:
@@ -508,12 +720,12 @@ def create_doctor_profile(
     ensure_doctor_is_available(novo, db)
     user.account_type = ACCOUNT_DOCTOR
     if user.password_hash:
-        user.registration_status = STATUS_PENDING
+        user.registration_status = STATUS_CRM_PENDING
     doctor = Doctor(
         user=user,
         crm=novo.crm,
         uf=novo.uf,
-        verification_status="pending_manual" if user.password_hash else "not_verified",
+        verification_status="pending_browser" if user.password_hash else "not_verified",
     )
     db.add(doctor)
     try:
@@ -635,7 +847,9 @@ def non_medical_login_page(request: Request):
 
 @app.get("/account/status")
 def account_status_page(request: Request, user: User = Depends(get_authenticated_user)):
-    if user.registration_status not in {STATUS_PENDING, STATUS_REJECTED}:
+    if user.registration_status not in {
+        STATUS_PENDING, STATUS_ADMIN_PENDING, STATUS_CRM_PENDING, STATUS_CRM_FAILED, STATUS_REJECTED
+    }:
         return RedirectResponse(destination_for(user), status_code=303)
     return templates.TemplateResponse(request=request, name="account_status.html", context={"user": user})
 

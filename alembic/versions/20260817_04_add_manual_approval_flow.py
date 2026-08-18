@@ -41,8 +41,21 @@ def upgrade() -> None:
             registration_status = 'active'
         """
     )
-    op.alter_column("users", "account_type", nullable=False, server_default="non_doctor")
-    op.alter_column("users", "registration_status", nullable=False, server_default="active")
+    # O modo batch também atende PostgreSQL e permite recriar a tabela no SQLite,
+    # que não suporta ALTER COLUMN diretamente.
+    with op.batch_alter_table("users") as batch_op:
+        batch_op.alter_column(
+            "account_type",
+            existing_type=sa.String(length=20),
+            nullable=False,
+            server_default="non_doctor",
+        )
+        batch_op.alter_column(
+            "registration_status",
+            existing_type=sa.String(length=32),
+            nullable=False,
+            server_default="active",
+        )
 
 
 def downgrade() -> None:

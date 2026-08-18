@@ -3,6 +3,7 @@
 import unicodedata
 
 from app.services.cfm import CFMDoctor, CFMService
+from app.services.crm_numbers import crm_digits
 
 
 def normalize_name(value: str) -> str:
@@ -41,7 +42,9 @@ class DoctorVerificationService:
         doctor = self.cfm_service.find_doctor(crm, uf)
         if doctor is None:
             raise DoctorNotFound
-        if doctor.registration_status != "A":
+        if doctor.uf.upper() != uf.upper() or crm_digits(doctor.crm_display) != crm_digits(crm):
+            raise DoctorNotFound
+        if normalize_name(doctor.registration_status) not in {"a", "regular"}:
             raise DoctorIrregular
         if normalize_name(name) != normalize_name(doctor.official_name):
             raise DoctorNameMismatch

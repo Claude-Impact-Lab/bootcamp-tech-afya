@@ -92,10 +92,18 @@ class Doctor(Base):
     )
     cfm_crm_display: Mapped[str | None] = mapped_column(String(30))
     cfm_official_name: Mapped[str | None] = mapped_column(String(80))
-    cfm_registration_status: Mapped[str | None] = mapped_column(String(1))
-    cfm_registration_type: Mapped[str | None] = mapped_column(String(1))
+    cfm_registration_status: Mapped[str | None] = mapped_column(String(100))
+    cfm_registration_type: Mapped[str | None] = mapped_column(String(100))
+    cfm_photo_url: Mapped[str | None] = mapped_column(String(500))
     cfm_validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     cfm_source_updated_at: Mapped[date | None] = mapped_column(Date)
+    crm_registration_date: Mapped[date | None] = mapped_column(Date)
+    crm_first_registration_uf: Mapped[str | None] = mapped_column(String(100))
+    graduation_institution: Mapped[str | None] = mapped_column(String(255))
+    graduation_year: Mapped[str | None] = mapped_column(String(20))
+    verification_method: Mapped[str | None] = mapped_column(String(32))
+    verification_last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    verification_last_error: Mapped[str | None] = mapped_column(Text)
     user: Mapped[User] = relationship(back_populates="doctor")
     specialties: Mapped[list[DoctorSpecialty]] = relationship(
         back_populates="doctor",
@@ -115,10 +123,23 @@ class Doctor(Base):
             "cfm_official_name": self.cfm_official_name,
             "cfm_registration_status": self.cfm_registration_status,
             "cfm_registration_type": self.cfm_registration_type,
+            "cfm_photo_url": self.cfm_photo_url,
             "cfm_validated_at": self.cfm_validated_at.isoformat() if self.cfm_validated_at else None,
             "cfm_source_updated_at": (
                 self.cfm_source_updated_at.isoformat() if self.cfm_source_updated_at else None
             ),
+            "crm_registration_date": (
+                self.crm_registration_date.isoformat() if self.crm_registration_date else None
+            ),
+            "crm_first_registration_uf": self.crm_first_registration_uf,
+            "graduation_institution": self.graduation_institution,
+            "graduation_year": self.graduation_year,
+            "verification_method": self.verification_method,
+            "verification_last_attempt_at": (
+                self.verification_last_attempt_at.isoformat()
+                if self.verification_last_attempt_at else None
+            ),
+            "verification_last_error": self.verification_last_error,
             "specialties": [specialty.to_dict() for specialty in self.specialties],
         }
 

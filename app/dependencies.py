@@ -4,6 +4,7 @@ import os
 
 from fastapi import Depends
 
+from app.integrations.cfm_browser import CFMBrowserService
 from app.integrations.cfm_soap import CFMSoapService
 from app.services.cfm import CFMService
 from app.services.doctor_verification import DoctorVerificationService
@@ -11,6 +12,12 @@ from app.services.notifications import NotificationPublisher, NullNotificationPu
 
 
 def get_cfm_service() -> CFMService:
+    if os.getenv("CFM_VALIDATION_METHOD", "browser").lower() == "browser":
+        return CFMBrowserService(
+            timeout_seconds=os.getenv("CFM_BROWSER_TIMEOUT_SECONDS", "120"),
+            headless=os.getenv("CFM_BROWSER_HEADLESS", "false").lower() == "true",
+            channel=os.getenv("CFM_BROWSER_CHANNEL", "chrome"),
+        )
     return CFMSoapService(
         access_key=os.getenv("CFM_ACCESS_KEY"),
         url=os.getenv("CFM_WS_URL"),

@@ -25,6 +25,11 @@ class CFMDoctor:
     registration_type: str | None
     source_updated_at: date | None
     specialties: tuple[CFMSpecialty, ...]
+    registration_date: date | None = None
+    first_registration_uf: str | None = None
+    graduation_institution: str | None = None
+    graduation_year: str | None = None
+    photo_url: str | None = None
 
 
 class CFMService(Protocol):

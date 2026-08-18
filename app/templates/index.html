@@ -150,10 +150,10 @@
         <section class="intro">
           <span class="eyebrow">ACESSO PARA PROFISSIONAIS</span>
           <h1>Seu perfil médico em um só lugar.</h1>
-          <p>Faça seu pré-cadastro. Um administrador conferirá os dados antes de liberar o acesso.</p>
+          <p>Faça seu pré-cadastro. O CRM será consultado no portal público do CFM.</p>
           <ul class="beneficios">
             <li>Dados pessoais e profissionais conectados</li>
-            <li>CRM conferido manualmente pelo administrador</li>
+            <li>CRM validado no CFM com Chrome local e visível</li>
             <li>Informações protegidas no painel administrativo</li>
           </ul>
         </section>
@@ -231,7 +231,9 @@
 
       form.addEventListener("submit", (evento) => {
         evento.preventDefault();
-        resultado.hidden = true;
+        if (!form.checkValidity()) { form.reportValidity(); return; }
+        resultado.textContent = "Validando seus dados. Aguarde a janela do Chrome; se o CFM pedir CAPTCHA, resolva-o manualmente nela.";
+        resultado.hidden = false;
         resultado.classList.remove("erro");
         botaoSalvar.disabled = true;
 
@@ -249,14 +251,23 @@
             if (!resposta.ok) throw new Error(mensagemDeErro(corpo, resposta));
             return corpo;
           }))
-          .then(() => {
+          .then((corpo) => {
             form.reset();
-            resultado.textContent = "Cadastro realizado. Seus dados estão aguardando validação.";
+            if (corpo.registration_status === "approved_incomplete") {
+              resultado.textContent = "CRM validado no CFM. Seu cadastro médico foi aprovado automaticamente.";
+            } else if (corpo.registration_status === "crm_verification_failed") {
+              resultado.textContent = corpo.doctor?.verification_last_error || "Não foi possível validar os dados profissionais no CFM.";
+              resultado.classList.add("erro");
+            } else {
+              resultado.textContent = "A validação não foi concluída. O cadastro foi salvo para uma nova tentativa ou análise administrativa.";
+            }
             resultado.hidden = false;
             campoNome.focus();
           })
           .catch((erro) => {
-            resultado.textContent = erro.message;
+            resultado.textContent = erro?.name === "Error"
+              ? erro.message
+              : "Não foi possível conectar ao servidor. Tente novamente.";
             resultado.classList.add("erro");
             resultado.hidden = false;
           })

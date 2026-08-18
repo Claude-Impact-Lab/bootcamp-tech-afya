@@ -1,1 +1,41 @@
-<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Status do cadastro</title><style>body{min-height:100vh;margin:0;padding:1rem;display:grid;place-items:center;background:#07111f;color:#f8fafc;font-family:system-ui,sans-serif}.card{width:min(38rem,100%);padding:2.5rem;border:1px solid #284058;border-radius:1rem;background:#122236;text-align:center}p{color:#a9b8c8;line-height:1.6}.reason{padding:1rem;border-radius:.6rem;background:#3a1f25;color:#fecdd3}button{padding:.75rem 1rem;border:0;border-radius:.6rem;background:#18a8a3;color:white;font-weight:800;cursor:pointer}</style></head><body><main class="card">{% if user.registration_status == "pending_verification" %}<h1>Seu cadastro ainda está em análise</h1><p>Assim que ele for aprovado, você poderá {% if user.account_type == "doctor" %}concluir seu perfil{% else %}acessar seu painel{% endif %}.</p>{% else %}<h1>Cadastro rejeitado</h1><p>Sua solicitação não pôde ser aprovada.</p>{% if user.rejection_reason %}<p class="reason">{{ user.rejection_reason }}</p>{% endif %}{% endif %}<button id="logout">Sair</button></main><script>document.getElementById("logout").addEventListener("click",async()=>{await fetch("/account/logout",{method:"POST"});window.location.assign({{ ('/doctor/login' if user.account_type == 'doctor' else '/non-medical/login') | tojson }});});</script></body></html>
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Status do cadastro</title>
+    <style>
+      body{min-height:100vh;margin:0;padding:1rem;display:grid;place-items:center;background:#07111f;color:#f8fafc;font-family:system-ui,sans-serif}
+      .card{width:min(38rem,100%);padding:2.5rem;border:1px solid #284058;border-radius:1rem;background:#122236;text-align:center}
+      p{color:#a9b8c8;line-height:1.6}.reason{padding:1rem;border-radius:.6rem;background:#3a1f25;color:#fecdd3}
+      button{padding:.75rem 1rem;border:0;border-radius:.6rem;background:#18a8a3;color:white;font-weight:800;cursor:pointer}
+      .actions{display:flex;justify-content:center;gap:1rem;align-items:center;flex-wrap:wrap}.back-link{color:#a9b8c8}
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      {% if user.registration_status in ["pending_verification", "pending_admin_approval"] %}
+        <h1>Seu cadastro ainda está em análise</h1>
+        <p>O administrador analisará sua solicitação e informará quando o acesso estiver liberado.</p>
+      {% elif user.registration_status == "crm_verification_pending" %}
+        <h1>Validação do CRM pendente</h1>
+        <p>A consulta automática não foi concluída. Seus dados estão salvos para uma nova tentativa ou análise administrativa.</p>
+      {% elif user.registration_status == "crm_verification_failed" %}
+        <h1>Não foi possível validar o CRM</h1>
+        <p>Os dados informados não corresponderam ao resultado público do CFM.</p>
+        {% if user.doctor and user.doctor.verification_last_error %}<p class="reason">{{ user.doctor.verification_last_error }}</p>{% endif %}
+      {% else %}
+        <h1>Cadastro rejeitado</h1>
+        <p>Sua solicitação não pôde ser aprovada.</p>
+        {% if user.rejection_reason %}<p class="reason">{{ user.rejection_reason }}</p>{% endif %}
+      {% endif %}
+      <div class="actions"><a class="back-link" href="/">← Voltar para o início</a><button id="logout">Sair</button></div>
+    </main>
+    <script>
+      document.getElementById("logout").addEventListener("click", async () => {
+        await fetch("/account/logout", {method:"POST"});
+        window.location.assign({{ ('/doctor/login' if user.account_type == 'doctor' else '/non-medical/login') | tojson }});
+      });
+    </script>
+  </body>
+</html>

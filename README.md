@@ -1,7 +1,7 @@
 # User Manager
 
-Projeto do treinamento de programação: cadastro de médicos e usuários, com aprovação
-manual pelo administrador e acessos separados por tipo de conta.
+Projeto do treinamento de programação: cadastro de médicos com validação local no CFM,
+usuários sem CRM com aprovação manual e acessos separados por tipo de conta.
 
 Hoje a tela pública cria pré-cadastros por `POST /registrations`; a lista completa e a
 aprovação ficam protegidas no painel administrativo.
@@ -224,10 +224,19 @@ Para desfazer a última migration localmente: `uv run alembic downgrade -1`.
 
 ### Cadastro público e painel administrativo
 
-A página inicial (`/`) recebe nome, e-mail, CRM, UF e senha. O perfil começa como
-`pending_verification`; a senha é armazenada somente como hash. A conferência do CRM é
-manual e o cadastro não depende de uma chave do CFM. Usuários sem CRM possuem cadastro
-e login próprios em `/non-medical/register` e `/non-medical/login`.
+A página inicial (`/`) recebe nome, e-mail, CRM, UF e senha. Depois de salvar o cadastro,
+o backend abre o Chrome em uma sessão isolada, preenche CRM e UF no portal público do CFM
+e aguarda o resultado. Se aparecer CAPTCHA, ele deve ser resolvido manualmente nessa
+janela; o sistema não tenta contorná-lo. Nome, CRM e UF correspondentes com situação
+`Regular` aprovam o médico automaticamente. Timeout ou fechamento da janela deixam o
+cadastro como `crm_verification_pending`, disponível para nova tentativa ou análise.
+
+O cadastro guarda o número completo do CRM e a UF separadamente. Na página pública do CFM,
+o adaptador seleciona primeiro a UF e observa o próprio formulário: quando o site exibe um
+prefixo fora do campo (como `52` para RJ), somente o restante é digitado no campo limitado
+a sete posições. Não existe tabela fixa de prefixos no projeto. A senha é armazenada somente
+como hash. Usuários sem CRM possuem cadastro e login próprios em `/non-medical/register` e
+`/non-medical/login` e continuam dependendo de aprovação manual.
 
 O administrador aprova ou rejeita cada solicitação. Um médico aprovado passa por
 `approved_incomplete` e precisa concluir a segunda etapa antes de ficar `active`. Um
@@ -238,12 +247,13 @@ Rotas dessa relação:
 
 | Método e rota | Função |
 |---------------|--------|
-| `POST /registrations` | cria pré-cadastro médico pendente |
+| `POST /registrations` | cria o médico e inicia a validação local no CFM |
 | `POST /non-medical/registrations` | cria pré-cadastro sem CRM pendente |
 | `POST /doctor/login` | autentica um médico e direciona conforme seu status |
 | `POST /non-medical/login` | autentica um usuário sem CRM |
 | `POST /admin/registrations/{id}/approve` | aprova manualmente uma solicitação |
 | `POST /admin/registrations/{id}/reject` | rejeita uma solicitação com motivo |
+| `POST /admin/registrations/{id}/retry-cfm` | abre o Chrome para tentar o CFM novamente |
 | `POST /doctor/complete-profile` | conclui a segunda etapa do médico aprovado |
 | `PUT /registrations/{user_id}` | administrador edita usuário e perfil médico |
 | `POST /users/{user_id}/doctor` | adiciona perfil médico a um usuário existente |

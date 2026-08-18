@@ -35,6 +35,7 @@ class SuccessfulDoctorVerifier:
                     official_description="CARDIOLOGIA - RQE Nº: 1111",
                 ),
             ),
+            photo_url="https://portal.cfm.org.br/foto-oficial.png",
         )
 
 
@@ -84,7 +85,7 @@ def test_health_retorna_ok():
     resposta = client.get("/health")
 
     assert resposta.status_code == 200
-    assert resposta.json() == {"status": "ok", "message": "Hello World"}
+    assert resposta.json() == {"status": "ok", "message": "Aplicação funcionando"}
 
 
 def test_index_renderiza_a_tela():
@@ -162,6 +163,7 @@ def test_get_user_com_id_nao_numerico_retorna_422(db_isolado):
     resposta = client.get("/users/abc")
 
     assert resposta.status_code == 422
+    assert resposta.json()["detail"][0]["msg"] == "O valor informado possui formato inválido"
 
 
 def test_list_users_sem_ninguem_cadastrado_retorna_200_e_lista_vazia(db_isolado):
@@ -279,9 +281,10 @@ def test_registration_cria_usuario_e_perfil_medico_juntos(db_isolado):
     assert resposta.json()["nome"] == "Carla Dias"
     assert resposta.json()["doctor"]["crm"] == "123456"
     assert resposta.json()["doctor"]["uf"] == "SP"
-    assert resposta.json()["doctor"]["crm_verified"] is False
-    assert resposta.json()["doctor"]["verification_status"] == "pending_manual"
-    assert resposta.json()["registration_status"] == "pending_verification"
+    assert resposta.json()["doctor"]["crm_verified"] is True
+    assert resposta.json()["doctor"]["verification_status"] == "verified"
+    assert resposta.json()["doctor"]["cfm_photo_url"] == "https://portal.cfm.org.br/foto-oficial.png"
+    assert resposta.json()["registration_status"] == "approved_incomplete"
 
     usuarios = client.get("/users").json()
     assert usuarios[0]["doctor"]["user_id"] == usuarios[0]["id"]
@@ -395,7 +398,44 @@ def test_registration_informa_tamanho_da_senha_em_portugues(db_isolado):
     assert "A senha deve ter entre 8 e 128 caracteres" in resposta.json()["detail"][0]["msg"]
 
 
+@pytest.mark.parametrize(
+    ("failure", "mensagem"),
+    [
+        (DoctorNotFound(), "CRM e UF não encontrados no CFM"),
+        (DoctorNameMismatch(), "O nome informado não corresponde ao nome registrado no CFM"),
+        (DoctorIrregular(), "O CRM foi encontrado, mas não está regular no CFM"),
+    ],
+)
+def test_falha_profissional_nao_salva_nem_reserva_email_ou_crm(
+    db_isolado, failure, mensagem
+):
+    app.dependency_overrides[get_doctor_verification_service] = lambda: FailingDoctorVerifier(
+        failure
+    )
+    payload = {
+        "user": {"nome": "Carla Dias", "email": "carla@exemplo.com"},
+        "doctor": {"crm": "123456", "uf": "SP"},
+        "senha": "senha-segura",
+        "confirmacao_senha": "senha-segura",
+    }
+
+    primeira_tentativa = client.post("/registrations", json=payload)
+
+    assert primeira_tentativa.status_code == 422
+    assert primeira_tentativa.json()["detail"] == mensagem
+    assert client.get("/users").json() == []
+
+    app.dependency_overrides[get_doctor_verification_service] = SuccessfulDoctorVerifier
+    nova_tentativa = client.post("/registrations", json=payload)
+
+    assert nova_tentativa.status_code == 201
+    assert len(client.get("/users").json()) == 1
+
+
 def test_medico_pendente_faz_login_mas_nao_acessa_painel(db_isolado):
+    app.dependency_overrides[get_doctor_verification_service] = lambda: FailingDoctorVerifier(
+        CFMUnavailableError("timeout")
+    )
     client.post(
         "/registrations",
         json={
@@ -608,7 +648,7 @@ def test_index_tem_formulario_que_envia_post():
     assert '<option value="SP">São Paulo (SP)</option>' in INDEX_HTML
     assert 'fetch("/registrations",' in INDEX_HTML
     assert 'maxlength="20"' in INDEX_HTML
-    assert "Cadastro realizado. Seus dados estão aguardando validação." in INDEX_HTML
+    assert "CRM validado no CFM" in INDEX_HTML
     assert 'id="campo-senha"' in INDEX_HTML
 
 
@@ -628,7 +668,40 @@ def test_admin_tem_login_e_acoes():
 
     assert 'id="login-form"' in admin_html
     assert "Cadastros pendentes" in admin_html
-    assert "Aprovar cadastro" in admin_html
+    assert "Aprovar manualmente" in admin_html
     assert "Rejeitar cadastro" in admin_html
     assert "/admin/registrations/${selected.id}/approve" in admin_html
     assert "/admin/registrations/${selected.id}/reject" in admin_html
+    assert "cfm_photo_url" in admin_html
+    assert "doctor-photo" in admin_html
+    assert 'id="review-profile"' in admin_html
+    assert "review-photo" in admin_html
+    assert "renderReviewProfile(user)" in admin_html
+
+
+@pytest.mark.parametrize(
+    "template_name",
+    [
+        "account_login.html",
+        "account_status.html",
+        "admin.html",
+        "complete_profile.html",
+        "dashboard.html",
+        "non_medical_register.html",
+    ],
+)
+def test_paginas_secundarias_tem_volta_para_o_inicio(template_name):
+    html = Path(BASE_DIR / "templates" / template_name).read_text(encoding="utf-8")
+
+    assert 'href="/"' in html
+    assert "Voltar para o início" in html
+
+
+def test_erros_padrao_do_framework_sao_exibidos_em_portugues(db_isolado):
+    nao_encontrado = client.get("/pagina-que-nao-existe")
+    metodo_incorreto = client.patch("/health")
+
+    assert nao_encontrado.status_code == 404
+    assert nao_encontrado.json()["detail"] == "Página ou recurso não encontrado"
+    assert metodo_incorreto.status_code == 405
+    assert metodo_incorreto.json()["detail"] == "Método não permitido"
