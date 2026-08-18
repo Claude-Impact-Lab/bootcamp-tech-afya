@@ -59,6 +59,12 @@ def criar_doctor(user_id: int, payload: DoctorCreate, db: Session = Depends(get_
     if doctor_existente is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Usuário já possui um médico associado")
 
+    # NOVO: checagem de CRM duplicado
+    crm_existente = db.query(models.Doctor).filter(models.Doctor.crm == payload.crm).first()
+
+    if crm_existente is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="CRM já cadastrado")
+
     novo_doctor = models.Doctor(crm=payload.crm, uf=payload.uf, user_id=user_id)
     db.add(novo_doctor)
     db.commit()

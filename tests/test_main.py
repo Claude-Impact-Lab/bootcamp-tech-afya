@@ -223,3 +223,86 @@ def limpar_usuarios():
     db.commit()
     db.close()
     yield
+
+def test_post_doctor_normaliza_uf_minuscula():
+    usuario = client.post(
+        "/users", json={"nome": "Dr. Normaliza", "email": "normaliza@example.com"}
+    ).json()
+
+    resp = client.post(
+        f"/users/{usuario['id']}/doctors",
+        json={"crm": "55555", "uf": "sp"},
+    )
+
+    # o que você espera verificar aqui?
+    assert resp.status_code == 201
+    assert resp.json()["uf"] == "SP"    
+
+def test_post_doctor_crm_duplicado_retorna_409():
+    usuario1 = client.post(
+        "/users", json={"nome": "Dr. Duplicado 1", "email": "duplicado1@example.com"}
+    ).json()
+
+    client.post(
+        f"/users/{usuario1['id']}/doctors",
+        json={"crm": "66666", "uf": "SP"},
+    )
+
+    usuario2 = client.post(
+        "/users", json={"nome": "Dr. Duplicado 2", "email": "duplicado2@example.com"}
+    ).json()
+
+    resp = client.post(
+        f"/users/{usuario2['id']}/doctors",
+        json={"crm": "66666", "uf": "RJ"},
+    )
+
+    assert resp.status_code == 409  
+
+def test_post_doctor_crm_invalido_retorna_422():
+    usuario = client.post(
+        "/users", json={"nome": "Dr. Invalido", "email": "invalido@example.com"}
+    ).json()
+
+    resp = client.post(
+        f"/users/{usuario['id']}/doctors",
+        json={"crm": "abcde", "uf": "SP"},
+    )
+
+    assert resp.status_code == 422
+
+def test_post_doctor_crm_curto_retorna_422():
+    usuario = client.post(
+        "/users", json={"nome": "Dr. Curto", "email": "curto@example.com"}
+    ).json()
+
+    resp = client.post(
+        f"/users/{usuario['id']}/doctors",
+        json={"crm": "123", "uf": "SP"},
+    )
+
+    assert resp.status_code == 422
+
+def test_post_doctor_crm_longo_retorna_422():
+    usuario = client.post(
+        "/users", json={"nome": "Dr. Longo", "email": "longo@example.com"}
+    ).json()
+
+    resp = client.post(
+        f"/users/{usuario['id']}/doctors",
+        json={"crm": "1234567890", "uf": "SP"},
+    )
+
+    assert resp.status_code == 422
+
+def test_post_doctor_uf_invalida_retorna_422():
+    usuario = client.post(
+        "/users", json={"nome": "Dr. UF Invalida", "email": "ufinvalida@example.com"}
+    ).json()
+
+    resp = client.post(
+        f"/users/{usuario['id']}/doctors",
+        json={"crm": "77777", "uf": "XX"},
+    )
+
+    assert resp.status_code == 422
