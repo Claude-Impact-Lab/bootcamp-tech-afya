@@ -1,8 +1,8 @@
 """
-Testes para a aplicação FastAPI.
+Testes para a aplicação FastAPI com persistência em banco de dados.
 
-Usa TestClient do FastAPI para fazer requisições HTTP sem precisar
-iniciar um servidor real.
+O conftest.py automaticamente configura um banco SQLite em memória,
+então esses testes rodam rápido e isolados.
 """
 
 from fastapi.testclient import TestClient
@@ -100,3 +100,25 @@ def test_get_users_contém_dados_esperados():
     # Verificar que João Silva está na lista
     nomes = [usuario["name"] for usuario in usuarios]
     assert "João Silva" in nomes
+
+
+def test_usuarios_persistem_no_banco(db_session):
+    """
+    Testa se os usuários estão sendo persistidos no banco de dados.
+    
+    Verifica que:
+    - Ao consultar o banco diretamente, encontramos os mesmos usuários
+    - O banco de dados está sendo usado corretamente
+    """
+    from app.models import User
+    
+    resposta = client.get("/users")
+    usuarios_da_api = resposta.json()
+
+    # Consultar o banco diretamente
+    usuarios_do_banco = db_session.query(User).all()
+    
+    assert len(usuarios_do_banco) == len(usuarios_da_api)
+    assert usuarios_do_banco[0].name == usuarios_da_api[0]["name"]
+
+

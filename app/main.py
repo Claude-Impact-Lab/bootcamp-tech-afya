@@ -1,8 +1,8 @@
 """
-Aplicação FastAPI mínima com rotas:
+Aplicação FastAPI com persistência em PostgreSQL:
 - GET /health: retorna JSON com status da aplicação
 - GET /: retorna página HTML que fetcha a mensagem da API
-- GET /users: retorna lista de usuários em JSON
+- GET /users: retorna lista de usuários do banco de dados
 """
 
 from pathlib import Path
@@ -10,37 +10,32 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.templating import Jinja2Templates
 
+from app.database import engine, SessionLocal, Base
+from app.models import User
+
 # Configuração de diretórios
 BASE_DIR = Path(__file__).resolve().parent
 
 # Inicializar aplicação FastAPI
 app = FastAPI(
     title="User Manager",
-    description="Aplicação mínima para o bootcamp Afya",
+    description="Aplicação com persistência em PostgreSQL",
     version="0.1.0",
 )
 
 # Configurar templates (para renderizar HTML)
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
 
-# Base de dados de usuários (em memória - será substituído por banco de dados)
-users_db = [
-    {
-        "id": 1,
-        "name": "João Silva",
-        "email": "joao.silva@example.com",
-    },
-    {
-        "id": 2,
-        "name": "Maria Santos",
-        "email": "maria.santos@example.com",
-    },
-    {
-        "id": 3,
-        "name": "Pedro Oliveira",
-        "email": "pedro.oliveira@example.com",
-    },
-]
+
+# Criar tabelas no banco de dados (se não existirem)
+# NOTA: No localhost, você precisa ter PostgreSQL rodando
+# em testes, o conftest.py cria as tabelas no SQLite em memória
+try:
+    Base.metadata.create_all(bind=engine)
+except Exception as e:
+    # Em testes ou sem PostgreSQL, a tabela pode não existir ainda
+    # Mas isso é ok - os testes criam em memória
+    print(f"Aviso: não foi possível criar tabelas no startup: {e}")
 
 
 @app.get("/health", tags=["Health"])
@@ -81,19 +76,26 @@ def index(request: Request):
 
 
 @app.get("/users", tags=["Users"])
-def get_users() -> list[dict]:
+def get_users():
     """
-    Retorna a lista de todos os usuários cadastrados.
+    Retorna a lista de todos os usuários cadastrados no banco de dados.
     
-    Esta é a primeira rota da API de usuários. Atualmente retorna
-    uma lista em memória. Posteriormente será integrada a um banco de dados.
+    Usa SQLAlchemy para consultar a tabela 'users' no PostgreSQL.
+    Cada objeto User retornado é convertido para dict (JSON) automaticamente.
     
     Returns:
-        list[dict]: Lista de dicionários com estrutura:
-        {
-            "id": int,
-            "name": str,
-            "email": str,
-        }
+        list[User]: Lista de usuários do banco de dados
+        
+    Nota: O FastAPI converte automaticamente objetos SQLAlchemy para JSON
     """
-    return users_db
+    # Criar uma sessão (transação) com o banco de dados
+    db = SessionLocal()
+
+    try:
+        # Consultar todos os usuários da tabela
+        usuarios = db.query(User).all()
+        return usuarios
+    finally:
+        # Importante: sempre fechar a sessão para liberar recursos
+        db.close()
+
