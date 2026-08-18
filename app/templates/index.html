@@ -98,9 +98,25 @@
       input::placeholder { color: var(--muted); font-weight: 400; }
       input:focus { border-color: var(--pink); box-shadow: 0 0 0 3px rgba(232, 62, 140, 0.12); }
 
+      select {
+        width: 100%;
+        height: 54px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 0 14px;
+        color: var(--ink);
+        background: var(--bg);
+        font: inherit;
+        font-size: 0.95rem;
+        outline: 0;
+        transition: border-color 220ms ease, box-shadow 220ms ease;
+      }
+      select:focus { border-color: var(--pink); box-shadow: 0 0 0 3px rgba(232, 62, 140, 0.12); }
+      .field-error { min-height: 18px; margin: 0; color: var(--pink-dark); font-size: 0.78rem; }
+
       .doctor-toggle { display: flex; align-items: center; gap: 10px; margin: 10px 0 20px; color: var(--ink); font-size: 0.9rem; font-weight: 500; }
       .doctor-toggle input { width: 18px; height: 18px; accent-color: var(--pink-dark); border: 1px solid var(--line); }
-      .doctor-fields { display: none; grid-template-columns: 1fr 90px; gap: 12px; }
+      .doctor-fields { display: none; grid-template-columns: 1fr 110px; gap: 12px; }
       .doctor-fields.visible { display: grid; }
       .doctor-fields input { padding-left: 14px; }
 
@@ -247,8 +263,45 @@
             </div>
             <label class="doctor-toggle" for="is-doctor"><input id="is-doctor" name="is-doctor" type="checkbox" /> Este usuário é médico</label>
             <div id="doctor-fields" class="doctor-fields">
-              <div class="field"><label for="crm">CRM</label><input id="crm" name="crm" placeholder="123456" /></div>
-              <div class="field"><label for="uf">UF</label><input id="uf" name="uf" maxlength="2" placeholder="SP" /></div>
+              <div class="field">
+                <label for="crm">CRM</label>
+                <input id="crm" name="crm" type="text" placeholder="123456" />
+                <p id="crm-error" class="field-error" aria-live="polite"></p>
+              </div>
+              <div class="field">
+                <label for="uf">UF</label>
+                <select id="uf" name="uf" aria-label="UF do médico">
+                  <option value="">UF</option>
+                  <option value="AC">AC</option>
+                  <option value="AL">AL</option>
+                  <option value="AP">AP</option>
+                  <option value="AM">AM</option>
+                  <option value="BA">BA</option>
+                  <option value="CE">CE</option>
+                  <option value="DF">DF</option>
+                  <option value="ES">ES</option>
+                  <option value="GO">GO</option>
+                  <option value="MA">MA</option>
+                  <option value="MT">MT</option>
+                  <option value="MS">MS</option>
+                  <option value="MG">MG</option>
+                  <option value="PA">PA</option>
+                  <option value="PB">PB</option>
+                  <option value="PR">PR</option>
+                  <option value="PE">PE</option>
+                  <option value="PI">PI</option>
+                  <option value="RJ">RJ</option>
+                  <option value="RN">RN</option>
+                  <option value="RS">RS</option>
+                  <option value="RO">RO</option>
+                  <option value="RR">RR</option>
+                  <option value="SC">SC</option>
+                  <option value="SP">SP</option>
+                  <option value="SE">SE</option>
+                  <option value="TO">TO</option>
+                </select>
+                <p id="uf-error" class="field-error" aria-live="polite"></p>
+              </div>
             </div>
             <button class="primary" type="submit">Cadastrar usuário</button>
           </form>
@@ -337,14 +390,56 @@
           });
       }
 
+      const crmError = document.getElementById("crm-error");
+      const ufError = document.getElementById("uf-error");
+
+      function limparErrosDeCampo() {
+        crmError.textContent = "";
+        ufError.textContent = "";
+      }
+
+      function limparMensagemPydantic(mensagem) {
+        return mensagem.replace(/^Value error, /, "");
+      }
+
+      // Mapeia o "detail" de erro 422 do FastAPI/Pydantic para os campos do formulário.
+      function exibirErrosDeValidacao(detalhe) {
+        if (!Array.isArray(detalhe)) {
+          status.textContent = detalhe || "Dados inválidos.";
+          status.className = "status error";
+          return;
+        }
+        let mensagemGeral = "";
+        detalhe.forEach((erro) => {
+          const campo = erro.loc && erro.loc[erro.loc.length - 1];
+          const mensagem = limparMensagemPydantic(erro.msg);
+          if (campo === "crm") { crmError.textContent = mensagem; }
+          else if (campo === "uf") { ufError.textContent = mensagem; }
+          else { mensagemGeral = mensagem; }
+        });
+        status.textContent = mensagemGeral || "Verifique os campos destacados.";
+        status.className = "status error";
+      }
+
       document.getElementById("user-form").addEventListener("submit", (evento) => {
         evento.preventDefault();
+        limparErrosDeCampo();
         const isDoctor = doctorCheckbox.checked;
         const payload = { name: document.getElementById("name").value, email: document.getElementById("email").value, is_doctor: isDoctor };
         if (isDoctor) { payload.crm = document.getElementById("crm").value; payload.uf = document.getElementById("uf").value; }
         fetch("/users", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
-          .then((resposta) => { if (!resposta.ok) throw new Error(`Erro HTTP: ${resposta.status}`); return resposta.json(); })
-          .then(() => { evento.target.reset(); doctorFields.classList.remove("visible"); status.textContent = "Usuário cadastrado."; status.className = "status"; return carregarUsuarios(); })
+          .then((resposta) => resposta.json().then((corpo) => ({ ok: resposta.ok, status: resposta.status, corpo })))
+          .then(({ ok, status: codigo, corpo }) => {
+            if (!ok) {
+              if (codigo === 422) { exibirErrosDeValidacao(corpo.detail); return; }
+              throw new Error(corpo.detail || `Erro HTTP: ${codigo}`);
+            }
+            evento.target.reset();
+            doctorFields.classList.remove("visible");
+            status.textContent = "Usuário cadastrado.";
+            status.className = "status";
+            return carregarUsuarios();
+          })
           .catch((erro) => { status.textContent = erro.message; status.className = "status error"; });
       });
 

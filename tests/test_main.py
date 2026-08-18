@@ -8,7 +8,7 @@ então esses testes rodam rápido e isolados.
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.models import User
+from app.models import Doctor, User
 
 # Client para fazer requisições nos testes
 client = TestClient(app)
@@ -243,5 +243,212 @@ def test_delete_users_medico_retorna_409_e_preserva_usuario():
 
     assert resposta.status_code == 409
     assert client.get(f"/users/{criado['id']}").status_code == 200
+
+
+# --- Missão 06: validação local de CRM e UF ---
+
+
+def test_post_users_medico_com_uf_invalida_retorna_422():
+    """UF que não existe no Brasil deve ser rejeitada com 422."""
+    resposta = client.post(
+        "/users",
+        json={
+            "name": "Dra. Fake",
+            "email": "fake.uf@example.com",
+            "is_doctor": True,
+            "crm": "123456",
+            "uf": "ZZ",
+        },
+    )
+
+    assert resposta.status_code == 422
+    detalhe = resposta.json()["detail"]
+    assert any(erro["loc"][-1] == "uf" for erro in detalhe)
+
+
+def test_post_users_medico_com_crm_com_letras_retorna_422():
+    """CRM com letras não é um formato válido."""
+    resposta = client.post(
+        "/users",
+        json={
+            "name": "Dr. Letras",
+            "email": "crm.letras@example.com",
+            "is_doctor": True,
+            "crm": "ABC123",
+            "uf": "SP",
+        },
+    )
+
+    assert resposta.status_code == 422
+    detalhe = resposta.json()["detail"]
+    assert any(erro["loc"][-1] == "crm" for erro in detalhe)
+
+
+def test_post_users_medico_com_crm_curto_demais_retorna_422():
+    """CRM com menos de 4 dígitos é rejeitado."""
+    resposta = client.post(
+        "/users",
+        json={
+            "name": "Dr. Curto",
+            "email": "crm.curto@example.com",
+            "is_doctor": True,
+            "crm": "12",
+            "uf": "SP",
+        },
+    )
+
+    assert resposta.status_code == 422
+    detalhe = resposta.json()["detail"]
+    assert any(erro["loc"][-1] == "crm" for erro in detalhe)
+
+
+def test_post_users_medico_com_crm_e_uf_validos_cria_usuario():
+    """CRM e UF válidos permitem o cadastro do médico."""
+    resposta = client.post(
+        "/users",
+        json={
+            "name": "Dra. Válida",
+            "email": "valida@example.com",
+            "is_doctor": True,
+            "crm": "111222",
+            "uf": "pr",
+        },
+    )
+
+    assert resposta.status_code == 201
+    assert resposta.json()["doctor"] == {"crm": "111222", "uf": "PR"}
+
+
+def test_post_users_medico_normaliza_espacos_do_crm():
+    """Espaços nas bordas do CRM são removidos, sem alterar os dígitos."""
+    resposta = client.post(
+        "/users",
+        json={
+            "name": "Dr. Espaço",
+            "email": "espaco@example.com",
+            "is_doctor": True,
+            "crm": "  555666  ",
+            "uf": "SP",
+        },
+    )
+
+    assert resposta.status_code == 201
+    assert resposta.json()["doctor"]["crm"] == "555666"
+
+
+def test_put_doctor_atualiza_crm_e_uf_com_dados_validos():
+    """Edita CRM/UF de um médico já cadastrado com dados válidos."""
+    criado = client.post(
+        "/users",
+        json={
+            "name": "Dr. Editável",
+            "email": "editavel@example.com",
+            "is_doctor": True,
+            "crm": "222333",
+            "uf": "SP",
+        },
+    ).json()
+
+    resposta = client.put(
+        f"/users/{criado['id']}/doctor",
+        json={"crm": "444555", "uf": "rj"},
+    )
+
+    assert resposta.status_code == 200
+    assert resposta.json()["doctor"] == {"crm": "444555", "uf": "RJ"}
+
+
+def test_put_doctor_com_uf_invalida_retorna_422_e_preserva_dados(db_session):
+    """Não é possível alterar um médico válido para uma UF inexistente."""
+    criado = client.post(
+        "/users",
+        json={
+            "name": "Dr. Protegido",
+            "email": "protegido@example.com",
+            "is_doctor": True,
+            "crm": "333444",
+            "uf": "SP",
+        },
+    ).json()
+
+    resposta = client.put(
+        f"/users/{criado['id']}/doctor",
+        json={"crm": "333444", "uf": "XX"},
+    )
+
+    assert resposta.status_code == 422
+    doctor = db_session.query(Doctor).filter(Doctor.user_id == criado["id"]).first()
+    assert doctor.uf == "SP"
+
+
+def test_put_doctor_com_crm_invalido_retorna_422_e_preserva_dados(db_session):
+    """Não é possível alterar um médico válido para um CRM com letras."""
+    criado = client.post(
+        "/users",
+        json={
+            "name": "Dr. Blindado",
+            "email": "blindado@example.com",
+            "is_doctor": True,
+            "crm": "666777",
+            "uf": "MG",
+        },
+    ).json()
+
+    resposta = client.put(
+        f"/users/{criado['id']}/doctor",
+        json={"crm": "abc", "uf": "MG"},
+    )
+
+    assert resposta.status_code == 422
+    doctor = db_session.query(Doctor).filter(Doctor.user_id == criado["id"]).first()
+    assert doctor.crm == "666777"
+
+
+def test_put_doctor_retorna_422_para_usuario_sem_perfil_medico():
+    """Não é possível atualizar CRM/UF de um usuário que não é médico."""
+    resposta = client.put(
+        "/users/1/doctor",
+        json={"crm": "123456", "uf": "SP"},
+    )
+
+    assert resposta.status_code == 422
+
+
+def test_post_users_medico_sem_crm_e_uf_retorna_422():
+    """CRM e UF são obrigatórios quando is_doctor é verdadeiro."""
+    resposta = client.post(
+        "/users",
+        json={"name": "Dra. Incompleta", "email": "incompleta@example.com", "is_doctor": True},
+    )
+
+    assert resposta.status_code == 422
+
+
+def test_post_users_comum_com_crm_retorna_422():
+    """Usuário comum não pode informar CRM/UF."""
+    resposta = client.post(
+        "/users",
+        json={
+            "name": "Usuário Confuso",
+            "email": "confuso@example.com",
+            "is_doctor": False,
+            "crm": "123456",
+            "uf": "SP",
+        },
+    )
+
+    assert resposta.status_code == 422
+
+
+def test_post_users_comum_continua_funcionando_apos_validacao_de_medico():
+    """Cadastro de usuário comum não é afetado pela regra de CRM/UF."""
+    resposta = client.post(
+        "/users",
+        json={"name": "Usuário Normal", "email": "normal@example.com"},
+    )
+
+    assert resposta.status_code == 201
+    assert resposta.json()["is_doctor"] is False
+    assert resposta.json()["doctor"] is None
 
 

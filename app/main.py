@@ -9,11 +9,12 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 from sqlalchemy.exc import IntegrityError
 
 from app.database import engine, SessionLocal, Base
 from app.models import Doctor, User
+from app.validators import validar_crm_pydantic, validar_uf_pydantic
 
 # Configuração de diretórios
 BASE_DIR = Path(__file__).resolve().parent
@@ -45,10 +46,31 @@ class UserCreate(BaseModel):
     crm: str | None = None
     uf: str | None = None
 
-    @field_validator("uf")
-    @classmethod
-    def normalize_uf(cls, value: str | None) -> str | None:
-        return value.strip().upper() if value is not None else None
+    _validar_uf = field_validator("uf")(validar_uf_pydantic)
+    _validar_crm = field_validator("crm")(validar_crm_pydantic)
+
+    @model_validator(mode="after")
+    def validar_consistencia_medico(self) -> "UserCreate":
+        """CRM/UF são obrigatórios apenas quando is_doctor é verdadeiro."""
+        if self.is_doctor and (not self.crm or not self.uf):
+            raise ValueError(
+                "Para cadastrar um médico, CRM e UF são obrigatórios."
+            )
+        if not self.is_doctor and (self.crm or self.uf):
+            raise ValueError(
+                "CRM e UF só podem ser informados quando is_doctor for verdadeiro."
+            )
+        return self
+
+
+class DoctorUpdate(BaseModel):
+    """Dados para atualizar o CRM/UF de um usuário que já é médico."""
+
+    crm: str
+    uf: str
+
+    _validar_uf = field_validator("uf")(validar_uf_pydantic)
+    _validar_crm = field_validator("crm")(validar_crm_pydantic)
 
 
 # Criar tabelas no banco de dados (se não existirem)
@@ -142,42 +164,18 @@ def serialize_user(usuario: User) -> dict:
 
 @app.post("/users", status_code=201, tags=["Users"])
 def create_user(user_data: UserCreate):
-    """Cria usuário comum ou usuário com perfil médico."""
-    if user_data.is_doctor and (not user_data.crm or not user_data.uf):
-        raise HTTPException(
-            status_code=422,
-            detail="CRM e UF são obrigatórios para usuários médicos",
-        )
-    if not user_data.is_doctor and (user_data.crm or user_data.uf):
-        raise HTTPException(
-            status_code=422,
-            detail="CRM e UF só podem ser informados para usuários médicos",
-        )
-    if user_data.crm is not None:
-        crm = user_data.crm.strip()
-        if not crm.isdigit() or not 4 <= len(crm) <= 20:
-            raise HTTPException(status_code=422, detail="CRM inválido")
-    else:
-        crm = None
-    if user_data.uf is not None:
-        uf = user_data.uf
-        estados = {
-            "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO",
-            "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI",
-            "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO",
-        }
-        if uf not in estados:
-            raise HTTPException(status_code=422, detail="UF inválida")
-    else:
-        uf = None
+    """Cria usuário comum ou usuário com perfil médico.
 
+    CRM e UF já chegam validados e normalizados pelo schema `UserCreate`
+    (ver app/validators.py), que é a fonte única dessa regra de negócio.
+    """
     db = SessionLocal()
     try:
         usuario = User(name=user_data.name.strip(), email=user_data.email)
         db.add(usuario)
         db.flush()
         if user_data.is_doctor:
-            db.add(Doctor(user_id=usuario.id, crm=crm, uf=uf))
+            db.add(Doctor(user_id=usuario.id, crm=user_data.crm, uf=user_data.uf))
         db.commit()
         db.refresh(usuario)
         return serialize_user(usuario)
@@ -219,6 +217,34 @@ def update_user(user_id: int, user_data: UserUpdate):
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=400, detail="Email já está em uso")
+    finally:
+        db.close()
+
+
+@app.put("/users/{user_id}/doctor", tags=["Users"])
+def update_doctor(user_id: int, doctor_data: DoctorUpdate):
+    """Atualiza CRM e UF de um usuário que já possui perfil médico.
+
+    Aplica a mesma validação da criação (schema `DoctorUpdate`), garantindo
+    que um médico cadastrado com dados válidos não possa ser alterado para
+    CRM ou UF inválidos.
+    """
+    db = SessionLocal()
+    try:
+        usuario = db.query(User).filter(User.id == user_id).first()
+        if usuario is None:
+            raise HTTPException(status_code=404, detail="Usuário não encontrado")
+        if usuario.doctor is None:
+            raise HTTPException(
+                status_code=422,
+                detail="Usuário não possui perfil médico para atualizar CRM/UF",
+            )
+
+        usuario.doctor.crm = doctor_data.crm
+        usuario.doctor.uf = doctor_data.uf
+        db.commit()
+        db.refresh(usuario)
+        return serialize_user(usuario)
     finally:
         db.close()
 
