@@ -174,3 +174,71 @@ def test_delete_users_retorna_404_para_usuario_inexistente():
     assert resposta.status_code == 404
 
 
+def test_post_users_cria_usuario_comum():
+    """Cria um usuário sem perfil médico."""
+    resposta = client.post(
+        "/users",
+        json={"name": "Usuário Comum", "email": "comum@example.com"},
+    )
+
+    assert resposta.status_code == 201
+    assert resposta.json()["is_doctor"] is False
+    assert resposta.json()["doctor"] is None
+
+
+def test_post_users_cria_usuario_medico():
+    """Cria um usuário com perfil médico e seus dados."""
+    resposta = client.post(
+        "/users",
+        json={
+            "name": "Dra. Ana",
+            "email": "ana.medica@example.com",
+            "is_doctor": True,
+            "crm": "123456",
+            "uf": "sp",
+        },
+    )
+
+    assert resposta.status_code == 201
+    assert resposta.json()["is_doctor"] is True
+    assert resposta.json()["doctor"] == {"crm": "123456", "uf": "SP"}
+
+
+def test_get_user_informa_se_e_medico():
+    """Consulta individualmente os dados médicos do usuário."""
+    criado = client.post(
+        "/users",
+        json={
+            "name": "Dr. Bruno",
+            "email": "bruno.medico@example.com",
+            "is_doctor": True,
+            "crm": "654321",
+            "uf": "RJ",
+        },
+    ).json()
+
+    resposta = client.get(f"/users/{criado['id']}")
+
+    assert resposta.status_code == 200
+    assert resposta.json()["doctor"] == {"crm": "654321", "uf": "RJ"}
+
+
+def test_delete_users_medico_retorna_409_e_preserva_usuario():
+    """Impede a exclusão de usuário que possui perfil médico."""
+    criado = client.post(
+        "/users",
+        json={
+            "name": "Dra. Carla",
+            "email": "carla.medica@example.com",
+            "is_doctor": True,
+            "crm": "789012",
+            "uf": "MG",
+        },
+    ).json()
+
+    resposta = client.delete(f"/users/{criado['id']}")
+
+    assert resposta.status_code == 409
+    assert client.get(f"/users/{criado['id']}").status_code == 200
+
+

@@ -9,11 +9,11 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy.exc import IntegrityError
 
 from app.database import engine, SessionLocal, Base
-from app.models import User
+from app.models import Doctor, User
 
 # Configuração de diretórios
 BASE_DIR = Path(__file__).resolve().parent
@@ -34,6 +34,21 @@ class UserUpdate(BaseModel):
 
     name: str
     email: str
+
+
+class UserCreate(BaseModel):
+    """Dados para criar usuário comum ou usuário com perfil médico."""
+
+    name: str
+    email: str
+    is_doctor: bool = False
+    crm: str | None = None
+    uf: str | None = None
+
+    @field_validator("uf")
+    @classmethod
+    def normalize_uf(cls, value: str | None) -> str | None:
+        return value.strip().upper() if value is not None else None
 
 
 # Criar tabelas no banco de dados (se não existirem)
@@ -103,9 +118,86 @@ def get_users():
     try:
         # Consultar todos os usuários da tabela
         usuarios = db.query(User).all()
-        return usuarios
+        return [serialize_user(usuario) for usuario in usuarios]
     finally:
         # Importante: sempre fechar a sessão para liberar recursos
+        db.close()
+
+
+def serialize_user(usuario: User) -> dict:
+    """Converte usuário e perfil médico para o formato público da API."""
+    doctor = usuario.doctor
+    return {
+        "id": usuario.id,
+        "name": usuario.name,
+        "email": usuario.email,
+        "is_doctor": doctor is not None,
+        "doctor": (
+            {"crm": doctor.crm, "uf": doctor.uf}
+            if doctor is not None
+            else None
+        ),
+    }
+
+
+@app.post("/users", status_code=201, tags=["Users"])
+def create_user(user_data: UserCreate):
+    """Cria usuário comum ou usuário com perfil médico."""
+    if user_data.is_doctor and (not user_data.crm or not user_data.uf):
+        raise HTTPException(
+            status_code=422,
+            detail="CRM e UF são obrigatórios para usuários médicos",
+        )
+    if not user_data.is_doctor and (user_data.crm or user_data.uf):
+        raise HTTPException(
+            status_code=422,
+            detail="CRM e UF só podem ser informados para usuários médicos",
+        )
+    if user_data.crm is not None:
+        crm = user_data.crm.strip()
+        if not crm.isdigit() or not 4 <= len(crm) <= 20:
+            raise HTTPException(status_code=422, detail="CRM inválido")
+    else:
+        crm = None
+    if user_data.uf is not None:
+        uf = user_data.uf
+        estados = {
+            "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO",
+            "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI",
+            "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO",
+        }
+        if uf not in estados:
+            raise HTTPException(status_code=422, detail="UF inválida")
+    else:
+        uf = None
+
+    db = SessionLocal()
+    try:
+        usuario = User(name=user_data.name.strip(), email=user_data.email)
+        db.add(usuario)
+        db.flush()
+        if user_data.is_doctor:
+            db.add(Doctor(user_id=usuario.id, crm=crm, uf=uf))
+        db.commit()
+        db.refresh(usuario)
+        return serialize_user(usuario)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Email já está em uso")
+    finally:
+        db.close()
+
+
+@app.get("/users/{user_id}", tags=["Users"])
+def get_user(user_id: int):
+    """Consulta um usuário e informa se possui perfil médico."""
+    db = SessionLocal()
+    try:
+        usuario = db.query(User).filter(User.id == user_id).first()
+        if usuario is None:
+            raise HTTPException(status_code=404, detail="Usuário não encontrado")
+        return serialize_user(usuario)
+    finally:
         db.close()
 
 
@@ -140,6 +232,11 @@ def delete_user(user_id: int):
         usuario = db.query(User).filter(User.id == user_id).first()
         if usuario is None:
             raise HTTPException(status_code=404, detail="Usuário não encontrado")
+        if usuario.doctor is not None:
+            raise HTTPException(
+                status_code=409,
+                detail="Usuário médico não pode ser excluído",
+            )
 
         db.delete(usuario)
         db.commit()

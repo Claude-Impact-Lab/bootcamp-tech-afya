@@ -56,12 +56,65 @@
         color: #27ae60;
         font-weight: bold;
       }
+
+      form,
+      #usuarios {
+        display: grid;
+        gap: 0.75rem;
+        margin-top: 1.5rem;
+        text-align: left;
+      }
+
+      input,
+      button {
+        padding: 0.65rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+      }
+
+      button {
+        cursor: pointer;
+        background: #667eea;
+        color: white;
+        border: 0;
+      }
+
+      .doctor-fields {
+        display: none;
+        gap: 0.75rem;
+      }
+
+      .doctor-fields.visible {
+        display: grid;
+      }
+
+      .usuario {
+        padding: 0.75rem;
+        border: 1px solid #eee;
+        border-radius: 4px;
+      }
     </style>
   </head>
   <body>
     <div class="container">
       <h1>User Manager</h1>
       <p id="mensagem" class="loading">Carregando...</p>
+
+      <form id="user-form">
+        <input id="name" name="name" placeholder="Nome" required />
+        <input id="email" name="email" type="email" placeholder="Email" required />
+        <label>
+          <input id="is-doctor" name="is-doctor" type="checkbox" />
+          Usuário médico
+        </label>
+        <div id="doctor-fields" class="doctor-fields">
+          <input id="crm" name="crm" placeholder="CRM" />
+          <input id="uf" name="uf" maxlength="2" placeholder="UF" />
+        </div>
+        <button type="submit">Cadastrar usuário</button>
+      </form>
+
+      <div id="usuarios"></div>
     </div>
 
     <script>
@@ -74,6 +127,68 @@
        * - manipulação do DOM (document.getElementById, textContent)
        * - tratamento de erros com .catch()
        */
+      const doctorCheckbox = document.getElementById("is-doctor");
+      const doctorFields = document.getElementById("doctor-fields");
+
+      doctorCheckbox.addEventListener("change", () => {
+        doctorFields.classList.toggle("visible", doctorCheckbox.checked);
+      });
+
+      function carregarUsuarios() {
+        return fetch("/users")
+          .then((resposta) => {
+            if (!resposta.ok) {
+              throw new Error(`Erro HTTP: ${resposta.status}`);
+            }
+            return resposta.json();
+          })
+          .then((usuarios) => {
+            document.getElementById("usuarios").innerHTML = usuarios
+              .map((usuario) => {
+                const tipo = usuario.is_doctor
+                  ? `Médico: CRM ${usuario.doctor.crm}/${usuario.doctor.uf}`
+                  : "Usuário comum";
+                return `<div class="usuario"><strong>${usuario.name}</strong><br />${usuario.email}<br />${tipo}</div>`;
+              })
+              .join("");
+          });
+      }
+
+      document.getElementById("user-form").addEventListener("submit", (evento) => {
+        evento.preventDefault();
+        const isDoctor = doctorCheckbox.checked;
+        const payload = {
+          name: document.getElementById("name").value,
+          email: document.getElementById("email").value,
+          is_doctor: isDoctor,
+        };
+        if (isDoctor) {
+          payload.crm = document.getElementById("crm").value;
+          payload.uf = document.getElementById("uf").value;
+        }
+
+        fetch("/users", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+          .then((resposta) => {
+            if (!resposta.ok) {
+              throw new Error(`Erro HTTP: ${resposta.status}`);
+            }
+            return resposta.json();
+          })
+          .then(() => {
+            evento.target.reset();
+            doctorFields.classList.remove("visible");
+            return carregarUsuarios();
+          })
+          .catch((erro) => {
+            document.getElementById("mensagem").textContent = erro.message;
+            document.getElementById("mensagem").className = "error";
+          });
+      });
+
       fetch("/health")
         .then((resposta) => {
           // Verifica se a resposta HTTP foi bem-sucedida (status 200)
@@ -96,6 +211,11 @@
           elemento.textContent = "Erro ao chamar a API";
           elemento.className = "error";
         });
+
+      carregarUsuarios().catch((erro) => {
+        document.getElementById("mensagem").textContent = erro.message;
+        document.getElementById("mensagem").className = "error";
+      });
     </script>
   </body>
 </html>

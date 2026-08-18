@@ -21,7 +21,7 @@ TestingSessionLocal = sessionmaker(bind=test_engine, autocommit=False, autoflush
 
 # Importar DEPOIS de criar o engine de teste
 from app.database import Base
-from app.models import User
+from app.models import Doctor, User
 import app.main
 
 # Sobrescrever o SessionLocal na app para usar o de teste
@@ -36,6 +36,7 @@ def setup_test_users():
     db = TestingSessionLocal()
     try:
         # Limpar usuários anteriores
+        db.query(Doctor).delete()
         db.query(User).delete()
         db.commit()
         
@@ -64,6 +65,7 @@ def setup():
     # Depois do teste: limpar dados
     db = TestingSessionLocal()
     try:
+        db.query(Doctor).delete()
         db.query(User).delete()
         db.commit()
     finally:

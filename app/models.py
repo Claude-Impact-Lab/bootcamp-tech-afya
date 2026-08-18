@@ -5,7 +5,8 @@ Cada classe aqui herda de Base e é automaticamente mapeada para uma tabela.
 SQLAlchemy cuida de converter operações Python em SQL.
 """
 
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, ForeignKey, Integer, String
+from sqlalchemy.orm import relationship
 from app.database import Base
 
 
@@ -58,6 +59,32 @@ class User(Base):
         doc="Email único do usuário",
     )
 
+    doctor = relationship(
+        "Doctor",
+        back_populates="user",
+        uselist=False,
+        passive_deletes=True,
+    )
+
     def __repr__(self) -> str:
         """Representação em string do objeto User (para debug)."""
         return f"User(id={self.id}, name={self.name}, email={self.email})"
+
+
+class Doctor(Base):
+    """Dados médicos opcionais vinculados exclusivamente a um usuário."""
+
+    __tablename__ = "doctors"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id", ondelete="RESTRICT"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    crm = Column(String(20), nullable=False)
+    uf = Column(String(2), nullable=False)
+
+    user = relationship("User", back_populates="doctor")
