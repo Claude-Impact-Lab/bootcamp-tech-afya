@@ -10,13 +10,17 @@ Para testes, o conftest.py sobrescreve SessionLocal com SQLite em memória.
 """
 
 import os
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-# URL de conexão com PostgreSQL (pode ser sobrescrita via variável de ambiente)
+# Carrega as configurações locais do arquivo .env, quando ele existir.
+load_dotenv()
+
+# URL de conexão com PostgreSQL (definida no arquivo .env ou no ambiente)
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://postgres:postgres@localhost:5432/usermanager",
+    "postgresql://postgres@localhost:5432/usermanager",
 )
 
 # Criar engine (conexão com o banco de dados)

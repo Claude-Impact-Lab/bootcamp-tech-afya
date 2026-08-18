@@ -8,12 +8,14 @@ fixtures e configurações para todos os testes.
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 # Criar banco de dados em memória para testes ANTES de importar a app
 TEST_DATABASE_URL = "sqlite:///:memory:"
 test_engine = create_engine(
     TEST_DATABASE_URL,
     connect_args={"check_same_thread": False},
+    poolclass=StaticPool,
 )
 TestingSessionLocal = sessionmaker(bind=test_engine, autocommit=False, autoflush=False)
 
