@@ -5,28 +5,96 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>User Manager</title>
     <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
       body {
-        font-family: system-ui, sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         display: grid;
         place-items: center;
         min-height: 100vh;
-        margin: 0;
+        color: #333;
+      }
+
+      .container {
+        text-align: center;
+        background: white;
+        padding: 3rem 2rem;
+        border-radius: 8px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+        max-width: 400px;
+      }
+
+      h1 {
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+        color: #667eea;
+      }
+
+      #mensagem {
+        font-size: 1.25rem;
+        min-height: 2rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .loading {
+        color: #999;
+        font-style: italic;
+      }
+
+      .error {
+        color: #e74c3c;
+      }
+
+      .success {
+        color: #27ae60;
+        font-weight: bold;
       }
     </style>
   </head>
   <body>
-    <h1 id="mensagem">carregando...</h1>
+    <div class="container">
+      <h1>User Manager</h1>
+      <p id="mensagem" class="loading">Carregando...</p>
+    </div>
 
     <script>
-      // Busca a mensagem na API em vez de escrever no HTML:
-      // e o primeiro contato do time com fetch + JSON.
+      /**
+       * Busca a mensagem da API em /health e exibe na página.
+       * 
+       * Este é o primeiro contato do time com:
+       * - fetch() para fazer requisições HTTP
+       * - JSON como formato de dados
+       * - manipulação do DOM (document.getElementById, textContent)
+       * - tratamento de erros com .catch()
+       */
       fetch("/health")
-        .then((resposta) => resposta.json())
-        .then((dados) => {
-          document.getElementById("mensagem").textContent = dados.message;
+        .then((resposta) => {
+          // Verifica se a resposta HTTP foi bem-sucedida (status 200)
+          if (!resposta.ok) {
+            throw new Error(`Erro HTTP: ${resposta.status}`);
+          }
+          // Converte a resposta para JSON
+          return resposta.json();
         })
-        .catch(() => {
-          document.getElementById("mensagem").textContent = "erro ao chamar a API";
+        .then((dados) => {
+          // Atualiza o elemento HTML com a mensagem recebida
+          const elemento = document.getElementById("mensagem");
+          elemento.textContent = dados.message;
+          elemento.className = "success";
+        })
+        .catch((erro) => {
+          // Se algo der errado, exibe mensagem de erro
+          console.error("Erro ao chamar a API:", erro);
+          const elemento = document.getElementById("mensagem");
+          elemento.textContent = "Erro ao chamar a API";
+          elemento.className = "error";
         });
     </script>
   </body>
