@@ -8,6 +8,7 @@ então esses testes rodam rápido e isolados.
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.models import User
 
 # Client para fazer requisições nos testes
 client = TestClient(app)
@@ -120,5 +121,56 @@ def test_usuarios_persistem_no_banco(db_session):
     
     assert len(usuarios_do_banco) == len(usuarios_da_api)
     assert usuarios_do_banco[0].name == usuarios_da_api[0]["name"]
+
+
+def test_put_users_atualiza_usuario(db_session):
+    """Atualiza nome e email de um usuário persistido."""
+    resposta = client.put(
+        "/users/1",
+        json={"name": "João Atualizado", "email": "joao.novo@example.com"},
+    )
+
+    assert resposta.status_code == 200
+    assert resposta.json()["name"] == "João Atualizado"
+    assert resposta.json()["email"] == "joao.novo@example.com"
+
+    usuario = db_session.query(User).filter(User.id == 1).first()
+    assert usuario.name == "João Atualizado"
+    assert usuario.email == "joao.novo@example.com"
+
+
+def test_put_users_retorna_404_para_usuario_inexistente():
+    """Retorna 404 quando o usuário informado não existe."""
+    resposta = client.put(
+        "/users/999",
+        json={"name": "Usuário", "email": "usuario@example.com"},
+    )
+
+    assert resposta.status_code == 404
+
+
+def test_put_users_retorna_400_para_email_duplicado():
+    """Retorna 400 quando o novo email já pertence a outro usuário."""
+    resposta = client.put(
+        "/users/1",
+        json={"name": "João Atualizado", "email": "maria.santos@example.com"},
+    )
+
+    assert resposta.status_code == 400
+
+
+def test_delete_users_exclui_usuario(db_session):
+    """Exclui um usuário persistido e confirma que ele não pode mais ser consultado."""
+    resposta = client.delete("/users/1")
+
+    assert resposta.status_code == 200
+    assert db_session.query(User).filter(User.id == 1).first() is None
+
+
+def test_delete_users_retorna_404_para_usuario_inexistente():
+    """Retorna 404 quando tenta excluir um usuário inexistente."""
+    resposta = client.delete("/users/999")
+
+    assert resposta.status_code == 404
 
 

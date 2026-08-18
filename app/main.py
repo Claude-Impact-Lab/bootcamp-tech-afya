@@ -7,8 +7,10 @@ Aplicação FastAPI com persistência em PostgreSQL:
 
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
 
 from app.database import engine, SessionLocal, Base
 from app.models import User
@@ -25,6 +27,13 @@ app = FastAPI(
 
 # Configurar templates (para renderizar HTML)
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+
+
+class UserUpdate(BaseModel):
+    """Dados permitidos para substituir um usuário existente."""
+
+    name: str
+    email: str
 
 
 # Criar tabelas no banco de dados (se não existirem)
@@ -97,5 +106,44 @@ def get_users():
         return usuarios
     finally:
         # Importante: sempre fechar a sessão para liberar recursos
+        db.close()
+
+
+@app.put("/users/{user_id}", tags=["Users"])
+def update_user(user_id: int, user_data: UserUpdate):
+    """Atualiza o nome e o email de um usuário existente."""
+    db = SessionLocal()
+
+    try:
+        usuario = db.query(User).filter(User.id == user_id).first()
+        if usuario is None:
+            raise HTTPException(status_code=404, detail="Usuário não encontrado")
+
+        usuario.name = user_data.name
+        usuario.email = user_data.email
+        db.commit()
+        db.refresh(usuario)
+        return usuario
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Email já está em uso")
+    finally:
+        db.close()
+
+
+@app.delete("/users/{user_id}", tags=["Users"])
+def delete_user(user_id: int):
+    """Exclui um usuário existente."""
+    db = SessionLocal()
+
+    try:
+        usuario = db.query(User).filter(User.id == user_id).first()
+        if usuario is None:
+            raise HTTPException(status_code=404, detail="Usuário não encontrado")
+
+        db.delete(usuario)
+        db.commit()
+        return {"message": "Usuário excluído com sucesso"}
+    finally:
         db.close()
 
