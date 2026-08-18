@@ -5,29 +5,217 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>User Manager</title>
     <style>
+      * {
+        box-sizing: border-box;
+      }
+
       body {
-        font-family: system-ui, sans-serif;
-        display: grid;
-        place-items: center;
-        min-height: 100vh;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
         margin: 0;
+        padding: 2rem 1rem;
+        min-height: 100vh;
+        background: linear-gradient(135deg, #f5f3ff 0%, #fdf2f8 100%);
+        color: #1f1f2e;
+      }
+
+      .container {
+        max-width: 32rem;
+        margin: 0 auto;
+      }
+
+      h1 {
+        font-size: 2rem;
+        margin-bottom: 0.25rem;
+      }
+
+      .subtitulo {
+        color: #6b21a8;
+        font-weight: 600;
+        margin-top: 0;
+        margin-bottom: 2rem;
+      }
+
+      .card {
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 1.75rem;
+        box-shadow: 0 10px 30px rgba(107, 33, 168, 0.08);
+        margin-bottom: 2rem;
+      }
+
+      .card h2 {
+        margin-top: 0;
+        font-size: 1.25rem;
+      }
+
+      form#form-usuario {
+        display: flex;
+        flex-direction: column;
+        gap: 0.85rem;
+      }
+
+      form#form-usuario input {
+        padding: 0.75rem 0.9rem;
+        font-size: 1rem;
+        border: 1.5px solid #e5e0f0;
+        border-radius: 10px;
+        outline: none;
+        transition: border-color 0.15s ease;
+      }
+
+      form#form-usuario input:focus {
+        border-color: #9333ea;
+      }
+
+      form#form-usuario button {
+        padding: 0.8rem;
+        font-size: 1rem;
+        font-weight: 600;
+        color: #fff;
+        border: none;
+        border-radius: 10px;
+        cursor: pointer;
+        background: linear-gradient(135deg, #9333ea 0%, #db2777 100%);
+        transition: opacity 0.15s ease, transform 0.1s ease;
+      }
+
+      form#form-usuario button:hover {
+        opacity: 0.92;
+      }
+
+      form#form-usuario button:active {
+        transform: scale(0.99);
+      }
+
+      .erro {
+        color: #b00020;
+        font-size: 0.9rem;
+        margin: 0.75rem 0 0;
+      }
+
+      .aviso {
+        color: #6b7280;
+      }
+
+      ul#usuarios {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+
+      ul#usuarios li {
+        border: 1px solid #e5e0f0;
+        border-radius: 10px;
+        padding: 0.85rem 1rem;
+        margin-bottom: 0.6rem;
+        transition: background 0.15s ease;
+      }
+
+      ul#usuarios li:hover {
+        background: #faf8ff;
       }
     </style>
   </head>
   <body>
-    <h1 id="mensagem">carregando...</h1>
+    <div class="container">
+      <h1 id="mensagem">Bem-vindo</h1>
+      <p class="subtitulo">Afya - Bope Tech</p>
+
+      <div class="card">
+        <h2>Cadastrar usuário</h2>
+        <form id="form-usuario">
+          <input type="text" id="input-nome" placeholder="Nome" required />
+          <input type="email" id="input-email" placeholder="E-mail" required />
+          <button type="submit">Cadastrar</button>
+        </form>
+        <p id="erro-form" class="erro"></p>
+      </div>
+
+      <h2>Usuários</h2>
+      <p id="estado" class="aviso">carregando...</p>
+      <ul id="usuarios"></ul>
+    </div>
 
     <script>
-      // Busca a mensagem na API em vez de escrever no HTML:
-      // e o primeiro contato do time com fetch + JSON.
-      fetch("/health")
-        .then((resposta) => resposta.json())
-        .then((dados) => {
-          document.getElementById("mensagem").textContent = dados.message;
+      const lista = document.getElementById("usuarios");
+      const estado = document.getElementById("estado");
+      const form = document.getElementById("form-usuario");
+      const inputNome = document.getElementById("input-nome");
+      const inputEmail = document.getElementById("input-email");
+      const erroForm = document.getElementById("erro-form");
+
+      function renderizarUsuarios(usuarios) {
+        lista.innerHTML = "";
+
+        if (usuarios.length === 0) {
+          estado.textContent = "nenhum usuário cadastrado ainda";
+          return;
+        }
+
+        estado.textContent = "";
+
+        for (const usuario of usuarios) {
+          const item = document.createElement("li");
+          item.textContent = usuario.id + " - " + usuario.nome;
+          lista.appendChild(item);
+        }
+      }
+
+      function carregarUsuarios() {
+        fetch("/users")
+          .then((resposta) => {
+            if (!resposta.ok) {
+              throw new Error("a API respondeu " + resposta.status);
+            }
+            return resposta.json();
+          })
+          .then(renderizarUsuarios)
+          .catch(() => {
+            estado.textContent = "Erro ao carregar usuários.";
+          });
+      }
+
+      form.addEventListener("submit", (evento) => {
+        evento.preventDefault();
+        erroForm.textContent = "";
+
+        fetch("/users", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            nome: inputNome.value,
+            email: inputEmail.value,
+          }),
         })
-        .catch(() => {
-          document.getElementById("mensagem").textContent = "erro ao chamar a API";
-        });
+          .then(async (resposta) => {
+            if (!resposta.ok) {
+              // 422 vem do Pydantic: lista de erros em inglês, não uma frase.
+              // Não dá pra mostrar isso cru pro usuário final.
+              if (resposta.status === 422) {
+                throw new Error("Verifique os dados informados e tente novamente.");
+              }
+
+              // Outros erros (ex: 409) vêm do nosso backend como string simples,
+              // já em português — esse sim podemos exibir direto.
+              const corpo = await resposta.json().catch(() => null);
+              const mensagem =
+                corpo && typeof corpo.detail === "string"
+                  ? corpo.detail
+                  : "Erro ao cadastrar usuário (" + resposta.status + ").";
+              throw new Error(mensagem);
+            }
+            return resposta.json();
+          })
+          .then(() => {
+            form.reset();
+            carregarUsuarios();
+          })
+          .catch((erro) => {
+            erroForm.textContent = erro.message;
+          });
+      });
+
+      carregarUsuarios();
     </script>
   </body>
 </html>

@@ -1,8 +1,26 @@
+import pytest
 from fastapi.testclient import TestClient
 
+from app import models
 from app.main import app
+from app.database import SessionLocal
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def limpar_usuarios():
+    """Garante que cada teste comeca com as tabelas vazias,
+    evitando que um teste 'contamine' o resultado do outro.
+
+    Ordem importa: doctors depende de users via foreign key,
+    entao precisa ser limpo primeiro."""
+    db = SessionLocal()
+    db.query(models.Doctor).delete()
+    db.query(models.User).delete()
+    db.commit()
+    db.close()
+    yield
 
 
 def test_health_retorna_ok():
@@ -16,4 +34,301 @@ def test_index_renderiza_a_tela():
     resposta = client.get("/")
 
     assert resposta.status_code == 200
-    assert "User Manager" in resposta.text
+    assert "Afya" in resposta.text
+
+
+def test_users_devolve_a_lista_em_json():
+    client.post("/users", json={"nome": "Zeca", "email": "zeca@example.com"})
+
+    resposta = client.get("/users")
+
+    assert resposta.status_code == 200
+
+    usuarios = resposta.json()
+    assert isinstance(usuarios, list)
+    assert len(usuarios) > 0
+
+
+def test_cada_usuario_tem_id_e_nome():
+    client.post("/users", json={"nome": "Zeca", "email": "zeca@example.com"})
+
+    usuarios = client.get("/users").json()
+
+    for usuario in usuarios:
+        assert "id" in usuario
+        assert "nome" in usuario
+
+
+def test_users_sem_usuarios_ainda_e_sucesso():
+    """Lista vazia nao e erro: continua 200, so que com []."""
+    resposta = client.get("/users")
+
+    assert resposta.status_code == 200
+    assert resposta.json() == []
+
+
+def test_a_tela_nao_tem_nome_escrito_no_html():
+    """Os nomes tem que vir da API, nao do template."""
+    client.post("/users", json={"nome": "Zeca", "email": "zeca@example.com"})
+
+    html = client.get("/").text
+    usuarios = client.get("/users").json()
+
+    for usuario in usuarios:
+        assert usuario["nome"] not in html
+
+
+def test_post_users_cria_usuario():
+    resp = client.post(
+        "/users", json={"nome": "Ana", "email": "ana@example.com"})
+    assert resp.status_code == 201
+    data = resp.json()
+    assert "id" in data
+    assert data["nome"] == "Ana"
+
+
+def test_post_users_valida_campos():
+    resp = client.post("/users", json={"nome": "SóNome"})
+    assert resp.status_code == 422
+    resp = client.post("/users", json={"nome": "X", "email": "not-an-email"})
+    assert resp.status_code == 422
+
+
+def test_post_users_duplicado():
+    client.post("/users", json={"nome": "B", "email": "dup@example.com"})
+    resp = client.post(
+        "/users", json={"nome": "C", "email": "dup@example.com"})
+    assert resp.status_code == 409
+
+
+def test_put_users_atualiza_usuario():
+    criado = client.post(
+        "/users", json={"nome": "Original", "email": "original@example.com"}
+    ).json()
+
+    resp = client.put(
+        f"/users/{criado['id']}",
+        json={"nome": "Atualizado", "email": "atualizado@example.com"},
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["id"] == criado["id"]
+    assert data["nome"] == "Atualizado"
+    assert data["email"] == "atualizado@example.com"
+
+
+def test_put_users_idempotente():
+    criado = client.post(
+        "/users", json={"nome": "Original", "email": "original@example.com"}
+    ).json()
+
+    payload = {"nome": "Atualizado", "email": "atualizado@example.com"}
+
+    primeira = client.put(f"/users/{criado['id']}", json=payload)
+    segunda = client.put(f"/users/{criado['id']}", json=payload)
+
+    assert primeira.status_code == 200
+    assert segunda.status_code == 200
+    assert primeira.json() == segunda.json()
+
+
+def test_put_users_inexistente_retorna_404():
+    resp = client.put(
+        "/users/99999",
+        json={"nome": "Fantasma", "email": "fantasma@example.com"},
+    )
+
+    assert resp.status_code == 404
+
+
+def test_delete_users_remove_usuario():
+    criado = client.post(
+        "/users", json={"nome": "Deletar", "email": "deletar@example.com"}
+    ).json()
+
+    resp = client.delete(f"/users/{criado['id']}")
+
+    assert resp.status_code == 204
+
+    usuarios = client.get("/users").json()
+    assert all(u["id"] != criado["id"] for u in usuarios)
+
+
+def test_delete_users_duas_vezes_retorna_404_na_segunda():
+    criado = client.post(
+        "/users", json={"nome": "Deletar", "email": "deletar2@example.com"}
+    ).json()
+
+    primeira = client.delete(f"/users/{criado['id']}")
+    segunda = client.delete(f"/users/{criado['id']}")
+
+    assert primeira.status_code == 204
+    assert segunda.status_code == 404
+
+
+def test_delete_users_inexistente_retorna_404():
+    resp = client.delete("/users/99999")
+
+    assert resp.status_code == 404
+
+
+def test_post_doctor_cria_vinculado_ao_usuario():
+    usuario = client.post(
+        "/users", json={"nome": "Dr. Teste", "email": "dr.teste@example.com"}
+    ).json()
+
+    resp = client.post(
+        f"/users/{usuario['id']}/doctors",
+        json={"crm": "123456", "uf": "SP"},
+    )
+
+    assert resp.status_code == 201
+    assert resp.json()["user_id"] == usuario["id"]
+    assert resp.json()["crm"] == "123456"
+    assert resp.json()["uf"] == "SP"
+
+
+def test_post_doctor_usuario_ja_possui_medico_retorna_409():
+    usuario = client.post(
+        "/users", json={"nome": "Dr. Teste", "email": "dr.teste2@example.com"}
+    ).json()
+
+    client.post(
+        f"/users/{usuario['id']}/doctors",
+        json={"crm": "123456", "uf": "SP"},
+    )
+
+    segunda = client.post(
+        f"/users/{usuario['id']}/doctors",
+        json={"crm": "654321", "uf": "RJ"},
+    )
+
+    assert segunda.status_code == 409
+
+
+def test_post_doctor_usuario_inexistente_retorna_404():
+    resp = client.post(
+        "/users/99999/doctors",
+        json={"crm": "44444", "uf": "SP"},
+    )
+
+    assert resp.status_code == 404
+
+
+def test_post_doctor_normaliza_uf_minuscula():
+    usuario = client.post(
+        "/users", json={"nome": "Dr. Normaliza", "email": "normaliza@example.com"}
+    ).json()
+
+    resp = client.post(
+        f"/users/{usuario['id']}/doctors",
+        json={"crm": "123456", "uf": "sp"},
+    )
+
+    assert resp.status_code == 201
+    assert resp.json()["uf"] == "SP"
+
+
+def test_post_doctor_crm_duplicado_retorna_409():
+    usuario1 = client.post(
+        "/users", json={"nome": "Dr. Duplicado 1", "email": "duplicado1@example.com"}
+    ).json()
+
+    client.post(
+        f"/users/{usuario1['id']}/doctors",
+        json={"crm": "123456", "uf": "SP"},
+    )
+
+    usuario2 = client.post(
+        "/users", json={"nome": "Dr. Duplicado 2", "email": "duplicado2@example.com"}
+    ).json()
+
+    resp = client.post(
+        f"/users/{usuario2['id']}/doctors",
+        json={"crm": "123456", "uf": "RJ"},
+    )
+
+    assert resp.status_code == 409
+
+
+def test_post_doctor_crm_invalido_retorna_422():
+    usuario = client.post(
+        "/users", json={"nome": "Dr. Invalido", "email": "invalido@example.com"}
+    ).json()
+
+    resp = client.post(
+        f"/users/{usuario['id']}/doctors",
+        json={"crm": "abcde", "uf": "SP"},
+    )
+
+    assert resp.status_code == 422
+
+
+def test_post_doctor_crm_curto_retorna_422():
+    usuario = client.post(
+        "/users", json={"nome": "Dr. Curto", "email": "curto@example.com"}
+    ).json()
+
+    resp = client.post(
+        f"/users/{usuario['id']}/doctors",
+        json={"crm": "123", "uf": "SP"},
+    )
+
+    assert resp.status_code == 422
+
+
+def test_post_doctor_crm_longo_retorna_422():
+    usuario = client.post(
+        "/users", json={"nome": "Dr. Longo", "email": "longo@example.com"}
+    ).json()
+
+    resp = client.post(
+        f"/users/{usuario['id']}/doctors",
+        json={"crm": "1234567890", "uf": "SP"},
+    )
+
+    assert resp.status_code == 422
+
+
+def test_post_doctor_uf_invalida_retorna_422():
+    usuario = client.post(
+        "/users", json={"nome": "Dr. UF Invalida", "email": "ufinvalida@example.com"}
+    ).json()
+
+    resp = client.post(
+        f"/users/{usuario['id']}/doctors",
+        json={"crm": "77777", "uf": "XX"},
+    )
+
+    assert resp.status_code == 422
+
+
+def test_post_doctor_com_crm_valido_no_cfm():
+    usuario = client.post(
+        "/users", json={"nome": "Dr. Validado", "email": "validado@example.com"}
+    ).json()
+
+    resp = client.post(
+        f"/users/{usuario['id']}/doctors",
+        json={"crm": "123456", "uf": "SP"},
+    )
+
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["crm"] == "123456"
+    assert data["uf"] == "SP"
+    assert data["cfm_validated_at"] is not None
+
+
+def test_post_doctor_com_crm_nao_encontrado_no_cfm():
+    usuario = client.post(
+        "/users", json={"nome": "Dr. NaoValidado", "email": "naovalidado@example.com"}
+    ).json()
+
+    resp = client.post(
+        f"/users/{usuario['id']}/doctors",
+        json={"crm": "999999", "uf": "SP"},
+    )
+
+    assert resp.status_code == 422
