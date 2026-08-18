@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
 from app.database import Base
+
 
 class User(Base):
     __tablename__ = "users"
@@ -19,5 +20,6 @@ class Doctor(Base):
     uf = Column(String, nullable=False)
     crm = Column(String, unique=True, nullable=False, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    cfm_validated_at = Column(DateTime, nullable=True)
 
     user = relationship("User", back_populates="doctor")

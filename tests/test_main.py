@@ -10,9 +10,13 @@ client = TestClient(app)
 
 @pytest.fixture(autouse=True)
 def limpar_usuarios():
-    """Garante que cada teste comeca com a tabela users vazia,
-    evitando que um teste 'contamine' o resultado do outro."""
+    """Garante que cada teste comeca com as tabelas vazias,
+    evitando que um teste 'contamine' o resultado do outro.
+
+    Ordem importa: doctors depende de users via foreign key,
+    entao precisa ser limpo primeiro."""
     db = SessionLocal()
+    db.query(models.Doctor).delete()
     db.query(models.User).delete()
     db.commit()
     db.close()
@@ -96,6 +100,7 @@ def test_post_users_duplicado():
         "/users", json={"nome": "C", "email": "dup@example.com"})
     assert resp.status_code == 409
 
+
 def test_put_users_atualiza_usuario():
     criado = client.post(
         "/users", json={"nome": "Original", "email": "original@example.com"}
@@ -175,12 +180,12 @@ def test_post_doctor_cria_vinculado_ao_usuario():
 
     resp = client.post(
         f"/users/{usuario['id']}/doctors",
-        json={"crm": "11111", "uf": "SP"},
+        json={"crm": "123456", "uf": "SP"},
     )
 
     assert resp.status_code == 201
     assert resp.json()["user_id"] == usuario["id"]
-    assert resp.json()["crm"] == "11111"
+    assert resp.json()["crm"] == "123456"
     assert resp.json()["uf"] == "SP"
 
 
@@ -191,12 +196,12 @@ def test_post_doctor_usuario_ja_possui_medico_retorna_409():
 
     client.post(
         f"/users/{usuario['id']}/doctors",
-        json={"crm": "22222", "uf": "RJ"},
+        json={"crm": "123456", "uf": "SP"},
     )
 
     segunda = client.post(
         f"/users/{usuario['id']}/doctors",
-        json={"crm": "33333", "uf": "MG"},
+        json={"crm": "654321", "uf": "RJ"},
     )
 
     assert segunda.status_code == 409
@@ -210,19 +215,6 @@ def test_post_doctor_usuario_inexistente_retorna_404():
 
     assert resp.status_code == 404
 
-@pytest.fixture(autouse=True)
-def limpar_usuarios():
-    """Garante que cada teste comeca com as tabelas vazias,
-    evitando que um teste 'contamine' o resultado do outro.
-
-    Ordem importa: doctors depende de users via foreign key,
-    entao precisa ser limpo primeiro."""
-    db = SessionLocal()
-    db.query(models.Doctor).delete()
-    db.query(models.User).delete()
-    db.commit()
-    db.close()
-    yield
 
 def test_post_doctor_normaliza_uf_minuscula():
     usuario = client.post(
@@ -231,12 +223,12 @@ def test_post_doctor_normaliza_uf_minuscula():
 
     resp = client.post(
         f"/users/{usuario['id']}/doctors",
-        json={"crm": "55555", "uf": "sp"},
+        json={"crm": "123456", "uf": "sp"},
     )
 
-    # o que você espera verificar aqui?
     assert resp.status_code == 201
-    assert resp.json()["uf"] == "SP"    
+    assert resp.json()["uf"] == "SP"
+
 
 def test_post_doctor_crm_duplicado_retorna_409():
     usuario1 = client.post(
@@ -245,7 +237,7 @@ def test_post_doctor_crm_duplicado_retorna_409():
 
     client.post(
         f"/users/{usuario1['id']}/doctors",
-        json={"crm": "66666", "uf": "SP"},
+        json={"crm": "123456", "uf": "SP"},
     )
 
     usuario2 = client.post(
@@ -254,10 +246,11 @@ def test_post_doctor_crm_duplicado_retorna_409():
 
     resp = client.post(
         f"/users/{usuario2['id']}/doctors",
-        json={"crm": "66666", "uf": "RJ"},
+        json={"crm": "123456", "uf": "RJ"},
     )
 
-    assert resp.status_code == 409  
+    assert resp.status_code == 409
+
 
 def test_post_doctor_crm_invalido_retorna_422():
     usuario = client.post(
@@ -271,6 +264,7 @@ def test_post_doctor_crm_invalido_retorna_422():
 
     assert resp.status_code == 422
 
+
 def test_post_doctor_crm_curto_retorna_422():
     usuario = client.post(
         "/users", json={"nome": "Dr. Curto", "email": "curto@example.com"}
@@ -282,6 +276,7 @@ def test_post_doctor_crm_curto_retorna_422():
     )
 
     assert resp.status_code == 422
+
 
 def test_post_doctor_crm_longo_retorna_422():
     usuario = client.post(
@@ -295,6 +290,7 @@ def test_post_doctor_crm_longo_retorna_422():
 
     assert resp.status_code == 422
 
+
 def test_post_doctor_uf_invalida_retorna_422():
     usuario = client.post(
         "/users", json={"nome": "Dr. UF Invalida", "email": "ufinvalida@example.com"}
@@ -303,6 +299,36 @@ def test_post_doctor_uf_invalida_retorna_422():
     resp = client.post(
         f"/users/{usuario['id']}/doctors",
         json={"crm": "77777", "uf": "XX"},
+    )
+
+    assert resp.status_code == 422
+
+
+def test_post_doctor_com_crm_valido_no_cfm():
+    usuario = client.post(
+        "/users", json={"nome": "Dr. Validado", "email": "validado@example.com"}
+    ).json()
+
+    resp = client.post(
+        f"/users/{usuario['id']}/doctors",
+        json={"crm": "123456", "uf": "SP"},
+    )
+
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["crm"] == "123456"
+    assert data["uf"] == "SP"
+    assert data["cfm_validated_at"] is not None
+
+
+def test_post_doctor_com_crm_nao_encontrado_no_cfm():
+    usuario = client.post(
+        "/users", json={"nome": "Dr. NaoValidado", "email": "naovalidado@example.com"}
+    ).json()
+
+    resp = client.post(
+        f"/users/{usuario['id']}/doctors",
+        json={"crm": "999999", "uf": "SP"},
     )
 
     assert resp.status_code == 422

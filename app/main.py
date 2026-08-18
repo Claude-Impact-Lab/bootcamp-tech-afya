@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app import models
 from app.schemas import UserCreate, DoctorCreate
+from datetime import datetime, timezone
+from app.integrations.cfm import find_doctor, DoctorNotFoundError
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -48,7 +50,8 @@ def criar_usuario(payload: UserCreate, db: Session = Depends(get_db)):
 
 @app.post("/users/{user_id}/doctors", status_code=status.HTTP_201_CREATED)
 def criar_doctor(user_id: int, payload: DoctorCreate, db: Session = Depends(get_db)):
-    """Cria um registro de médico vinculado a um usuário existente."""
+    """Cria um registro de médico vinculado a um usuário existente,
+    validando o CRM/UF junto ao CFM antes de persistir."""
     usuario = db.query(models.User).filter(models.User.id == user_id).first()
 
     if usuario is None:
@@ -59,13 +62,25 @@ def criar_doctor(user_id: int, payload: DoctorCreate, db: Session = Depends(get_
     if doctor_existente is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Usuário já possui um médico associado")
 
-    # NOVO: checagem de CRM duplicado
     crm_existente = db.query(models.Doctor).filter(models.Doctor.crm == payload.crm).first()
 
     if crm_existente is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="CRM já cadastrado")
 
-    novo_doctor = models.Doctor(crm=payload.crm, uf=payload.uf, user_id=user_id)
+    try:
+        find_doctor(payload.crm, payload.uf)
+    except DoctorNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="CRM não encontrado no CFM para a UF informada",
+        )
+
+    novo_doctor = models.Doctor(
+        crm=payload.crm,
+        uf=payload.uf,
+        user_id=user_id,
+        cfm_validated_at=datetime.now(timezone.utc),
+    )
     db.add(novo_doctor)
     db.commit()
     db.refresh(novo_doctor)
