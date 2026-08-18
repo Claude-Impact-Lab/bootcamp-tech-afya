@@ -1,7 +1,8 @@
 """
-Aplicação FastAPI mínima com duas rotas:
+Aplicação FastAPI mínima com rotas:
 - GET /health: retorna JSON com status da aplicação
 - GET /: retorna página HTML que fetcha a mensagem da API
+- GET /users: retorna lista de usuários em JSON
 """
 
 from pathlib import Path
@@ -21,6 +22,25 @@ app = FastAPI(
 
 # Configurar templates (para renderizar HTML)
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+
+# Base de dados de usuários (em memória - será substituído por banco de dados)
+users_db = [
+    {
+        "id": 1,
+        "name": "João Silva",
+        "email": "joao.silva@example.com",
+    },
+    {
+        "id": 2,
+        "name": "Maria Santos",
+        "email": "maria.santos@example.com",
+    },
+    {
+        "id": 3,
+        "name": "Pedro Oliveira",
+        "email": "pedro.oliveira@example.com",
+    },
+]
 
 
 @app.get("/health", tags=["Health"])
@@ -58,3 +78,22 @@ def index(request: Request):
         request=request,
         name="index.html",
     )
+
+
+@app.get("/users", tags=["Users"])
+def get_users() -> list[dict]:
+    """
+    Retorna a lista de todos os usuários cadastrados.
+    
+    Esta é a primeira rota da API de usuários. Atualmente retorna
+    uma lista em memória. Posteriormente será integrada a um banco de dados.
+    
+    Returns:
+        list[dict]: Lista de dicionários com estrutura:
+        {
+            "id": int,
+            "name": str,
+            "email": str,
+        }
+    """
+    return users_db
