@@ -1,6 +1,10 @@
 from pathlib import Path
+from datetime import datetime, timezone
+import subprocess
+import sys
 
 from fastapi import FastAPI, Request, Depends, HTTPException
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, EmailStr
@@ -14,6 +18,7 @@ from fastapi import Query
 from app.config import settings
 from app.db import SessionLocal, engine
 from app.models import Base, Usuario
+from app.cfm_client import CFM_SEARCH_URL, CfmClient, CfmLookupStatus, crm_for_cfm
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -29,6 +34,9 @@ with engine.begin() as conn:
     # adiciona colunas crm e uf se não existirem
     conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS crm VARCHAR;"))
     conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS uf VARCHAR;"))
+    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS cfm_status VARCHAR;"))
+    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS cfm_validated_at TIMESTAMP WITH TIME ZONE;"))
+    conn.execute(text("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_key;"))
 
 # Compatibilidade com testes da missão: lista em memória
 USUARIOS: list[dict] = []
@@ -40,6 +48,7 @@ class UsuarioCreate(BaseModel):
     senha: str | None = None
     uf: str | None = None
     crm: str | None = None
+    is_doctor: bool = False
 
 
 class UsuarioOut(BaseModel):
@@ -49,9 +58,15 @@ class UsuarioOut(BaseModel):
     senha: str | None = None
     uf: str | None = None
     crm: str | None = None
+    cfm_status: str | None = None
+    cfm_validated_at: datetime | None = None
 
     class Config:
         orm_mode = True
+
+
+class CfmDecision(BaseModel):
+    action: str
 
 
 def get_db():
@@ -108,6 +123,76 @@ def normalize_name(nome: str | None) -> str | None:
     if nome is None:
         return None
     return nome.strip().lower()
+
+
+def validar_medico_no_cfm(crm: str | None, uf: str | None) -> tuple[str | None, datetime | None]:
+    """Converte o contrato do client nos dados persistidos pelo domínio."""
+    if not crm or not uf:
+        return None, None
+
+    resultado = CfmClient().find_doctor(crm, uf)
+    if resultado.status is CfmLookupStatus.NOT_FOUND:
+        return CfmLookupStatus.UNAVAILABLE.value, None
+    if resultado.status is CfmLookupStatus.FOUND:
+        return resultado.status.value, datetime.now(timezone.utc)
+    return resultado.status.value, None
+
+
+@app.get("/cfm/manual-search", response_class=HTMLResponse)
+def abrir_consulta_manual_cfm(crm: str = Query(...), uf: str = Query(...)) -> str:
+    """Abre o formulário do CFM preenchido; CAPTCHA e envio ficam com a pessoa."""
+    uf_validada = validate_uf(uf)
+    crm_normalizado = crm_for_cfm(normalize_crm(crm) or "", uf_validada or "")
+    subprocess.Popen(
+        [sys.executable, "-m", "app.cfm_browser", uf_validada or "", crm_normalizado],
+        creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0),
+    )
+    return """<!doctype html><html lang=\"pt-BR\"><body>
+      <p>O formulário do CFM foi aberto com UF e CRM preenchidos. Confira os dados, resolva o CAPTCHA se necessário e clique em ENVIAR.</p>
+    </body></html>"""
+
+
+@app.patch("/users/{user_id}/cfm-status", response_model=UsuarioOut)
+def decidir_validacao_cfm(
+    user_id: int,
+    decisao: CfmDecision,
+    admin_email: EmailStr = Query(...),
+    db: Session = Depends(get_db),
+) -> Usuario:
+    """Permite ao Admin aprovar ou recusar um médico pendente."""
+    if normalize_email(admin_email) != ADMIN_EMAIL:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    if decisao.action not in {"approve", "reject"}:
+        raise HTTPException(status_code=400, detail="Ação inválida")
+
+    if USUARIOS:
+        usuario = next((item for item in USUARIOS if item["id"] == user_id), None)
+        if not usuario:
+            raise HTTPException(status_code=404, detail="Usuario não encontrado")
+        if usuario.get("cfm_status") != CfmLookupStatus.UNAVAILABLE.value:
+            raise HTTPException(status_code=409, detail="Usuário não está pendente")
+        usuario["cfm_status"] = "VALIDATED" if decisao.action == "approve" else "REJECTED"
+        usuario["cfm_validated_at"] = datetime.now(timezone.utc) if decisao.action == "approve" else None
+        return usuario
+
+    usuario = db.query(Usuario).filter(Usuario.id == user_id).first()
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuario não encontrado")
+    if usuario.cfm_status != CfmLookupStatus.UNAVAILABLE.value:
+        raise HTTPException(status_code=409, detail="Usuário não está pendente")
+    if decisao.action == "approve":
+        usuario_comum = db.query(Usuario).filter(
+            func.lower(func.trim(Usuario.email)) == normalize_email(usuario.email),
+            Usuario.id != usuario.id,
+            Usuario.crm.is_(None),
+        ).first()
+        if usuario_comum:
+            db.delete(usuario_comum)
+    usuario.cfm_status = "VALIDATED" if decisao.action == "approve" else "REJECTED"
+    usuario.cfm_validated_at = datetime.now(timezone.utc) if decisao.action == "approve" else None
+    db.commit()
+    db.refresh(usuario)
+    return usuario
 
 
 @app.get("/health")
@@ -263,6 +348,48 @@ def criar_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db), respons
         USUARIOS.append(novo)
         return novo
 
+    usuarios_com_email = db.query(Usuario).filter(
+        func.lower(func.trim(Usuario.email)) == normalize_email(usuario.email)
+    ).all()
+
+    if not usuario.is_doctor:
+        if usuarios_com_email:
+            raise HTTPException(status_code=400, detail="Email já cadastrado")
+        novo_usuario = Usuario(nome=usuario.nome, email=usuario.email)
+        db.add(novo_usuario)
+        db.commit()
+        db.refresh(novo_usuario)
+        return novo_usuario
+
+    medico_validado = next((item for item in usuarios_com_email if item.cfm_status == "VALIDATED"), None)
+    if medico_validado:
+        raise HTTPException(status_code=400, detail="Médico já cadastrado")
+    medico_pendente = next((item for item in usuarios_com_email if item.cfm_status == CfmLookupStatus.UNAVAILABLE.value), None)
+    if medico_pendente:
+        if response is not None:
+            response.status_code = 200
+        return medico_pendente
+
+    crm = normalize_crm(usuario.crm)
+    uf = validate_uf(usuario.uf)
+    status_cfm, validado_em = validar_medico_no_cfm(crm, uf)
+    if status_cfm is None:
+        status_cfm = CfmLookupStatus.UNAVAILABLE.value
+
+    # Uma confirmação automática transforma o usuário comum no médico. Sem
+    # confirmação, preservamos o usuário e criamos uma solicitação paralela.
+    usuario_comum = next((item for item in usuarios_com_email if not item.crm), None)
+    medico = usuario_comum if status_cfm == "VALIDATED" and usuario_comum else Usuario(nome=usuario.nome, email=usuario.email)
+    medico.nome = usuario.nome
+    medico.crm = crm
+    medico.uf = uf
+    medico.cfm_status = status_cfm
+    medico.cfm_validated_at = validado_em
+    db.add(medico)
+    db.commit()
+    db.refresh(medico)
+    return medico
+
     # fallback para DB (não usado nos testes atuais)
     # procura por e-mail de forma normalizada
     existente_db = db.query(Usuario).filter(func.lower(func.trim(Usuario.email)) == normalize_email(usuario.email)).first()
@@ -276,6 +403,11 @@ def criar_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db), respons
                 existente_db.uf = validate_uf(usuario.uf)
             if usuario.senha:
                 existente_db.senha = hashlib.sha256(usuario.senha.encode('utf-8')).hexdigest()
+            status_cfm, validado_em = validar_medico_no_cfm(existente_db.crm, existente_db.uf)
+            if usuario.is_doctor and status_cfm is None:
+                status_cfm = CfmLookupStatus.UNAVAILABLE.value
+            existente_db.cfm_status = status_cfm
+            existente_db.cfm_validated_at = validado_em
             db.add(existente_db)
             db.commit()
             db.refresh(existente_db)
@@ -293,6 +425,11 @@ def criar_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db), respons
         novo_usuario.crm = normalize_crm(usuario.crm)
     if hasattr(usuario, 'uf') and usuario.uf is not None:
         novo_usuario.uf = validate_uf(usuario.uf)
+    status_cfm, validado_em = validar_medico_no_cfm(novo_usuario.crm, novo_usuario.uf)
+    if usuario.is_doctor and status_cfm is None:
+        status_cfm = CfmLookupStatus.UNAVAILABLE.value
+    novo_usuario.cfm_status = status_cfm
+    novo_usuario.cfm_validated_at = validado_em
     db.add(novo_usuario)
     db.commit()
     db.refresh(novo_usuario)

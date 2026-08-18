@@ -296,3 +296,20 @@ e [primeiros passos](https://code.claude.com/docs/en/quickstart).
 
 Referências: [Webservice do CFM](https://sistemas.cfm.org.br/listamedicos/informacoes)
 e a Resolução CFM nº 2.309/2022.
+
+### Implementação desta versão de teste
+
+Nesta versão, a aplicação usa o formulário público de busca do CFM como uma
+tentativa de consulta em segundo plano. A dependência está isolada em
+`app/cfm_client.py`, cujo único contrato público é
+`find_doctor(crm, uf)`.
+
+- `VALIDATED`: o portal devolveu um resultado inequívoco para o CRM consultado;
+- `NOT_FOUND`: o portal informou que não encontrou o médico, e o cadastro é recusado;
+- `VALIDATION_PENDING`: o portal não respondeu, pediu reCAPTCHA ou mudou a página.
+  Nesse caso o cadastro é salvo como pendente e a tela oferece a consulta manual
+  já preenchida com UF e CRM.
+
+O código não tenta resolver ou contornar reCAPTCHA. Como o portal é externo e
+pode mudar, os testes de `tests/test_cfm_client.py` usam respostas simuladas,
+sem depender de internet ou do CFM.

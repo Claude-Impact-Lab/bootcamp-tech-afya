@@ -84,3 +84,42 @@ def test_users_recusa_nome_ou_email_faltando():
 
     detalhe = resposta.json()["detail"]
     assert any(item["loc"][-1] == "nome" for item in detalhe)
+
+
+def test_admin_pode_aprovar_usuario_pendente():
+    USUARIOS.append({
+        "id": 5,
+        "nome": "Médico Pendente",
+        "email": "pendente@example.com",
+        "crm": "123",
+        "uf": "SP",
+        "cfm_status": "VALIDATION_PENDING",
+    })
+
+    resposta = client.patch(
+        "/users/5/cfm-status?admin_email=andre.seabra@teste.com",
+        json={"action": "approve"},
+    )
+
+    assert resposta.status_code == 200
+    assert resposta.json()["cfm_status"] == "VALIDATED"
+    assert resposta.json()["cfm_validated_at"] is not None
+
+
+def test_medico_pendente_continua_pendente_ao_tentar_novamente():
+    USUARIOS.append({
+        "id": 5,
+        "nome": "Médico Pendente",
+        "email": "pendente@example.com",
+        "crm": "123",
+        "uf": "SP",
+        "cfm_status": "VALIDATION_PENDING",
+    })
+
+    resposta = client.post(
+        "/users",
+        json={"nome": "Médico Pendente", "email": "pendente@example.com", "crm": "123", "uf": "SP", "is_doctor": True},
+    )
+
+    assert resposta.status_code == 200
+    assert resposta.json()["cfm_status"] == "VALIDATION_PENDING"
