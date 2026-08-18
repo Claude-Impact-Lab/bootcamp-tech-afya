@@ -3,219 +3,361 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>User Manager</title>
+    <title>Afya Medicine</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
     <style>
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+      :root {
+        --pink: #E83E8C;
+        --pink-dark: #D92F7A;
+        --pink-dark-hover: #C72C72;
+        --pink-soft: #F06AA5;
+        --pink-pale: #FFF0F6;
+        --bg: #FFFFFF;
+        --bg-soft: #FFF9FC;
+        --ink: #202124;
+        --muted: #6B7280;
+        --line: #E5E7EB;
+        --shadow-soft: 0 12px 32px rgba(217, 47, 122, 0.08);
       }
+
+      * { box-sizing: border-box; }
 
       body {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        display: grid;
-        place-items: center;
-        min-height: 100vh;
-        color: #333;
+        margin: 0;
+        min-width: 320px;
+        color: var(--ink);
+        background: var(--bg-soft);
+        font-family: "Inter", "Trebuchet MS", sans-serif;
+        font-weight: 400;
       }
 
-      .container {
-        text-align: center;
-        background: white;
-        padding: 3rem 2rem;
-        border-radius: 8px;
-        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
-        max-width: 400px;
+      .shell {
+        width: min(1180px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 0 0 64px;
       }
 
-      h1 {
-        font-size: 2.5rem;
-        margin-bottom: 1rem;
-        color: #667eea;
+      .topbar {
+        position: relative;
+        width: 100vw;
+        margin-left: calc(50% - 50vw);
+        margin-bottom: 40px;
+        padding: 24px max(16px, calc((100vw - 1180px) / 2));
+        background: var(--bg);
+        border-bottom: 2px solid var(--pink-soft);
+        overflow: hidden;
+        animation: fade-in-down 400ms ease both;
       }
 
-      #mensagem {
-        font-size: 1.25rem;
-        min-height: 2rem;
+      .topbar-decoration {
+        position: absolute;
+        top: 0;
+        right: 0;
+        height: 100%;
+        width: min(48vw, 520px);
+        opacity: 0.35;
+        pointer-events: none;
+      }
+
+      h1, h2, h3, p { margin: 0; }
+      .brand-title { font-size: clamp(1.6rem, 3.4vw, 2.1rem); font-weight: 800; color: var(--pink-dark); letter-spacing: -0.01em; line-height: 1; }
+      .brand-subtitle { display: block; margin-top: 2px; color: var(--muted); font-size: 0.95rem; font-weight: 500; letter-spacing: 0.02em; }
+
+      .layout { display: grid; grid-template-columns: 43fr 57fr; justify-content: center; gap: 28px; align-items: stretch; }
+      .card { border-radius: 20px; }
+      .form-card {
+        padding: 40px;
+        background: var(--bg);
+        box-shadow: var(--shadow-soft);
+        animation: fade-in-up 450ms ease both;
+      }
+      .section-heading { margin-bottom: 22px; }
+      .eyebrow { color: var(--pink-dark); font-size: 0.72rem; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; }
+      .form-card h2 { margin: 8px 0 10px; font-size: 1.75rem; font-weight: 700; color: var(--ink); }
+      .title-underline { width: 48px; height: 3px; margin-bottom: 26px; background: var(--pink); border-radius: 999px; }
+
+      .field { display: grid; gap: 7px; margin-bottom: 18px; }
+      label { color: var(--ink); font-size: 0.85rem; font-weight: 600; }
+      .input-wrap { position: relative; }
+      .input-wrap .field-icon { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--pink); pointer-events: none; display: flex; }
+      input[type="text"], input[type="email"], .input-wrap input {
+        width: 100%;
+        height: 54px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 0 14px 0 46px;
+        color: var(--ink);
+        background: var(--bg);
+        font: inherit;
+        font-size: 0.95rem;
+        outline: 0;
+        transition: border-color 220ms ease, box-shadow 220ms ease;
+      }
+      input::placeholder { color: var(--muted); font-weight: 400; }
+      input:focus { border-color: var(--pink); box-shadow: 0 0 0 3px rgba(232, 62, 140, 0.12); }
+
+      .doctor-toggle { display: flex; align-items: center; gap: 10px; margin: 10px 0 20px; color: var(--ink); font-size: 0.9rem; font-weight: 500; }
+      .doctor-toggle input { width: 18px; height: 18px; accent-color: var(--pink-dark); border: 1px solid var(--line); }
+      .doctor-fields { display: none; grid-template-columns: 1fr 90px; gap: 12px; }
+      .doctor-fields.visible { display: grid; }
+      .doctor-fields input { padding-left: 14px; }
+
+      button { border: 0; border-radius: 12px; cursor: pointer; font: inherit; transition: transform 220ms ease, background 220ms ease, box-shadow 220ms ease; }
+      .primary {
         display: flex;
         align-items: center;
         justify-content: center;
+        width: 100%;
+        height: 54px;
+        color: #ffffff;
+        background: var(--pink-dark);
+        font-weight: 600;
+        font-size: 0.98rem;
       }
+      .primary:hover { background: var(--pink-dark-hover); transform: translateY(-2px); box-shadow: 0 10px 20px rgba(217, 47, 122, 0.24); }
+      .primary:focus-visible { outline: 3px solid var(--pink-soft); outline-offset: 2px; }
+      .status { min-height: 20px; margin-top: 14px; color: var(--muted); font-size: 0.85rem; }
+      .status.error { color: var(--pink-dark); }
 
-      .loading {
-        color: #999;
-        font-style: italic;
-      }
+      .list-card { grid-column: 1 / -1; display: block; padding: 32px; margin-top: 28px; background: var(--bg); box-shadow: var(--shadow-soft); }
+      .list-card .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+      .list-card h2 { font-size: 1.3rem; font-weight: 700; }
 
-      .error {
-        color: #e74c3c;
-      }
-
-      .success {
-        color: #27ae60;
-        font-weight: bold;
-      }
-
-      form,
-      #usuarios {
+      .hero-card {
+        position: relative;
         display: grid;
-        gap: 0.75rem;
-        margin-top: 1.5rem;
-        text-align: left;
+        min-height: 100%;
+        place-items: center;
+        padding: 52px 40px;
+        color: #ffffff;
+        background: linear-gradient(135deg, #D92F7A 0%, #E83E8C 55%, #F06AA5 100%);
+        text-align: center;
+        overflow: hidden;
+        animation: fade-in-up 450ms ease 80ms both;
+        transition: transform 260ms ease;
       }
-
-      input,
-      button {
-        padding: 0.65rem;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-      }
-
-      button {
-        cursor: pointer;
-        background: #667eea;
-        color: white;
-        border: 0;
-      }
-
-      .doctor-fields {
-        display: none;
-        gap: 0.75rem;
-      }
-
-      .doctor-fields.visible {
+      .hero-decoration { position: absolute; inset: 0; opacity: 0.16; pointer-events: none; }
+      .hero-content { position: relative; z-index: 1; max-width: 400px; }
+      .plus-mark {
         display: grid;
+        width: 72px;
+        height: 72px;
+        margin: 0 auto 26px;
+        place-items: center;
+        border: 2px solid #ffffff;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.12);
+        color: #ffffff;
+      }
+      .hero-content h2 { margin-bottom: 18px; color: #ffffff; font-size: clamp(1.7rem, 3.2vw, 2.5rem); font-weight: 800; line-height: 1.2; }
+      .hero-divider { width: 48px; height: 2px; margin: 0 auto 18px; background: rgba(255, 255, 255, 0.7); border-radius: 999px; }
+      .hero-content p { color: rgba(255, 255, 255, 0.92); font-size: 1.1rem; line-height: 1.6; }
+
+      .benefits {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0;
+        margin-top: 28px;
+        padding: 30px 0;
+        background: var(--bg);
+        border-radius: 20px;
+        box-shadow: var(--shadow-soft);
+        animation: fade-in-up 450ms ease 140ms both;
+      }
+      .benefit { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 8px 24px; text-align: center; border-left: 1px solid var(--line); }
+      .benefit:first-child { border-left: none; }
+      .benefit-icon { color: var(--pink-dark); display: flex; }
+      .benefit h3 { font-size: 1rem; font-weight: 700; color: var(--ink); }
+      .benefit p { font-size: 0.85rem; color: var(--muted); }
+
+      @keyframes fade-in-up { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+      @keyframes fade-in-down { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+
+      .count { min-width: 32px; padding: 6px 10px; border-radius: 999px; color: var(--pink-dark); background: var(--pink-pale); text-align: center; font-size: 0.8rem; font-weight: 600; }
+      #usuarios { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+      .usuario { display: flex; min-height: 150px; flex-direction: column; justify-content: space-between; gap: 14px; padding: 17px; border: 1px solid var(--line); border-left: 4px solid var(--pink-soft); border-radius: 14px; background: var(--bg-soft); }
+      .usuario.medico { border-left-color: var(--pink-dark); background: var(--pink-pale); }
+      .user-name { font-size: 1rem; font-weight: 600; }
+      .user-email { margin-top: 5px; color: var(--muted); font-size: 0.82rem; overflow-wrap: anywhere; }
+      .badge { display: inline-flex; width: fit-content; padding: 5px 8px; border-radius: 999px; color: var(--pink-dark); background: var(--pink-pale); font-size: 0.72rem; font-weight: 600; }
+      .badge.comum { color: var(--muted); background: #F3F4F6; }
+      .card-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+      .delete { padding: 7px 9px; color: var(--pink-dark); background: transparent; font-size: 0.75rem; font-weight: 600; }
+      .delete:hover { background: var(--pink-pale); }
+      .empty { grid-column: 1 / -1; padding: 32px; border: 1px dashed var(--line); border-radius: 12px; color: var(--muted); text-align: center; }
+
+      @media (max-width: 900px) {
+        .layout { grid-template-columns: 1fr; }
+        .form-card { order: 1; }
+        .hero-card { order: 2; min-height: 320px; padding: 44px 28px; }
+        .benefits { grid-template-columns: 1fr; }
+        .benefit { border-left: none; border-top: 1px solid var(--line); padding: 20px 12px; }
+        .benefit:first-child { border-top: none; }
       }
 
-      .usuario {
-        padding: 0.75rem;
-        border: 1px solid #eee;
-        border-radius: 4px;
+      @media (max-width: 760px) {
+        .shell { padding-top: 0; }
+        .topbar { padding: 18px 16px; }
+        .topbar-decoration { width: 60vw; opacity: 0.25; }
+        .form-card { padding: 26px; }
+        .list-card { padding: 22px; }
       }
     </style>
   </head>
   <body>
-    <div class="container">
-      <h1>User Manager</h1>
-      <p id="mensagem" class="loading">Carregando...</p>
+    <header class="topbar">
+      <svg class="topbar-decoration" viewBox="0 0 400 120" preserveAspectRatio="xMaxYMid slice" aria-hidden="true" focusable="false">
+        <path d="M0 90 Q 100 20 200 70 T 400 40" fill="none" stroke="#F06AA5" stroke-width="2" />
+        <path d="M40 110 Q 140 50 240 95 T 440 60" fill="none" stroke="#FFF0F6" stroke-width="10" />
+        <circle cx="360" cy="30" r="5" fill="#F06AA5" />
+        <circle cx="320" cy="80" r="3" fill="#F06AA5" />
+      </svg>
+      <span class="brand-title" aria-label="Afya Medicine">Afya</span>
+      <span class="brand-subtitle">Medicine</span>
+    </header>
 
-      <form id="user-form">
-        <input id="name" name="name" placeholder="Nome" required />
-        <input id="email" name="email" type="email" placeholder="Email" required />
-        <label>
-          <input id="is-doctor" name="is-doctor" type="checkbox" />
-          Usuário médico
-        </label>
-        <div id="doctor-fields" class="doctor-fields">
-          <input id="crm" name="crm" placeholder="CRM" />
-          <input id="uf" name="uf" maxlength="2" placeholder="UF" />
+    <main class="shell">
+      <section class="layout">
+        <article class="card form-card">
+          <div class="section-heading">
+            <p class="eyebrow">Novo cadastro</p>
+            <h2>Adicionar usuário</h2>
+            <div class="title-underline" aria-hidden="true"></div>
+          </div>
+          <form id="user-form">
+            <div class="field">
+              <label for="name">Nome completo</label>
+              <div class="input-wrap">
+                <span class="field-icon" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="8" r="5"/></svg>
+                </span>
+                <input id="name" name="name" placeholder="Ex.: Ana Souza" required />
+              </div>
+            </div>
+            <div class="field">
+              <label for="email">Email</label>
+              <div class="input-wrap">
+                <span class="field-icon" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 6-10 7L2 6"/></svg>
+                </span>
+                <input id="email" name="email" type="email" placeholder="ana@exemplo.com" required />
+              </div>
+            </div>
+            <label class="doctor-toggle" for="is-doctor"><input id="is-doctor" name="is-doctor" type="checkbox" /> Este usuário é médico</label>
+            <div id="doctor-fields" class="doctor-fields">
+              <div class="field"><label for="crm">CRM</label><input id="crm" name="crm" placeholder="123456" /></div>
+              <div class="field"><label for="uf">UF</label><input id="uf" name="uf" maxlength="2" placeholder="SP" /></div>
+            </div>
+            <button class="primary" type="submit">Cadastrar usuário</button>
+          </form>
+          <p id="mensagem" class="status" aria-live="polite">Pronto para cadastrar.</p>
+        </article>
+
+        <aside class="card hero-card">
+          <svg class="hero-decoration" viewBox="0 0 400 400" aria-hidden="true" focusable="false">
+            <path d="M60 90 q10 -30 20 0 t20 0 v30" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" />
+            <circle cx="80" cy="130" r="10" fill="none" stroke="#fff" stroke-width="4" />
+            <circle cx="330" cy="300" r="26" fill="none" stroke="#fff" stroke-width="3" />
+            <line x1="349" y1="319" x2="368" y2="338" stroke="#fff" stroke-width="3" stroke-linecap="round" />
+            <rect x="270" y="60" width="46" height="60" rx="4" fill="none" stroke="#fff" stroke-width="3" />
+            <line x1="280" y1="76" x2="306" y2="76" stroke="#fff" stroke-width="3" stroke-linecap="round" />
+            <line x1="280" y1="90" x2="306" y2="90" stroke="#fff" stroke-width="3" stroke-linecap="round" />
+            <circle cx="120" cy="300" r="4" fill="#fff" />
+            <circle cx="150" cy="320" r="3" fill="#fff" />
+            <circle cx="100" cy="330" r="3" fill="#fff" />
+          </svg>
+          <div class="hero-content">
+            <div class="plus-mark" aria-hidden="true">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            </div>
+            <h2>Conhecimento para decisões que importam.</h2>
+            <div class="hero-divider" aria-hidden="true"></div>
+            <p>Pesquisa médica de forma simples, rápida e confiável.</p>
+          </div>
+        </aside>
+      </section>
+
+      <section class="benefits">
+        <div class="benefit">
+          <span class="benefit-icon" aria-hidden="true">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
+          </span>
+          <h3>Informação confiável</h3>
+          <p>Fontes científicas e atualizadas</p>
         </div>
-        <button type="submit">Cadastrar usuário</button>
-      </form>
+        <div class="benefit">
+          <span class="benefit-icon" aria-hidden="true">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg>
+          </span>
+          <h3>Mais rapidez</h3>
+          <p>Encontre o que precisa</p>
+        </div>
+        <div class="benefit">
+          <span class="benefit-icon" aria-hidden="true">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 21a8 8 0 0 0-16 0"/><circle cx="10" cy="8" r="5"/><path d="M22 20c0-3.37-2-6.5-4-8a5 5 0 0 0-.45-8.3"/></svg>
+          </span>
+          <h3>Feito para médicos</h3>
+          <p>Pensado na sua rotina</p>
+        </div>
+      </section>
 
-      <div id="usuarios"></div>
-    </div>
+      <section class="layout">
+        <article class="card list-card">
+          <div class="section-heading"><div><h2>Usuários</h2></div><span id="contador" class="count">0</span></div>
+          <div id="usuarios" aria-live="polite"></div>
+        </article>
+      </section>
+    </main>
 
     <script>
-      /**
-       * Busca a mensagem da API em /health e exibe na página.
-       * 
-       * Este é o primeiro contato do time com:
-       * - fetch() para fazer requisições HTTP
-       * - JSON como formato de dados
-       * - manipulação do DOM (document.getElementById, textContent)
-       * - tratamento de erros com .catch()
-       */
       const doctorCheckbox = document.getElementById("is-doctor");
       const doctorFields = document.getElementById("doctor-fields");
+      const status = document.getElementById("mensagem");
 
       doctorCheckbox.addEventListener("change", () => {
         doctorFields.classList.toggle("visible", doctorCheckbox.checked);
       });
 
+      function escapar(texto) {
+        return String(texto).replace(/[&<>'"]/g, (caractere) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[caractere]);
+      }
+
       function carregarUsuarios() {
         return fetch("/users")
-          .then((resposta) => {
-            if (!resposta.ok) {
-              throw new Error(`Erro HTTP: ${resposta.status}`);
-            }
-            return resposta.json();
-          })
+          .then((resposta) => { if (!resposta.ok) throw new Error(`Erro HTTP: ${resposta.status}`); return resposta.json(); })
           .then((usuarios) => {
-            document.getElementById("usuarios").innerHTML = usuarios
-              .map((usuario) => {
-                const tipo = usuario.is_doctor
-                  ? `Médico: CRM ${usuario.doctor.crm}/${usuario.doctor.uf}`
-                  : "Usuário comum";
-                return `<div class="usuario"><strong>${usuario.name}</strong><br />${usuario.email}<br />${tipo}</div>`;
-              })
-              .join("");
+            document.getElementById("contador").textContent = usuarios.length;
+            document.getElementById("usuarios").innerHTML = usuarios.length ? usuarios.map((usuario) => {
+              const medico = usuario.is_doctor;
+              const detalhe = medico ? `CRM ${escapar(usuario.doctor.crm)} · ${escapar(usuario.doctor.uf)}` : "Cadastro geral";
+              return `<div class="usuario ${medico ? "medico" : ""}"><div><div class="user-name">${escapar(usuario.name)}</div><div class="user-email">${escapar(usuario.email || "Email não informado")}</div></div><div class="card-footer"><span class="badge ${medico ? "" : "comum"}">${medico ? "Médico" : "Usuário comum"} · ${detalhe}</span><button class="delete" type="button" data-user-id="${usuario.id}">Excluir</button></div></div>`;
+            }).join("") : '<p class="empty">Nenhum usuário cadastrado ainda.</p>';
           });
       }
 
       document.getElementById("user-form").addEventListener("submit", (evento) => {
         evento.preventDefault();
         const isDoctor = doctorCheckbox.checked;
-        const payload = {
-          name: document.getElementById("name").value,
-          email: document.getElementById("email").value,
-          is_doctor: isDoctor,
-        };
-        if (isDoctor) {
-          payload.crm = document.getElementById("crm").value;
-          payload.uf = document.getElementById("uf").value;
-        }
-
-        fetch("/users", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        })
-          .then((resposta) => {
-            if (!resposta.ok) {
-              throw new Error(`Erro HTTP: ${resposta.status}`);
-            }
-            return resposta.json();
-          })
-          .then(() => {
-            evento.target.reset();
-            doctorFields.classList.remove("visible");
-            return carregarUsuarios();
-          })
-          .catch((erro) => {
-            document.getElementById("mensagem").textContent = erro.message;
-            document.getElementById("mensagem").className = "error";
-          });
+        const payload = { name: document.getElementById("name").value, email: document.getElementById("email").value, is_doctor: isDoctor };
+        if (isDoctor) { payload.crm = document.getElementById("crm").value; payload.uf = document.getElementById("uf").value; }
+        fetch("/users", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
+          .then((resposta) => { if (!resposta.ok) throw new Error(`Erro HTTP: ${resposta.status}`); return resposta.json(); })
+          .then(() => { evento.target.reset(); doctorFields.classList.remove("visible"); status.textContent = "Usuário cadastrado."; status.className = "status"; return carregarUsuarios(); })
+          .catch((erro) => { status.textContent = erro.message; status.className = "status error"; });
       });
 
-      fetch("/health")
-        .then((resposta) => {
-          // Verifica se a resposta HTTP foi bem-sucedida (status 200)
-          if (!resposta.ok) {
-            throw new Error(`Erro HTTP: ${resposta.status}`);
-          }
-          // Converte a resposta para JSON
-          return resposta.json();
-        })
-        .then((dados) => {
-          // Atualiza o elemento HTML com a mensagem recebida
-          const elemento = document.getElementById("mensagem");
-          elemento.textContent = dados.message;
-          elemento.className = "success";
-        })
-        .catch((erro) => {
-          // Se algo der errado, exibe mensagem de erro
-          console.error("Erro ao chamar a API:", erro);
-          const elemento = document.getElementById("mensagem");
-          elemento.textContent = "Erro ao chamar a API";
-          elemento.className = "error";
-        });
-
-      carregarUsuarios().catch((erro) => {
-        document.getElementById("mensagem").textContent = erro.message;
-        document.getElementById("mensagem").className = "error";
+      document.getElementById("usuarios").addEventListener("click", (evento) => {
+        const botao = evento.target.closest("[data-user-id]");
+        if (!botao || !window.confirm("Excluir este usuário?")) return;
+        fetch(`/users/${botao.dataset.userId}`, { method: "DELETE" })
+          .then((resposta) => { if (!resposta.ok) throw new Error(resposta.status === 409 ? "Usuários médicos não podem ser excluídos." : `Erro HTTP: ${resposta.status}`); return carregarUsuarios(); })
+          .then(() => { status.textContent = "Usuário excluído."; status.className = "status"; })
+          .catch((erro) => { status.textContent = erro.message; status.className = "status error"; });
       });
+
+      carregarUsuarios().catch((erro) => { status.textContent = erro.message; status.className = "status error"; });
     </script>
   </body>
 </html>

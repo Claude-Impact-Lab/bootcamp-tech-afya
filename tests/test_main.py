@@ -34,12 +34,15 @@ def test_index_renderiza_html():
     
     Verifica que:
     - Retorna status HTTP 200 (sucesso)
-    - Retorna HTML que contém "User Manager" no título
+    - Retorna HTML com a marca Afya Medicine
+    - Não exibe os textos antigos da interface
     """
     resposta = client.get("/")
 
     assert resposta.status_code == 200
-    assert "User Manager" in resposta.text
+    assert "Afya Medicine" in resposta.text
+    assert "User Manager" not in resposta.text
+    assert "Hello World" not in resposta.text
 
 
 def test_get_users_retorna_lista():
