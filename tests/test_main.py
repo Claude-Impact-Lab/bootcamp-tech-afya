@@ -166,3 +166,60 @@ def test_delete_users_inexistente_retorna_404():
     resp = client.delete("/users/99999")
 
     assert resp.status_code == 404
+
+
+def test_post_doctor_cria_vinculado_ao_usuario():
+    usuario = client.post(
+        "/users", json={"nome": "Dr. Teste", "email": "dr.teste@example.com"}
+    ).json()
+
+    resp = client.post(
+        f"/users/{usuario['id']}/doctors",
+        json={"crm": "11111", "uf": "SP"},
+    )
+
+    assert resp.status_code == 201
+    assert resp.json()["user_id"] == usuario["id"]
+    assert resp.json()["crm"] == "11111"
+    assert resp.json()["uf"] == "SP"
+
+
+def test_post_doctor_usuario_ja_possui_medico_retorna_409():
+    usuario = client.post(
+        "/users", json={"nome": "Dr. Teste", "email": "dr.teste2@example.com"}
+    ).json()
+
+    client.post(
+        f"/users/{usuario['id']}/doctors",
+        json={"crm": "22222", "uf": "RJ"},
+    )
+
+    segunda = client.post(
+        f"/users/{usuario['id']}/doctors",
+        json={"crm": "33333", "uf": "MG"},
+    )
+
+    assert segunda.status_code == 409
+
+
+def test_post_doctor_usuario_inexistente_retorna_404():
+    resp = client.post(
+        "/users/99999/doctors",
+        json={"crm": "44444", "uf": "SP"},
+    )
+
+    assert resp.status_code == 404
+
+@pytest.fixture(autouse=True)
+def limpar_usuarios():
+    """Garante que cada teste comeca com as tabelas vazias,
+    evitando que um teste 'contamine' o resultado do outro.
+
+    Ordem importa: doctors depende de users via foreign key,
+    entao precisa ser limpo primeiro."""
+    db = SessionLocal()
+    db.query(models.Doctor).delete()
+    db.query(models.User).delete()
+    db.commit()
+    db.close()
+    yield

@@ -6,3 +6,7 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     pass
+
+class DoctorCreate(BaseModel):
+    crm: str
+    uf: str
