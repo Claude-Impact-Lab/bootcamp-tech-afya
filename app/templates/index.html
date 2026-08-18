@@ -144,6 +144,99 @@
       box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
     }
 
+    /* area admin button */
+    .area-admin-btn {
+      display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:10px;
+      border:1px solid #E60067; background:#fff; color:#111827; cursor:pointer; font-weight:600;
+      box-shadow: 0 2px 6px rgba(230,6,103,0.04);
+    }
+    .area-admin-btn:hover { background:#fff0f4; }
+    .area-admin-btn.active {
+      background: #E60067;
+      color: #fff;
+    }
+    .area-admin-btn.active svg path { stroke: #fff !important; }
+
+    /* Top grid: form + summary */
+    .top-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+    .top-grid.with-summary {
+      grid-template-columns: 1fr 320px;
+    }
+
+    .summary-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 6px 18px rgba(15,23,42,0.04);
+      border: 1px solid rgba(15,23,42,0.03);
+    }
+
+    /* visual panel removed - kept layout spacing via .summary-card */
+
+    .summary-card h4 { margin:0 0 8px 0; font-size:1rem; }
+    .summary-chart { display:flex; gap:12px; align-items:center; justify-content:center; }
+    .donut-legend { display:flex; flex-direction:column; gap:6px; font-size:0.95rem; }
+    .legend-item { display:flex; gap:8px; align-items:center; }
+    .legend-swatch { width:12px; height:12px; border-radius:3px; }
+
+    /* Segmented control styles */
+    .mode-toggle { background: #fff; padding:4px; border-radius:999px; border:1px solid rgba(15,23,42,0.06); }
+    .mode-toggle button { padding:8px 14px; border-radius:999px; }
+    .mode-toggle button.active { background:#E60067; color:#fff; box-shadow:0 6px 18px rgba(230,6,103,0.12); }
+
+    /* Admin search and filters styling */
+    #admin-search { display:flex; gap:10px; align-items:center; }
+    #search-box { padding-left:40px; border-radius:12px; height:44px; border:1px solid #e6e6e6; }
+    #admin-search { position:relative; }
+    #admin-search .search-icon { position:absolute; left:12px; top:50%; transform:translateY(-50%); opacity:0.6 }
+    .filter-btn { border-radius:10px; padding:8px 12px; background:#fff; border:1px solid #e6e6e6; cursor:pointer }
+    .filter-btn.active-filter { background:#E60067; color:#fff; border-color:rgba(230,6,103,0.4) }
+
+    /* Table visual improvements */
+    .users-table { border-radius:10px; overflow:hidden; }
+    .users-table th { background:#faf7fb; font-weight:700; padding:12px 14px; }
+    .users-table td { padding:12px 14px; vertical-align:middle; }
+    .users-table tbody tr { border-bottom:1px solid rgba(15,23,42,0.04); }
+    .users-table tbody tr:hover { background: rgba(230,6,103,0.03); }
+    .avatar { width:40px; height:40px; border-radius:50%; font-size:0.95rem }
+    .icon-btn { padding:6px; border-radius:8px; }
+    .icon-btn.edit { background: rgba(14,165,164,0.06); }
+    .icon-btn.delete { background: rgba(185,28,28,0.06); }
+
+    @media (max-width: 880px) {
+      .top-grid { grid-template-columns: 1fr; }
+      .summary-card { order: 2 }
+      .top-grid.with-summary .summary-card {
+        margin-top: 0;
+        height: auto;
+      }
+    }
+
+    /* No painel Admin, o resumo acompanha a altura dos campos Nome até Senha. */
+    .top-grid.with-summary .summary-card {
+      margin-top: 60px;
+      height: 234px;
+      padding: 14px;
+    }
+    .top-grid.with-summary .summary-chart svg {
+      width: 112px;
+      height: 112px;
+    }
+    .top-grid.with-summary .summary-card > div[style="height:10px"] {
+      height: 6px !important;
+    }
+    @media (max-width: 880px) {
+      .top-grid.with-summary .summary-card {
+        margin-top: 0;
+        height: auto;
+      }
+    }
+
     h1 {
       margin: 0;
       font-size: 2.6rem;
@@ -218,6 +311,41 @@
       background: #bf0059;
     }
     .form-cadastro .botao { width:100%; display:block; }
+    /* Layout inspirado na referência visual: formulário e painel de boas-vindas. */
+    body { background: linear-gradient(90deg, #d90064 0 5.6%, #f8fafc 5.6% 94.4%, #d90064 94.4%); }
+    .container { width: min(1180px, 92vw); padding: 48px 50px 34px; border-radius: 22px; }
+    .header { position: relative; margin-bottom: 20px; border-bottom: 1px solid #eef0f3; padding-bottom: 24px; }
+    .header h1 { font-size: 2.45rem; white-space: nowrap; }
+    .header::after { content: 'Faça login ou cadastre-se.'; position: absolute; left: 0; bottom: 0; color: #64748b; font-size: 1rem; }
+    .header.admin-logged::after { display: none; }
+    .header-right { flex-direction: row; align-items: center; width: auto; justify-content: center; pointer-events: none; }
+    .header-right .logo-top { position: absolute; left: 50%; transform: translateX(-50%); width: 120px; box-shadow: none; padding: 0; }
+    .area-admin-btn { position: absolute; right: 0; top: 10px; pointer-events: auto; padding: 12px 16px; }
+    .top-toggle { width: calc(100% - 428px); justify-content: flex-start; margin: 0 0 26px; }
+    .mode-toggle { width: 100%; padding: 3px; border-radius: 10px; box-shadow: none; }
+    .mode-toggle button { width: 50%; display: inline-flex; justify-content: center; align-items: center; gap: 8px; border-radius: 8px; }
+    .top-grid, .top-grid.with-summary { grid-template-columns: minmax(0, 1fr) 380px; gap: 48px; }
+    .form-cadastro { margin-top: 0; gap: 18px; }
+    .campo { gap: 6px; }
+    .campo input, .campo select { height: 54px; border-color: #d9dee7; }
+    .botao { height: 60px; margin-top: 14px; border-radius: 10px; }
+    .welcome-panel { display: flex; min-height: 620px; margin-top: -74px; padding: 34px 28px; border-radius: 22px; background: linear-gradient(150deg, #fff6fa, #fce8f2); color: #172033; text-align: center; flex-direction: column; align-items: center; overflow: hidden; }
+    .welcome-icon { width: 80px; height: 80px; display: grid; place-items: center; border-radius: 50%; background: white; color: #e60067; box-shadow: 0 5px 18px rgba(230, 0, 103, .12); font-size: 2.3rem; }
+    .welcome-panel h2 { margin: 28px 0 10px; font-size: 1.5rem; }
+    .welcome-panel p { margin: 0; max-width: 250px; color: #5f697a; line-height: 1.55; }
+    .welcome-visual { margin-top: auto; width: 100%; }
+    .welcome-visual img { display: block; width: 100%; height: auto; border-radius: 16px; mix-blend-mode: multiply; }
+    .welcome-user-name { display: block; margin-top: 4px; font-size: 1em; }
+    .top-grid.with-summary .welcome-panel { display: none; }
+    .top-grid.with-summary .summary-card { margin-top: 0; height: auto; min-height: 360px; }
+    @media (max-width: 880px) {
+      .container { padding: 28px 24px; }
+      .header-right .logo-top { position: static; transform: none; }
+      .area-admin-btn { top: 0; }
+      .top-toggle { width: 100%; }
+      .top-grid, .top-grid.with-summary { grid-template-columns: 1fr; gap: 24px; }
+      .welcome-panel { min-height: 360px; margin-top: 0; }
+    }
   </style>
 </head>
 
@@ -227,17 +355,22 @@
       <h1>Bem-vindo</h1>
       <div class="header-right">
         <img class="logo-top" src="https://companieslogo.com/img/orig/AFYA_BIG-54d3e65a.png?t=1742570503" alt="Logo Afya" />
-        <button id="admin-btn" class="admin-btn" title="Admin">Admin</button>
+        <button id="admin-btn" class="area-admin-btn" title="Área Admin">
+          <!-- shield icon -->
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2l7 3v5c0 5-3.5 9.7-7 12-3.5-2.3-7-7-7-12V5l7-3z" stroke="#E60067" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Área Admin
+        </button>
       </div>
     </div>
 
-    <div class="top-toggle">
+    <div class="top-toggle" id="access-mode-toggle">
       <div class="mode-toggle" role="tablist" aria-label="Modo de acesso">
-        <button type="button" id="mode-user" class="active">Usuário</button>
-        <button type="button" id="mode-medico">Médico</button>
+        <button type="button" id="mode-user" class="active"><span>♙</span> Usuário</button>
+        <button type="button" id="mode-medico"><span>⚕</span> Médico</button>
       </div>
     </div>
 
+    <div class="top-grid">
     <form class="form-cadastro">
 
       <div class="campo">
@@ -269,7 +402,7 @@
             <!-- lock icon -->
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="11" width="18" height="10" rx="2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 11V8a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </span>
-          <input id="senha" name="senha" type="password" placeholder="Digite sua senha (apenas Admin)" />
+          <input id="senha" name="senha" type="password" placeholder="Digite sua senha" />
         </div>
       </div>
 
@@ -311,13 +444,41 @@
 
       <div class="campo" id="campo-crm" style="display:none;">
         <label for="crm">CRM</label>
-        <div class="input-wrap">
-          <input id="crm" name="crm" type="text" inputmode="numeric" pattern="\d*" placeholder="Apenas números" maxlength="12" />
+        <div class="input-wrap" style="display:flex; gap:8px; align-items:center;">
+          <div id="crm-prefix" style="display:none; width:48px; height:48px; border-radius:10px; background:#E60067; color:#fff; font-weight:700; display:flex; align-items:center; justify-content:center;">52</div>
+          <input id="crm" name="crm" type="text" inputmode="numeric" pattern="\d*" placeholder="Apenas números" maxlength="10" />
         </div>
       </div>
 
       <button class="botao" type="submit">Entrar/Cadastrar</button>
     </form>
+
+    <div class="summary-card" id="summary-card" style="display:none;">
+      <h4>Resumo de usuários</h4>
+      <div class="summary-chart">
+        <svg id="donut-chart" width="160" height="160" viewBox="0 0 160 160"></svg>
+        <div class="donut-info">
+          <div id="donut-center" style="font-weight:700; font-size:1.2rem; text-align:center;"></div>
+          <div style="font-size:0.85rem; color:#6b7280; text-align:center;">Total: <span id="total-users">0</span></div>
+        </div>
+      </div>
+      <div style="height:10px"></div>
+      <div class="donut-legend">
+        <div class="legend-item"><div class="legend-swatch" style="background:#E60067"></div> <div> Médicos — <span id="medico-pct">0%</span></div></div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#6b21a8"></div> <div> Usuários — <span id="usuario-pct">0%</span></div></div>
+      </div>
+    </div>
+
+    <aside class="welcome-panel" aria-label="Apresentação do sistema">
+      <div class="welcome-icon">♙</div>
+      <h2>Acesse sua conta</h2>
+      <p>Gerencie seus dados e tenha acesso a todas as funcionalidades.</p>
+      <div class="welcome-visual">
+        <img src="/static/images/afya-dashboard.jpeg" alt="Notebook exibindo painel da Afya ao lado de uma planta" />
+      </div>
+    </aside>
+
+    </div> <!-- end top-grid -->
 
     <div id="admin-area" style="display:none; margin-top: 18px;">
       <h3 style="margin:0 0 8px 0;">Painel Admin</h3>
@@ -325,6 +486,11 @@
       <!-- search (visual) -->
       <div id="admin-search" style="display:flex; gap:8px; margin-bottom:10px; align-items:center;">
         <input id="search-box" placeholder="Buscar por nome ou e-mail..." style="flex:1; height:40px; padding:8px 12px; border-radius:10px; border:1px solid #e6e6e6" />
+        <div id="role-filters" style="display:flex; gap:6px; align-items:center;">
+          <button id="filter-all" class="filter-btn" data-role="all" style="height:36px; padding:6px 10px; border-radius:8px; border:1px solid #e6e6e6; cursor:pointer">Todos</button>
+          <button id="filter-usuario" class="filter-btn" data-role="usuario" style="height:36px; padding:6px 10px; border-radius:8px; border:1px solid #e6e6e6; cursor:pointer">Usuário</button>
+          <button id="filter-medico" class="filter-btn" data-role="medico" style="height:36px; padding:6px 10px; border-radius:8px; border:1px solid #e6e6e6; cursor:pointer">Médico</button>
+        </div>
         <button id="search-clear" style="height:40px; border-radius:10px; border: none; background:#f3f4f6; padding:8px 12px; cursor:pointer">Limpar</button>
       </div>
       <div id="admin-table-wrap"></div>
@@ -350,6 +516,7 @@
     const campoCrm = document.getElementById('campo-crm');
     const ufSelect = document.getElementById('uf');
     const crmInput = document.getElementById('crm');
+    const crmPrefix = document.getElementById('crm-prefix');
 
     let mode = 'user'; // 'user' or 'medico'
     let isAdmin = false;
@@ -380,10 +547,79 @@
         const res = await fetch(`/users?admin_email=${encodeURIComponent(adminEmail)}`);
         if (!res.ok) throw new Error('acesso negado');
         const usuarios = await res.json();
+        renderSummary(usuarios);
         renderizarTabelaAdmin(usuarios);
       } catch (err) {
         adminTableWrap.innerHTML = `<p style="color:#b91c1c">Não foi possível carregar usuários: ${err.message}</p>`;
       }
+    }
+
+    function renderSummary(usuarios) {
+      if (!Array.isArray(usuarios)) usuarios = [];
+      // same filter as table: remove current admin from counts
+      if (currentUser && currentUser.email) {
+        usuarios = usuarios.filter(u => u.email.toLowerCase() !== currentUser.email.toLowerCase());
+      }
+      const total = usuarios.length;
+      const medicoCount = usuarios.filter(u => u.crm && String(u.crm).trim() !== '').length;
+      const usuarioCount = total - medicoCount;
+      const medicoPct = total ? Math.round((medicoCount / total) * 100) : 0;
+      const usuarioPct = total ? 100 - medicoPct : 0;
+
+      document.getElementById('total-users').textContent = String(total);
+      document.getElementById('medico-pct').textContent = medicoPct + '%';
+      document.getElementById('usuario-pct').textContent = usuarioPct + '%';
+
+      const dominantPct = medicoPct >= usuarioPct ? medicoPct : usuarioPct;
+      document.getElementById('donut-center').textContent = dominantPct + '%';
+
+      // draw donut in SVG
+      const svg = document.getElementById('donut-chart');
+      const svgNS = 'http://www.w3.org/2000/svg';
+      const size = 160;
+      const r = 56;
+      const cx = size / 2;
+      const cy = size / 2;
+      const circumference = 2 * Math.PI * r;
+      svg.innerHTML = '';
+
+      // background ring
+      const bg = document.createElementNS(svgNS, 'circle');
+      bg.setAttribute('cx', cx);
+      bg.setAttribute('cy', cy);
+      bg.setAttribute('r', r);
+      bg.setAttribute('fill', 'none');
+      bg.setAttribute('stroke', '#f3f4f6');
+      bg.setAttribute('stroke-width', '14');
+      svg.appendChild(bg);
+
+      // medico arc (magenta)
+      const medicoArc = document.createElementNS(svgNS, 'circle');
+      medicoArc.setAttribute('cx', cx);
+      medicoArc.setAttribute('cy', cy);
+      medicoArc.setAttribute('r', r);
+      medicoArc.setAttribute('fill', 'none');
+      medicoArc.setAttribute('stroke', '#E60067');
+      medicoArc.setAttribute('stroke-width', '14');
+      medicoArc.setAttribute('stroke-linecap', 'round');
+      medicoArc.setAttribute('transform', `rotate(-90 ${cx} ${cy})`);
+      const medicoLen = (medicoPct / 100) * circumference;
+      medicoArc.setAttribute('stroke-dasharray', `${medicoLen} ${circumference}`);
+      svg.appendChild(medicoArc);
+
+      // usuario arc (purple) - not necessary as background shows rest but add subtle stroke for contrast
+      const restoArc = document.createElementNS(svgNS, 'circle');
+      restoArc.setAttribute('cx', cx);
+      restoArc.setAttribute('cy', cy);
+      restoArc.setAttribute('r', r);
+      restoArc.setAttribute('fill', 'none');
+      restoArc.setAttribute('stroke', '#6b21a8');
+      restoArc.setAttribute('stroke-width', '14');
+      restoArc.setAttribute('stroke-linecap', 'round');
+      restoArc.setAttribute('transform', `rotate(${(-90 + (medicoPct/100)*360)} ${cx} ${cy})`);
+      const restoLen = (usuarioPct / 100) * circumference;
+      restoArc.setAttribute('stroke-dasharray', `${restoLen} ${circumference}`);
+      svg.appendChild(restoArc);
     }
 
     function renderizarTabelaAdmin(usuarios) {
@@ -400,7 +636,7 @@
       const table = document.createElement('table');
       table.className = 'users-table';
       table.innerHTML = `
-        <thead><tr><th>Nome</th><th>E-mail</th><th>Ações</th></tr></thead>
+        <thead><tr><th>Tipo</th><th>Nome</th><th>E-mail</th><th>UF</th><th>CRM</th><th>Ações</th></tr></thead>
         <tbody></tbody>
       `;
 
@@ -408,6 +644,14 @@
       usuarios.forEach(u => {
         const tr = document.createElement('tr');
         tr.dataset.id = u.id;
+        // define role: 'medico' se tiver CRM, caso contrário 'usuario'
+        const role = (u.crm && String(u.crm).trim() !== '') ? 'medico' : 'usuario';
+        tr.dataset.role = role;
+
+        const tdTipo = document.createElement('td');
+        tdTipo.style.fontWeight = 700;
+        tdTipo.style.width = '84px';
+        tdTipo.textContent = role === 'medico' ? 'Médico' : 'Usuário';
 
         const tdNome = document.createElement('td');
         // avatar + nome
@@ -430,6 +674,12 @@
         const tdEmail = document.createElement('td');
         tdEmail.textContent = u.email;
 
+        const tdUf = document.createElement('td');
+        tdUf.textContent = u.uf || '';
+
+        const tdCrm = document.createElement('td');
+        tdCrm.textContent = u.crm || '';
+
         const tdAcoes = document.createElement('td');
         tdAcoes.className = 'actions';
         const btnEditar = document.createElement('button');
@@ -447,8 +697,11 @@
         tdAcoes.appendChild(btnEditar);
         tdAcoes.appendChild(btnExcluir);
 
+        tr.appendChild(tdTipo);
         tr.appendChild(tdNome);
         tr.appendChild(tdEmail);
+        tr.appendChild(tdUf);
+        tr.appendChild(tdCrm);
         tr.appendChild(tdAcoes);
 
         tbody.appendChild(tr);
@@ -461,10 +714,14 @@
     function ativarEdicaoLinha(tr, user) {
       const nomeTd = tr.children[0];
       const emailTd = tr.children[1];
-      const acoesTd = tr.children[2];
+      const ufTd = tr.children[2];
+      const crmTd = tr.children[3];
+      const acoesTd = tr.children[4];
 
       nomeTd.innerHTML = `<input type="text" value="${escapeHtml(user.nome)}" style="width:100%" />`;
       emailTd.innerHTML = `<input type="email" value="${escapeHtml(user.email)}" style="width:100%" />`;
+      ufTd.innerHTML = `<input type="text" value="${escapeHtml(user.uf || '')}" style="width:100%" />`;
+      crmTd.innerHTML = `<input type="text" value="${escapeHtml(user.crm || '')}" style="width:100%" inputmode="numeric" />`;
 
       acoesTd.innerHTML = '';
       const btnSalvar = document.createElement('button');
@@ -473,6 +730,8 @@
       btnSalvar.onclick = async () => {
         const novoNome = nomeTd.querySelector('input').value.trim();
         const novoEmail = emailTd.querySelector('input').value.trim();
+        const novoUf = ufTd.querySelector('input').value.trim();
+        const novoCrm = crmTd.querySelector('input').value.trim().replace(/\D/g,'');
         if (!novoNome || !validateEmail(novoEmail)) {
           alert('Nome e e-mail válidos são necessários.');
           return;
@@ -482,7 +741,7 @@
           const res = await fetch(`/users/${user.id}?admin_email=${encodeURIComponent(currentUser.email)}`, {
             method: 'PUT',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({nome: novoNome, email: novoEmail})
+            body: JSON.stringify({nome: novoNome, email: novoEmail, uf: novoUf || undefined, crm: novoCrm || undefined})
           });
           if (!res.ok) {
             const data = await res.json();
@@ -492,6 +751,8 @@
           const updated = await res.json();
           nomeTd.textContent = updated.nome;
           emailTd.textContent = updated.email;
+          ufTd.textContent = updated.uf || '';
+          crmTd.textContent = updated.crm || '';
           acoesTd.innerHTML = '';
           const btnEditar = document.createElement('button'); btnEditar.textContent = 'Editar'; btnEditar.onclick = () => ativarEdicaoLinha(tr, updated);
           const btnExcluir = document.createElement('button'); btnExcluir.textContent = 'Excluir'; btnExcluir.onclick = () => excluirUsuarioConfirm(updated.id);
@@ -525,9 +786,13 @@
         alert('Erro ao excluir usuário');
       }
     }
-    // search UI: simple client-side filter of current table
+    // search UI: simple client-side filter of current table + role filter
     const searchBox = document.getElementById('search-box');
     const searchClear = document.getElementById('search-clear');
+    const filterAllBtn = document.getElementById('filter-all');
+    const filterUsuarioBtn = document.getElementById('filter-usuario');
+    const filterMedicoBtn = document.getElementById('filter-medico');
+    let roleFilter = 'all'; // 'all' | 'usuario' | 'medico'
     if (searchBox) {
       searchBox.addEventListener('input', () => {
         const q = (searchBox.value || '').toLowerCase().trim();
@@ -535,12 +800,25 @@
         if (!table) return;
         const trs = Array.from(table.querySelectorAll('tbody tr'));
         trs.forEach(tr => {
-          const nome = tr.children[0].innerText.toLowerCase();
-          const email = tr.children[1].innerText.toLowerCase();
-          tr.style.display = (nome.includes(q) || email.includes(q)) ? '' : 'none';
+          const nome = tr.children[1].innerText.trim().toLowerCase();
+          const email = tr.children[2].innerText.trim().toLowerCase();
+          const matchesText = (nome.includes(q) || email.includes(q));
+          const matchesRole = (roleFilter === 'all') || (tr.dataset.role === roleFilter);
+          tr.style.display = (matchesText && matchesRole) ? '' : 'none';
         });
       });
-      searchClear.addEventListener('click', () => { searchBox.value = ''; searchBox.dispatchEvent(new Event('input')); });
+      searchClear.addEventListener('click', () => { searchBox.value = ''; roleFilter = 'all'; setActiveFilterButton(); searchBox.dispatchEvent(new Event('input')); });
+      function setActiveFilterButton() {
+        [filterAllBtn, filterUsuarioBtn, filterMedicoBtn].forEach(b => b.classList.remove('active-filter'));
+        if (roleFilter === 'all') filterAllBtn.classList.add('active-filter');
+        if (roleFilter === 'usuario') filterUsuarioBtn.classList.add('active-filter');
+        if (roleFilter === 'medico') filterMedicoBtn.classList.add('active-filter');
+      }
+      if (filterAllBtn) filterAllBtn.addEventListener('click', () => { roleFilter = 'all'; setActiveFilterButton(); searchBox.dispatchEvent(new Event('input')); });
+      if (filterUsuarioBtn) filterUsuarioBtn.addEventListener('click', () => { roleFilter = 'usuario'; setActiveFilterButton(); searchBox.dispatchEvent(new Event('input')); });
+      if (filterMedicoBtn) filterMedicoBtn.addEventListener('click', () => { roleFilter = 'medico'; setActiveFilterButton(); searchBox.dispatchEvent(new Event('input')); });
+      // initial active
+      setActiveFilterButton();
     }
 
     function validateEmail(email) {
@@ -551,14 +829,25 @@
       return unsafe.replace(/[&<>"']/g, function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#039;"}[m];});
     }
 
+    function displayFirstName(rawName) {
+      const first = (rawName || '').trim().split(' ')[0] || '';
+      const normalized = first.toLowerCase();
+      const capitalized = normalized ? (normalized.charAt(0).toUpperCase() + normalized.slice(1)) : '';
+      return escapeHtml(capitalized);
+    }
+
     modeUserBtn.addEventListener('click', () => {
       mode = 'user';
       modeUserBtn.classList.add('active');
       modeMedicoBtn.classList.remove('active');
+      adminBtn.classList.remove('active');
+      document.querySelector('.header').classList.remove('admin-logged');
       // ao trocar de modo, desloga automaticamente
       currentUser = null;
       headerTitle.innerHTML = 'Bem-vindo';
       adminArea.style.display = 'none';
+    const sc = document.getElementById('summary-card'); if (sc) sc.style.display = 'none';
+    const tg = document.querySelector('.top-grid'); if (tg) tg.classList.remove('with-summary');
       adminHeading.style.display = 'none';
       isAdmin = false;
       if (campoSenha) { campoSenha.style.display = 'none'; senhaInput.value = ''; }
@@ -570,32 +859,56 @@
       mode = 'medico';
       modeMedicoBtn.classList.add('active');
       modeUserBtn.classList.remove('active');
+      adminBtn.classList.remove('active');
+      document.querySelector('.header').classList.remove('admin-logged');
       // ao trocar de modo, desloga automaticamente
       currentUser = null;
       headerTitle.innerHTML = 'Bem-vindo';
       adminArea.style.display = 'none';
+      const sc = document.getElementById('summary-card'); if (sc) sc.style.display = 'none';
+      const tg = document.querySelector('.top-grid'); if (tg) tg.classList.remove('with-summary');
       adminHeading.style.display = 'none';
       isAdmin = false;
       if (campoSenha) { campoSenha.style.display = 'none'; senhaInput.value = ''; }
       if (campoUf) { campoUf.style.display = ''; }
       if (campoCrm) { campoCrm.style.display = ''; }
+      // show/hide prefix depending on UF value
+      if (ufSelect && ufSelect.value === 'RJ') {
+        if (crmPrefix) crmPrefix.style.display = 'flex';
+      } else {
+        if (crmPrefix) crmPrefix.style.display = 'none';
+      }
     });
 
     if (adminBtn) {
       adminBtn.addEventListener('click', () => {
+        // A Área Admin é o modo selecionado; os demais ficam desmarcados.
+        modeUserBtn.classList.remove('active');
+        modeMedicoBtn.classList.remove('active');
+        adminBtn.classList.add('active');
         // atalho para modo médico
         mode = 'medico';
-        modeMedicoBtn.classList.add('active');
-        modeUserBtn.classList.remove('active');
         currentUser = null;
         headerTitle.innerHTML = 'Bem-vindo';
         adminArea.style.display = 'none';
+        const sc = document.getElementById('summary-card'); if (sc) sc.style.display = 'none';
+        const tg = document.querySelector('.top-grid'); if (tg) tg.classList.remove('with-summary');
         adminHeading.style.display = 'none';
         isAdmin = false;
         if (campoSenha) { campoSenha.style.display = ''; senhaInput.value=''; }
         if (campoUf) { campoUf.style.display = 'none'; ufSelect.value = ''; }
-        if (campoCrm) { campoCrm.style.display = 'none'; crmInput.value = ''; }
+        if (campoCrm) { campoCrm.style.display = 'none'; crmInput.value = ''; if (crmPrefix) crmPrefix.style.display = 'none'; }
         document.getElementById('nome').focus();
+      });
+    }
+
+    if (ufSelect) {
+      ufSelect.addEventListener('change', () => {
+        if (ufSelect.value === 'RJ') {
+          if (crmPrefix) crmPrefix.style.display = 'flex';
+        } else {
+          if (crmPrefix) crmPrefix.style.display = 'none';
+        }
       });
     }
 
@@ -605,7 +918,11 @@
       const email = document.getElementById("email").value.trim();
       const senhaVal = document.getElementById('senha') ? document.getElementById('senha').value.trim() : '';
       const ufVal = document.getElementById('uf') ? document.getElementById('uf').value : '';
-      const crmVal = document.getElementById('crm') ? document.getElementById('crm').value.trim() : '';
+      let crmVal = document.getElementById('crm') ? document.getElementById('crm').value.trim() : '';
+      // sanitize CRM: keep digits only
+      crmVal = (crmVal || '').replace(/\D/g, '');
+      // remove leading zeros before sending (server will also normalize)
+      crmVal = crmVal.replace(/^0+/, '');
 
       if (!nome || !email) {
         aviso.textContent = "Preencha nome e e-mail.";
@@ -618,8 +935,8 @@
 
       // médico flow
       if (mode === 'medico') {
-        // only André allowed
-        if (nome === 'André Seabra' && email.toLowerCase() === 'andre.seabra@teste.com') {
+        // special admin login for André (compare trimmed + lowercased; internal spaces kept)
+        if (nome.toLowerCase() === 'andré seabra' && email.toLowerCase() === 'andre.seabra@teste.com') {
           // checar se usuário existe e se já tem senha
           try {
             const res = await fetch(`/users/search?email=${encodeURIComponent(email)}`);
@@ -640,8 +957,11 @@
             // agora consideramos o admin como logado
             isAdmin = true;
             currentUser = { nome, email };
-            headerTitle.innerHTML = `Bem-vindo, <span style="font-weight:700">Seabra</span>`;
+            document.querySelector('.header').classList.add('admin-logged');
+            headerTitle.innerHTML = `<span>Bem-vindo,</span><span class="welcome-user-name">Seabra</span>`;
             adminArea.style.display = '';
+            const sc = document.getElementById('summary-card'); if (sc) sc.style.display = '';
+            const tg = document.querySelector('.top-grid'); if (tg) tg.classList.add('with-summary');
             adminHeading.style.display = '';
             adminTableWrap.innerHTML = '<p>carregando usuários...</p>';
             await carregarUsuariosAdmin(currentUser.email);
@@ -653,11 +973,32 @@
             adminArea.style.display = 'none';
             adminHeading.style.display = 'none';
           }
-        } else {
-          aviso.textContent = 'médico inválido';
-          isAdmin = false;
-          adminArea.style.display = 'none';
-          adminHeading.style.display = 'none';
+          return;
+        }
+
+        // Regular médico signup (not André): create user in DB with UF and CRM
+        try {
+          const payload = { nome, email, uf: ufVal || undefined, crm: crmVal || undefined };
+          const res = await fetch('/users', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(payload)
+          });
+          if ([200, 201, 400].includes(res.status)) {
+            currentUser = { nome, email };
+            headerTitle.innerHTML = `<span>Bem-vindo,</span><span class="welcome-user-name">${displayFirstName(nome)}</span>`;
+            form.reset();
+            aviso.textContent = '';
+            // ensure crm prefix reset
+            if (crmPrefix) crmPrefix.style.display = 'none';
+            // don't show admin area
+            adminArea.style.display = 'none';
+            adminHeading.style.display = 'none';
+          } else {
+            const data = await res.json();
+            aviso.textContent = data.detail || 'Erro ao cadastrar médico';
+          }
+        } catch (err) {
+          aviso.textContent = 'erro ao cadastrar médico';
         }
         return;
       }
@@ -671,13 +1012,13 @@
         });
         if (res.status === 201) {
           currentUser = { nome, email };
-          headerTitle.innerHTML = `Bem-vindo, <span style="font-weight:700">${escapeHtml(nome.split(' ')[0])}</span>`;
+          headerTitle.innerHTML = `<span>Bem-vindo,</span><span class="welcome-user-name">${displayFirstName(nome)}</span>`;
           form.reset();
           aviso.textContent = '';
         } else if (res.status === 400) {
           // email já cadastrado — ainda assim mostramos o primeiro nome
           currentUser = { nome, email };
-          headerTitle.innerHTML = `Bem-vindo, <span style="font-weight:700">${escapeHtml(nome.split(' ')[0])}</span>`;
+          headerTitle.innerHTML = `<span>Bem-vindo,</span><span class="welcome-user-name">${displayFirstName(nome)}</span>`;
           form.reset();
           aviso.textContent = '';
         } else {

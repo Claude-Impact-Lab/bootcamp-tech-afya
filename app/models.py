@@ -10,3 +10,5 @@ class Usuario(Base):
     nome = Column(String, nullable=False)
     email = Column(String, nullable=False, unique=True)
     senha = Column(String, nullable=True)
+    crm = Column(String, nullable=True)
+    uf = Column(String, nullable=True)
