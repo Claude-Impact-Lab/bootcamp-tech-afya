@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Administração | Afya</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { background: #f4f6fb; color: #20243a; font-family: Arial, sans-serif; margin: 0; }
+    header { align-items: center; background: linear-gradient(135deg, #0033cc, #d81b60); color: #fff; display: flex; justify-content: space-between; padding: 1.1rem max(1.5rem, calc((100% - 1000px)/2)); }
+    main { margin: 2rem auto; max-width: 1000px; padding: 0 1.5rem; }
+    h1 { font-size: 1.5rem; margin: 0; } h2 { font-size: 1.1rem; margin-top: 0; }
+    .card { background: #fff; border-radius: 10px; box-shadow: 0 2px 9px #00134d16; margin-bottom: 1.5rem; padding: 1.5rem; }
+    table { border-collapse: collapse; width: 100%; } th, td { border-bottom: 1px solid #e6e8f0; padding: .85rem .5rem; text-align: left; } th { color: #565d76; font-size: .8rem; text-transform: uppercase; }
+    button { background: #0033cc; border: 0; border-radius: 6px; color: #fff; cursor: pointer; font: inherit; margin: .15rem; padding: .55rem .8rem; } .danger { background: #c62828; } .light { background: #e8edff; color: #0033cc; }
+    dialog { border: 0; border-radius: 10px; box-shadow: 0 10px 35px #0005; max-width: 440px; padding: 1.5rem; width: calc(100% - 2rem); } dialog::backdrop { background: #0008; }
+    label { display: block; font-weight: 600; margin-top: 1rem; } input { border: 1px solid #cbd0df; border-radius: 6px; font: inherit; margin-top: .35rem; padding: .65rem; width: 100%; } input.invalido { border-color: #b71c1c; }
+    .actions { display: flex; gap: .7rem; justify-content: flex-end; margin-top: 1.3rem; } #mensagem { min-height: 1.2rem; } .erro { color: #b71c1c; } .sucesso { color: #167034; } .erro-campo { color: #b71c1c; font-size: .85rem; margin: .35rem 0 0; min-height: 1.2rem; }
+    @media (max-width: 650px) { table { font-size: .85rem; } th:nth-child(3), td:nth-child(3) { display: none; } }
+  </style>
+</head>
+<body>
+  <header><h1>Afya · Administração de usuários</h1><button id="sair" class="light">Sair</button></header>
+  <main><section class="card"><h2>Usuários cadastrados</h2><p id="mensagem" aria-live="polite"></p><div id="tabela"></div></section></main>
+
+  <dialog id="editor-usuario">
+    <form id="form-usuario">
+      <h2>Editar usuário</h2><input id="usuario-id" type="hidden">
+      <label for="nome">Nome</label><input id="nome" required>
+      <label for="email">E-mail</label><input id="email" type="email" required>
+      <label for="senha">Nova senha</label><input id="senha" type="password" minlength="8" placeholder="Deixe em branco para manter">
+      <div class="actions"><button type="button" data-fechar="editor-usuario" class="light">Cancelar</button><button>Salvar alterações</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="editor-medico">
+    <form id="form-medico">
+      <h2>Editar dados médicos</h2><input id="medico-usuario-id" type="hidden">
+      <label for="crm">CRM</label><input id="crm" inputmode="numeric" pattern="[0-9]{4,6}" required><p id="erro-crm" class="erro-campo" aria-live="polite"></p>
+      <label for="uf">UF</label><input id="uf" maxlength="2" required><p id="erro-uf" class="erro-campo" aria-live="polite"></p>
+      <div class="actions"><button type="button" data-fechar="editor-medico" class="light">Cancelar</button><button>Salvar dados médicos</button></div>
+    </form>
+  </dialog>
+
+  <script>
+    const tabela = document.getElementById('tabela');
+    const mensagem = document.getElementById('mensagem');
+    const editorUsuario = document.getElementById('editor-usuario');
+    const editorMedico = document.getElementById('editor-medico');
+
+    function aviso(texto, tipo = 'sucesso') { mensagem.textContent = texto; mensagem.className = tipo; }
+    function escapeHtml(valor) { const item = document.createElement('span'); item.textContent = valor; return item.innerHTML; }
+    function mensagemDaApi(corpo) {
+      if (Array.isArray(corpo.detail)) return corpo.detail.map(erro => erro.msg).join(' ');
+      return corpo.detail || 'Não foi possível salvar.';
+    }
+    function limparErrosMedico() {
+      ['crm', 'uf'].forEach(campo => { document.getElementById(campo).classList.remove('invalido'); document.getElementById(`erro-${campo}`).textContent = ''; });
+    }
+    function mostrarErrosMedico(corpo) {
+      limparErrosMedico();
+      if (!Array.isArray(corpo.detail)) { document.getElementById('erro-crm').textContent = mensagemDaApi(corpo); return; }
+      corpo.detail.forEach(erro => {
+        const campo = erro.loc.at(-1);
+        if (campo === 'crm' || campo === 'uf') { document.getElementById(campo).classList.add('invalido'); document.getElementById(`erro-${campo}`).textContent = erro.msg; }
+      });
+    }
+    async function carregar() {
+      const resposta = await fetch('/users');
+      if (resposta.status === 401) return window.location.assign('/admin/login');
+      if (!resposta.ok) return aviso('Não foi possível carregar os usuários.', 'erro');
+      const usuarios = await resposta.json();
+      if (!usuarios.length) { tabela.innerHTML = '<p>Nenhum usuário cadastrado.</p>'; return; }
+      tabela.innerHTML = '<table><thead><tr><th>Nome</th><th>E-mail</th><th>Cadastro médico</th><th>Ações</th></tr></thead><tbody>' + usuarios.map(usuario => `<tr><td>${escapeHtml(usuario.nome)}</td><td>${escapeHtml(usuario.email)}</td><td>${usuario.doctor ? `CRM ${escapeHtml(usuario.doctor.crm)}/${escapeHtml(usuario.doctor.uf)}` : '—'}</td><td><button class="editar-usuario light" data-id="${usuario.id}">Editar usuário</button>${usuario.doctor ? ` <button class="editar-medico light" data-id="${usuario.id}">Editar médico</button>` : ''} <button class="excluir danger" data-id="${usuario.id}">Excluir</button></td></tr>`).join('') + '</tbody></table>';
+      document.querySelectorAll('.editar-usuario').forEach(botao => botao.onclick = () => abrirEdicaoUsuario(usuarios.find(usuario => usuario.id === Number(botao.dataset.id))));
+      document.querySelectorAll('.editar-medico').forEach(botao => botao.onclick = () => abrirEdicaoMedico(usuarios.find(usuario => usuario.id === Number(botao.dataset.id))));
+      document.querySelectorAll('.excluir').forEach(botao => botao.onclick = () => excluir(Number(botao.dataset.id)));
+    }
+    function abrirEdicaoUsuario(usuario) { document.getElementById('usuario-id').value = usuario.id; document.getElementById('nome').value = usuario.nome; document.getElementById('email').value = usuario.email; document.getElementById('senha').value = ''; editorUsuario.showModal(); }
+    function abrirEdicaoMedico(usuario) { limparErrosMedico(); document.getElementById('medico-usuario-id').value = usuario.id; document.getElementById('crm').value = usuario.doctor.crm; document.getElementById('uf').value = usuario.doctor.uf; editorMedico.showModal(); }
+    async function excluir(id) { if (!confirm('Excluir este usuário?')) return; const resposta = await fetch(`/users/${id}`, { method: 'DELETE' }); if (resposta.ok) { aviso('Usuário excluído.'); carregar(); } else aviso('Não foi possível excluir o usuário.', 'erro'); }
+    document.querySelectorAll('[data-fechar]').forEach(botao => botao.onclick = () => document.getElementById(botao.dataset.fechar).close());
+    document.getElementById('form-usuario').addEventListener('submit', async event => { event.preventDefault(); const resposta = await fetch(`/users/${document.getElementById('usuario-id').value}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nome: document.getElementById('nome').value.trim(), email: document.getElementById('email').value.trim(), senha: document.getElementById('senha').value }) }); if (resposta.ok) { editorUsuario.close(); aviso('Usuário atualizado.'); carregar(); } else { aviso(mensagemDaApi(await resposta.json()), 'erro'); } });
+    document.getElementById('form-medico').addEventListener('submit', async event => { event.preventDefault(); const resposta = await fetch(`/users/${document.getElementById('medico-usuario-id').value}/doctor`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ crm: document.getElementById('crm').value.trim(), uf: document.getElementById('uf').value.trim() }) }); if (resposta.ok) { editorMedico.close(); aviso('Dados médicos atualizados.'); carregar(); } else { mostrarErrosMedico(await resposta.json()); } });
+    document.getElementById('sair').onclick = async () => { await fetch('/admin/logout', { method: 'POST' }); window.location.assign('/admin/login'); };
+    carregar();
+  </script>
+</body>
+</html>

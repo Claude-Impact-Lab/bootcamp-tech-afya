@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Administração | Afya</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { align-items: center; background: linear-gradient(135deg, #0033cc, #d81b60); display: flex; font-family: Arial, sans-serif; justify-content: center; margin: 0; min-height: 100vh; }
+    main { background: #fff; border-radius: 14px; box-shadow: 0 18px 50px #0004; max-width: 390px; padding: 2.2rem; width: calc(100% - 2rem); }
+    h1 { color: #d81b60; font-size: 1.6rem; margin: 0 0 .5rem; }
+    p { color: #555; margin: 0 0 1.5rem; }
+    label { color: #333; display: block; font-weight: 600; margin: 1rem 0 .4rem; }
+    input { border: 1px solid #ccc; border-radius: 7px; font: inherit; padding: .75rem; width: 100%; }
+    button { background: #0033cc; border: 0; border-radius: 7px; color: #fff; cursor: pointer; font: inherit; font-weight: 700; margin-top: 1.5rem; padding: .8rem; width: 100%; }
+    #erro { color: #b71c1c; margin-top: 1rem; min-height: 1.2rem; }
+    a { color: #0033cc; display: block; margin-top: 1.3rem; text-align: center; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Área administrativa</h1>
+    <p>Entre com as credenciais do administrador.</p>
+    <form id="login-form">
+      <label for="usuario">Usuário</label>
+      <input id="usuario" autocomplete="username" required>
+      <label for="senha">Senha</label>
+      <input id="senha" type="password" autocomplete="current-password" required>
+      <button>Entrar</button>
+      <div id="erro" role="alert"></div>
+    </form>
+    <a href="/">Voltar ao cadastro</a>
+  </main>
+  <script>
+    document.getElementById('login-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const resposta = await fetch('/admin/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ usuario: document.getElementById('usuario').value, senha: document.getElementById('senha').value })
+      });
+      if (resposta.ok) window.location.assign('/admin');
+      else document.getElementById('erro').textContent = 'Usuário ou senha inválidos.';
+    });
+  </script>
+</body>
+</html>

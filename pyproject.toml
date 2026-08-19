@@ -10,6 +10,7 @@ dependencies = [
     "sqlalchemy>=2.0",
     "alembic>=1.12",
     "python-dotenv>=1.0",
+    "itsdangerous>=2.2",
 ]
 
 [dependency-groups]

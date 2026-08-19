@@ -15,11 +15,10 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
             background: linear-gradient(135deg, #0033CC 0%, #1B4DCF 25%, #D81B60 75%, #FF1744 100%);
             min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             position: relative;
-            overflow: hidden;
+            overflow-x: hidden;
+            overflow-y: auto;
+            line-height: 1.45;
         }
 
         /* Efeito de linhas no fundo */
@@ -41,8 +40,9 @@
             width: 100%;
             max-width: 1200px;
             gap: 2rem;
-            padding: 2rem;
-            align-items: center;
+            min-height: 100vh;
+            padding: 3rem 2rem 6rem;
+            align-items: flex-start;
             justify-content: center;
             position: relative;
             z-index: 1;
@@ -50,10 +50,12 @@
 
         .left-section {
             flex: 1;
+            min-width: 0;
             color: white;
             display: flex;
             flex-direction: column;
             justify-content: center;
+            padding-top: 9rem;
             animation: slideInLeft 0.8s ease-out;
         }
 
@@ -80,6 +82,7 @@
             font-weight: 300;
             line-height: 1.6;
             opacity: 0.95;
+            max-width: 24rem;
         }
 
         .center-card {
@@ -89,6 +92,7 @@
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
             width: 100%;
             max-width: 450px;
+            min-width: 0;
             animation: slideInUp 0.8s ease-out;
         }
 
@@ -142,6 +146,18 @@
             background: #0033CC;
             color: white;
         }
+
+        .admin-link {
+            color: #0033CC;
+            display: block;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-top: 1.25rem;
+            text-align: center;
+            text-decoration: none;
+        }
+
+        .admin-link:hover { text-decoration: underline; }
 
         .card-title {
             font-size: 1.1rem;
@@ -238,6 +254,13 @@
             border: 1px solid #ffcdd2;
         }
 
+        .field-error {
+            color: #c62828;
+            font-size: 0.8rem;
+            margin-top: 0.35rem;
+            min-height: 1rem;
+        }
+
         .message.info {
             background: #e3f2fd;
             color: #1565c0;
@@ -245,6 +268,7 @@
         }
 
         .users-section {
+            display: none;
             margin-top: 2rem;
             padding-top: 2rem;
             border-top: 2px solid #f0f0f0;
@@ -288,6 +312,54 @@
             font-size: 0.85rem;
             margin-top: 0.25rem;
         }
+        
+        .user-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+        
+        .user-actions button {
+            border: 0;
+            border-radius: 6px;
+            cursor: pointer;
+            padding: 0.4rem 0.65rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        
+        .edit-btn {
+            background: #e3f2fd;
+            color: #1565c0;
+        }
+        
+        .delete-btn {
+            background: #ffebee;
+            color: #c62828;
+        }
+        
+        .doctor-fields {
+            display: none;
+            gap: 0.75rem;
+        }
+        
+        .doctor-fields.visible {
+            display: grid;
+            grid-template-columns: 1fr 0.7fr;
+        }
+        
+        .doctor-toggle {
+            align-items: center;
+            color: #444;
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .doctor-toggle input {
+            width: auto;
+            margin: 0;
+        }
 
         .empty-state {
             text-align: center;
@@ -298,9 +370,11 @@
 
         .right-section {
             flex: 1;
+            min-width: 0;
             display: flex;
             justify-content: center;
-            align-items: center;
+            align-items: flex-start;
+            padding-top: 4rem;
             animation: slideInRight 0.8s ease-out;
         }
 
@@ -318,7 +392,8 @@
         .illustration {
             width: 100%;
             max-width: 400px;
-            height: 400px;
+            aspect-ratio: 1;
+            height: auto;
             background: rgba(255, 255, 255, 0.1);
             border-radius: 16px;
             display: flex;
@@ -352,12 +427,13 @@
         }
 
         footer {
-            position: fixed;
-            bottom: 0;
             width: 100%;
             padding: 1rem;
             text-align: center;
             font-size: 0.85rem;
+            background: rgba(0, 0, 0, 0.12);
+            position: relative;
+            z-index: 2;
         }
 
         footer a {
@@ -365,6 +441,7 @@
             text-decoration: none;
             margin: 0 1rem;
             transition: all 0.3s ease;
+            display: inline-block;
         }
 
         footer a:hover {
@@ -373,15 +450,18 @@
         }
 
         /* Responsivo */
-        @media (max-width: 768px) {
+        @media (max-width: 1024px) {
             .container {
                 flex-direction: column;
                 padding: 1rem;
+                min-height: auto;
+                gap: 1.5rem;
             }
 
             .left-section {
                 text-align: center;
-                margin-top: 2rem;
+                padding-top: 1rem;
+                width: 100%;
             }
 
             .left-section h1 {
@@ -390,6 +470,7 @@
 
             .left-section p {
                 font-size: 1.1rem;
+                margin: 0 auto;
             }
 
             .right-section {
@@ -397,12 +478,24 @@
             }
 
             footer {
-                position: relative;
-                margin-top: 2rem;
+                margin-top: 0;
+                line-height: 2;
             }
 
             .center-card {
                 max-width: 100%;
+                padding: 1.25rem;
+            }
+
+            .logo-header {
+                align-items: flex-start;
+                gap: 1rem;
+                flex-wrap: wrap;
+                margin-bottom: 1.5rem;
+            }
+
+            .right-section {
+                display: none;
             }
         }
     </style>
@@ -447,10 +540,34 @@
                         required 
                     />
                 </div>
+                
+                <div class="form-group">
+                    <label for="senha">Senha</label>
+                    <input type="password" id="senha" name="senha" placeholder="Minimo de 8 caracteres" minlength="8" required />
+                </div>
+
+                <label class="doctor-toggle">
+                    <input type="checkbox" id="eh-medico" />
+                    Sou médico
+                </label>
+                
+                <div id="doctor-fields" class="doctor-fields">
+                    <div>
+                        <label for="crm">CRM</label>
+                        <input type="text" id="crm" placeholder="Número do CRM" />
+                        <p id="crm-erro" class="field-error" aria-live="polite"></p>
+                    </div>
+                    <div>
+                        <label for="uf">UF</label>
+                        <input type="text" id="uf" maxlength="2" placeholder="UF" />
+                        <p id="uf-erro" class="field-error" aria-live="polite"></p>
+                    </div>
+                </div>
 
                 <button type="submit" class="submit-btn">Confirmar →</button>
                 <p id="mensagem"></p>
             </form>
+            <a class="admin-link" href="/admin/login">Acesso do administrador</a>
 
             <div class="users-section">
                 <div class="users-title">Usuários cadastrados</div>
@@ -497,7 +614,20 @@
       const form = document.getElementById("login-form");
       const nomeInput = document.getElementById("nome");
       const emailInput = document.getElementById("email");
+      const senhaInput = document.getElementById("senha");
       const mensagem = document.getElementById("mensagem");
+            const doctorToggle = document.getElementById("eh-medico");
+            const doctorFields = document.getElementById("doctor-fields");
+            const crmInput = document.getElementById("crm");
+            const ufInput = document.getElementById("uf");
+            const crmErro = document.getElementById("crm-erro");
+            const ufErro = document.getElementById("uf-erro");
+
+            doctorToggle.addEventListener("change", () => {
+                doctorFields.classList.toggle("visible", doctorToggle.checked);
+                crmInput.required = doctorToggle.checked;
+                ufInput.required = doctorToggle.checked;
+            });
 
       // Esta funcao carrega os usuarios da API e atualiza a lista na tela.
       function carregarUsuarios() {
@@ -527,7 +657,30 @@
               email.className = "user-email";
               email.textContent = usuario.email;
 
-              item.append(nome, email);
+                            item.append(nome, email);
+
+                            if (usuario.doctor) {
+                                const doctor = document.createElement("div");
+                                doctor.className = "user-email";
+                                doctor.textContent = `Médico · CRM ${usuario.doctor.crm}/${usuario.doctor.uf}`;
+                                item.append(doctor);
+                            }
+
+                            const actions = document.createElement("div");
+                            actions.className = "user-actions";
+
+                            const editButton = document.createElement("button");
+                            editButton.className = "edit-btn";
+                            editButton.textContent = "Editar";
+                            editButton.addEventListener("click", () => editarUsuario(usuario));
+
+                            const deleteButton = document.createElement("button");
+                            deleteButton.className = "delete-btn";
+                            deleteButton.textContent = "Excluir";
+                            deleteButton.addEventListener("click", () => excluirUsuario(usuario.id));
+
+                            actions.append(editButton, deleteButton);
+                            item.append(actions);
               lista.append(item);
             });
           })
@@ -538,9 +691,53 @@
           });
       }
 
+            function editarUsuario(usuario) {
+                const nome = window.prompt("Nome:", usuario.nome);
+                if (nome === null) return;
+                const email = window.prompt("Email:", usuario.email);
+                if (email === null) return;
+
+                fetch(`/users/${usuario.id}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ nome, email }),
+                })
+                    .then((resposta) => {
+                        if (!resposta.ok) throw new Error("Falha ao editar usuário");
+                        return resposta.json();
+                    })
+                    .then(() => {
+                        mensagem.textContent = "Usuário atualizado com sucesso!";
+                        mensagem.className = "message success";
+                        carregarUsuarios();
+                    })
+                    .catch(() => {
+                        mensagem.textContent = "Não foi possível editar o usuário.";
+                        mensagem.className = "message error";
+                    });
+            }
+
+            function excluirUsuario(id) {
+                if (!window.confirm("Deseja realmente excluir este usuário?")) return;
+
+                fetch(`/users/${id}`, { method: "DELETE" })
+                    .then((resposta) => {
+                        if (!resposta.ok) throw new Error("Falha ao excluir usuário");
+                        mensagem.textContent = "Usuário excluído com sucesso!";
+                        mensagem.className = "message success";
+                        carregarUsuarios();
+                    })
+                    .catch(() => {
+                        mensagem.textContent = "Não foi possível excluir o usuário.";
+                        mensagem.className = "message error";
+                    });
+            }
+
       // Quando o formulario e enviado, criamos um novo usuario via POST.
       form.addEventListener("submit", (event) => {
         event.preventDefault();
+        crmErro.textContent = "";
+        ufErro.textContent = "";
         
         const submitBtn = form.querySelector(".submit-btn");
         const btnText = submitBtn.textContent;
@@ -553,6 +750,7 @@
         const novoUsuario = {
           nome: nomeInput.value.trim(),
           email: emailInput.value.trim(),
+          senha: senhaInput.value,
         };
 
         fetch("/users", {
@@ -569,11 +767,35 @@
             return resposta.json();
           })
           .then((usuarioCriado) => {
+                        if (doctorToggle.checked) {
+                            return fetch(`/users/${usuarioCriado.id}/doctor`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                    crm: crmInput.value.trim(),
+                                    uf: ufInput.value.trim(),
+                                }),
+                            }).then(async (resposta) => {
+                                if (!resposta.ok) {
+                                    const erro = new Error("Falha ao cadastrar médico");
+                                    erro.detalhes = (await resposta.json()).detail;
+                                    throw erro;
+                                }
+                                return usuarioCriado;
+                            });
+                        }
+                        return usuarioCriado;
+                    })
+                    .then((usuarioCriado) => {
             mensagem.textContent = `✓ Usuário ${usuarioCriado.nome} cadastrado com sucesso!`;
             mensagem.className = "message success";
             nomeInput.value = "";
             emailInput.value = "";
-            carregarUsuarios();
+            senhaInput.value = "";
+                        doctorToggle.checked = false;
+                        doctorFields.classList.remove("visible");
+                        crmInput.value = "";
+                        ufInput.value = "";
             
             // Limpar mensagem após 3 segundos
             setTimeout(() => {
@@ -582,7 +804,16 @@
             }, 3000);
           })
           .catch((erro) => {
-            mensagem.textContent = "✗ Erro ao cadastrar usuário. Tente novamente.";
+            if (Array.isArray(erro.detalhes)) {
+              erro.detalhes.forEach((detalhe) => {
+                const campo = detalhe.loc.at(-1);
+                if (campo === "crm") crmErro.textContent = detalhe.msg;
+                if (campo === "uf") ufErro.textContent = detalhe.msg;
+              });
+              mensagem.textContent = "Usuário cadastrado, mas revise os dados médicos.";
+            } else {
+              mensagem.textContent = "Erro ao cadastrar usuário. Tente novamente.";
+            }
             mensagem.className = "message error";
             console.error("Erro:", erro);
           })
@@ -593,7 +824,6 @@
       });
 
       // Carregar usuários ao abrir a página
-      carregarUsuarios();
     </script>
   </body>
 </html>
