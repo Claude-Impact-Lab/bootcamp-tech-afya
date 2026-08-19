@@ -2,9 +2,9 @@
 
 ## ⚡ Primeira vez? Comece aqui
 
-### 1. Tenha Docker instalado
-O PostgreSQL roda dentro do Docker. Baixe e instale:
-- **[Docker Desktop](https://www.docker.com/products/docker-desktop)**
+### 1. Instale as dependências
+Certifique-se de ter **Python 3.12+** e o **uv** (gerenciador de pacotes rápido):
+- **[uv - Instalação](https://docs.astral.sh/uv/getting-started/installation/)**
 
 ### 2. Clone e entre no projeto
 ```bash
@@ -17,11 +17,6 @@ cd bootcamp-tech-afya
 **No Windows (PowerShell):**
 ```powershell
 .\start.ps1
-```
-
-**No Mac/Linux:**
-```bash
-./start.sh  # (em breve - por enquanto, veja os passos manuais abaixo)
 ```
 
 Pronto! O servidor estará em [http://localhost:8000](http://localhost:8000)
