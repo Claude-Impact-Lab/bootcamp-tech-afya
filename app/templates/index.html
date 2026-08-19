@@ -4,27 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Pré-cadastro médico</title>
+    <link rel="stylesheet" href="/static/styles.css" />
     <style>
       :root {
-        --background: #07111f;
-        --surface: #0d1b2c;
-        --card: #122236;
-        --input: #0a1727;
-        --border: #284058;
-        --text: #f8fafc;
-        --muted: #a9b8c8;
-        --primary: #18a8a3;
-        --primary-hover: #118985;
-        --accent: #4fd1c5;
-        --success-bg: #0f302e;
-        --success-border: #1c7771;
-        --success-text: #b9fff9;
-        --danger-bg: #3a1f25;
-        --danger-border: #7f1d2d;
-        --danger-text: #fecdd3;
-      }
-
-      body.tema-claro {
         --background: #f4f8fb;
         --surface: #e9f2f7;
         --card: #ffffff;
@@ -32,12 +14,34 @@
         --border: #cfdee8;
         --text: #102338;
         --muted: #52677b;
+        --primary: #168f8b;
+        --primary-hover: #0f7774;
+        --accent: #168f8b;
         --success-bg: #ecfdf5;
         --success-border: #6ee7b7;
         --success-text: #065f46;
         --danger-bg: #fff1f2;
         --danger-border: #fda4af;
         --danger-text: #9f1239;
+      }
+
+      html[data-theme="dark"] {
+        --background: #07111f;
+        --surface: #0d1b2c;
+        --card: #122236;
+        --input: #0a1727;
+        --border: #284058;
+        --text: #f8fafc;
+        --muted: #a9b8c8;
+        --primary: #21aaa5;
+        --primary-hover: #36beb9;
+        --accent: #55d5cd;
+        --success-bg: #0f302e;
+        --success-border: #1c7771;
+        --success-text: #b9fff9;
+        --danger-bg: #3a1f25;
+        --danger-border: #7f1d2d;
+        --danger-text: #fecdd3;
       }
 
       * { box-sizing: border-box; }
@@ -143,7 +147,7 @@
   </head>
   <body>
     <main>
-      <button id="botao-tema" type="button">TEMA CLARO/ESCURO</button>
+      <button id="botao-tema" class="theme-toggle" type="button" data-theme-toggle>Tema escuro</button>
       <div class="brand"><span class="brand-mark">+</span><span>Portal de acessos</span></div>
 
       <div class="layout">
@@ -210,16 +214,7 @@
       const campoSenha = document.getElementById("campo-senha");
       const campoConfirmacao = document.getElementById("campo-confirmacao");
       const botaoSalvar = document.getElementById("botao-salvar");
-      const botaoTema = document.getElementById("botao-tema");
       const resultado = document.getElementById("resultado");
-
-      function aplicarTema(tema) { document.body.classList.toggle("tema-claro", tema === "claro"); }
-      aplicarTema(localStorage.getItem("tema") || "escuro");
-      botaoTema.addEventListener("click", () => {
-        const tema = document.body.classList.contains("tema-claro") ? "escuro" : "claro";
-        aplicarTema(tema);
-        localStorage.setItem("tema", tema);
-      });
 
       function mensagemDeErro(corpo, resposta) {
         if (typeof corpo?.detail === "string") return corpo.detail;
@@ -274,5 +269,6 @@
           .finally(() => { botaoSalvar.disabled = false; });
       });
     </script>
+    <script src="/static/theme.js"></script>
   </body>
 </html>

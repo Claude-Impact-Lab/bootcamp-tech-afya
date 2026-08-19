@@ -8,6 +8,7 @@ from typing import Annotated, Literal
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import (
     BaseModel,
@@ -54,6 +55,7 @@ def required_setting(name: str) -> str:
 
 
 app = FastAPI(title="Gestão de acessos profissionais")
+app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 app.add_middleware(
     SessionMiddleware,
     secret_key=required_setting("SESSION_SECRET"),
@@ -153,6 +155,19 @@ UFS_BRASILEIRAS = frozenset(
         "SP", "SE", "TO",
     }
 )
+ESTADOS_CIVIS = frozenset(
+    {"solteiro", "casado", "separado", "divorciado", "viuvo", "uniao_estavel", "prefiro_nao_informar"}
+)
+
+
+def cpf_is_valid(value: str) -> bool:
+    if len(value) != 11 or len(set(value)) == 1:
+        return False
+    first_total = sum(int(digit) * weight for digit, weight in zip(value[:9], range(10, 1, -1)))
+    first = (first_total * 10 % 11) % 10
+    second_total = sum(int(digit) * weight for digit, weight in zip(value[:10], range(11, 1, -1)))
+    second = (second_total * 10 % 11) % 10
+    return value[-2:] == f"{first}{second}"
 
 
 class UserIn(BaseModel):
@@ -190,6 +205,7 @@ class DoctorIn(BaseModel):
             raise ValueError("UF deve ser uma sigla de estado brasileiro válida")
         return value
 
+
 class PasswordRegistration(BaseModel):
     user: UserIn
     senha: str
@@ -215,6 +231,73 @@ class NonDoctorRegistrationIn(PasswordRegistration):
 class DoctorRegistrationUpdateIn(BaseModel):
     user: UserIn
     doctor: DoctorIn
+
+
+class DoctorRetryIn(BaseModel):
+    nome: Nome
+    doctor: DoctorIn
+
+
+class DoctorProfileUpdateIn(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    email: str
+    cpf: str | None = None
+    marital_status: str | None = None
+    mobile_phone: str | None = None
+    action: Literal["draft", "complete"]
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def validar_email(cls, value: str) -> str:
+        if not isinstance(value, str):
+            raise ValueError("EMAIL NÃO É VÁLIDO")
+        value = value.strip()
+        try:
+            email_validator.validate_python(value)
+        except ValidationError as exc:
+            raise ValueError("EMAIL NÃO É VÁLIDO") from exc
+        return value.lower()
+
+    @field_validator("cpf", mode="before")
+    @classmethod
+    def validar_cpf(cls, value: str | None) -> str | None:
+        digits = re.sub(r"\D", "", value) if isinstance(value, str) else ""
+        if not digits:
+            return None
+        if not cpf_is_valid(digits):
+            raise ValueError("CPF inválido")
+        return digits
+
+    @field_validator("marital_status", mode="before")
+    @classmethod
+    def validar_estado_civil(cls, value: str | None) -> str | None:
+        normalized = value.strip().lower() if isinstance(value, str) else ""
+        if not normalized:
+            return None
+        if normalized not in ESTADOS_CIVIS:
+            raise ValueError("Estado civil inválido")
+        return normalized
+
+    @field_validator("mobile_phone", mode="before")
+    @classmethod
+    def validar_celular(cls, value: str | None) -> str | None:
+        digits = re.sub(r"\D", "", value) if isinstance(value, str) else ""
+        if digits.startswith("55") and len(digits) in {12, 13}:
+            digits = digits[2:]
+        if not digits:
+            return None
+        if len(digits) not in {10, 11}:
+            raise ValueError("Celular deve conter DDD e número")
+        return digits
+
+    @model_validator(mode="after")
+    def validar_conclusao(self):
+        if self.action == "complete" and not all(
+            (self.cpf, self.marital_status, self.mobile_phone)
+        ):
+            raise ValueError("Preencha CPF, estado civil e celular para concluir o perfil")
+        return self
 
 
 class AccountLogin(BaseModel):
@@ -329,28 +412,15 @@ def health() -> dict[str, str]:
     return {"status": "ok", "message": "Aplicação funcionando"}
 
 
-def apply_cfm_result(user: User, result: CFMDoctor) -> None:
-    doctor = user.doctor
-    if doctor is None:
-        raise RuntimeError("Cadastro médico sem perfil profissional")
-    now = datetime.now(UTC)
-    user.registration_status = STATUS_APPROVED_INCOMPLETE
-    user.approved_at = now
-    user.approved_by_admin = None
-    user.reviewed_by_admin = None
-    user.verification_method = "cfm_browser"
-    user.rejection_reason = None
-    user.rejected_at = None
-    doctor.crm_verified = True
-    doctor.verification_status = "verified"
-    doctor.verification_method = "cfm_browser"
-    doctor.verification_last_error = None
+def apply_cfm_professional_data(doctor: Doctor, result: CFMDoctor) -> None:
+    """Persiste a ficha pública devolvida pelo CFM sem decidir o acesso."""
+
     doctor.cfm_crm_display = result.crm_display
     doctor.cfm_official_name = result.official_name
     doctor.cfm_registration_status = result.registration_status
     doctor.cfm_registration_type = result.registration_type
     doctor.cfm_photo_url = result.photo_url
-    doctor.cfm_validated_at = now
+    doctor.cfm_validated_at = datetime.now(UTC)
     doctor.cfm_source_updated_at = result.source_updated_at
     doctor.crm_registration_date = result.registration_date
     doctor.crm_first_registration_uf = result.first_registration_uf
@@ -365,6 +435,43 @@ def apply_cfm_result(user: User, result: CFMDoctor) -> None:
         )
         for specialty in result.specialties
     )
+
+
+def clear_cfm_professional_data(doctor: Doctor) -> None:
+    """Remove dados oficiais antigos quando CRM ou UF são corrigidos."""
+
+    doctor.crm_verified = False
+    doctor.cfm_crm_display = None
+    doctor.cfm_official_name = None
+    doctor.cfm_registration_status = None
+    doctor.cfm_registration_type = None
+    doctor.cfm_photo_url = None
+    doctor.cfm_validated_at = None
+    doctor.cfm_source_updated_at = None
+    doctor.crm_registration_date = None
+    doctor.crm_first_registration_uf = None
+    doctor.graduation_institution = None
+    doctor.graduation_year = None
+    doctor.specialties.clear()
+
+
+def apply_cfm_result(user: User, result: CFMDoctor) -> None:
+    doctor = user.doctor
+    if doctor is None:
+        raise RuntimeError("Cadastro médico sem perfil profissional")
+    now = datetime.now(UTC)
+    apply_cfm_professional_data(doctor, result)
+    user.registration_status = STATUS_APPROVED_INCOMPLETE
+    user.approved_at = now
+    user.approved_by_admin = None
+    user.reviewed_by_admin = None
+    user.verification_method = "cfm_browser"
+    user.rejection_reason = None
+    user.rejected_at = None
+    doctor.crm_verified = True
+    doctor.verification_status = "verified"
+    doctor.verification_method = "cfm_browser"
+    doctor.verification_last_error = None
 
 
 def attempt_automatic_verification(
@@ -490,10 +597,98 @@ def complete_doctor_profile(
 ) -> dict[str, str]:
     if user.account_type != ACCOUNT_DOCTOR or user.registration_status != STATUS_APPROVED_INCOMPLETE:
         raise HTTPException(status_code=403, detail="Esta etapa não está disponível para seu cadastro")
+    if user.doctor is None or not all(
+        (user.doctor.cpf, user.doctor.marital_status, user.doctor.mobile_phone)
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Preencha CPF, estado civil e celular antes de concluir o perfil",
+        )
     user.registration_status = STATUS_ACTIVE
     user.profile_completed_at = datetime.now(UTC)
     db.commit()
     return {"message": "Cadastro concluído", "redirect_url": "/doctor/dashboard"}
+
+
+@app.put("/doctor/profile")
+def update_own_doctor_profile(
+    data: DoctorProfileUpdateIn,
+    user: User = Depends(get_authenticated_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Salva dados pessoais do médico como rascunho ou conclui o perfil."""
+
+    if user.account_type != ACCOUNT_DOCTOR or user.doctor is None:
+        raise HTTPException(status_code=403, detail="Esta ação está disponível apenas para médicos")
+    if user.registration_status not in {STATUS_APPROVED_INCOMPLETE, STATUS_ACTIVE}:
+        raise HTTPException(status_code=403, detail="Seu CRM precisa estar aprovado antes desta etapa")
+    email_owner = db.scalar(select(User).where(User.email == data.email, User.id != user.id))
+    if email_owner:
+        raise HTTPException(status_code=409, detail=f"O e-mail {data.email} já está cadastrado")
+    if data.cpf:
+        cpf_owner = db.scalar(
+            select(Doctor).where(Doctor.cpf == data.cpf, Doctor.id != user.doctor.id)
+        )
+        if cpf_owner:
+            raise HTTPException(status_code=409, detail="Este CPF já está cadastrado")
+    user.email = data.email
+    user.doctor.cpf = data.cpf
+    user.doctor.marital_status = data.marital_status
+    user.doctor.mobile_phone = data.mobile_phone
+    if data.action == "complete":
+        user.registration_status = STATUS_ACTIVE
+        user.profile_completed_at = datetime.now(UTC)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="E-mail ou CPF já cadastrado")
+    db.refresh(user)
+    return {
+        **user_with_doctor_dict(user),
+        "message": "Perfil concluído" if data.action == "complete" else "Rascunho salvo",
+        "redirect_url": "/doctor/dashboard" if data.action == "complete" else destination_for(user),
+    }
+
+
+@app.post("/doctor/retry-cfm")
+def retry_own_cfm_verification(
+    data: DoctorRetryIn,
+    user: User = Depends(get_authenticated_user),
+    db: Session = Depends(get_db),
+    verifier: DoctorVerificationService = Depends(get_doctor_verification_service),
+) -> dict:
+    """Permite ao médico corrigir o próprio cadastro pendente e tentar novamente."""
+
+    allowed_statuses = {
+        STATUS_PENDING,
+        STATUS_ADMIN_PENDING,
+        STATUS_CRM_PENDING,
+        STATUS_CRM_FAILED,
+    }
+    if user.account_type != ACCOUNT_DOCTOR or user.doctor is None:
+        raise HTTPException(status_code=403, detail="Esta ação está disponível apenas para médicos")
+    if user.registration_status not in allowed_statuses:
+        raise HTTPException(status_code=409, detail="Este cadastro não está aguardando validação do CRM")
+    ensure_doctor_is_available(data.doctor, db, user.doctor.id)
+    professional_changed = user.doctor.crm != data.doctor.crm or user.doctor.uf != data.doctor.uf
+    user.nome = data.nome
+    if professional_changed:
+        clear_cfm_professional_data(user.doctor)
+    user.doctor.crm = data.doctor.crm
+    user.doctor.uf = data.doctor.uf
+    user.registration_status = STATUS_CRM_PENDING
+    user.rejection_reason = None
+    user.rejected_at = None
+    user.doctor.verification_status = "pending_browser"
+    user.doctor.verification_last_error = None
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="O CRM informado já está cadastrado")
+    result = attempt_automatic_verification(user, verifier, db)
+    return {**result, "redirect_url": destination_for(user)}
 
 
 @app.get("/admin/registrations")
@@ -545,6 +740,7 @@ def approve_registration(
     user_id: int,
     db: Session = Depends(get_db),
     admin_name: str = Depends(require_admin),
+    verifier: DoctorVerificationService = Depends(get_doctor_verification_service),
     notifications: NotificationPublisher = Depends(get_notification_publisher),
 ) -> dict:
     user = db.get(User, user_id)
@@ -555,6 +751,18 @@ def approve_registration(
     }:
         raise HTTPException(status_code=409, detail="Somente cadastros pendentes podem ser aprovados")
     now = datetime.now(UTC)
+    if user.doctor:
+        user.doctor.verification_last_attempt_at = now
+        try:
+            result = verifier.lookup_for_manual_review(user.doctor.crm, user.doctor.uf)
+        except DoctorVerificationFailure as exc:
+            raise HTTPException(status_code=422, detail=exc.public_message) from exc
+        except CFMServiceError as exc:
+            raise HTTPException(
+                status_code=503,
+                detail="O CFM está indisponível. A aprovação não foi concluída para evitar uma ficha sem dados oficiais.",
+            ) from exc
+        apply_cfm_professional_data(user.doctor, result)
     user.registration_status = STATUS_APPROVED_INCOMPLETE if user.account_type == ACCOUNT_DOCTOR else STATUS_ACTIVE
     user.approved_at = now
     user.approved_by_admin = admin_name
@@ -565,6 +773,8 @@ def approve_registration(
     if user.doctor:
         user.doctor.crm_verified = True
         user.doctor.verification_status = "manually_verified"
+        user.doctor.verification_method = "manual_with_cfm_sync"
+        user.doctor.verification_last_error = None
     db.commit()
     db.refresh(user)
     notifications.account_status_changed(user.id, user.email, user.registration_status)
@@ -621,6 +831,39 @@ def retry_cfm_verification(
     user.doctor.verification_status = "pending_browser"
     db.commit()
     return attempt_automatic_verification(user, verifier, db)
+
+
+@app.post("/admin/registrations/{user_id}/sync-cfm")
+def sync_cfm_professional_data(
+    user_id: int,
+    db: Session = Depends(get_db),
+    _: str = Depends(require_admin),
+    verifier: DoctorVerificationService = Depends(get_doctor_verification_service),
+) -> dict:
+    """Atualiza a ficha CFM sem alterar aprovação, perfil ou permissões."""
+
+    user = db.scalar(
+        select(User)
+        .options(selectinload(User.doctor).selectinload(Doctor.specialties))
+        .where(User.id == user_id)
+    )
+    if not user:
+        raise HTTPException(status_code=404, detail=f"Usuário {user_id} não encontrado")
+    if user.account_type != ACCOUNT_DOCTOR or user.doctor is None:
+        raise HTTPException(status_code=409, detail="Este cadastro não pertence a um médico")
+    user.doctor.verification_last_attempt_at = datetime.now(UTC)
+    try:
+        result = verifier.lookup_for_manual_review(user.doctor.crm, user.doctor.uf)
+    except DoctorVerificationFailure as exc:
+        raise HTTPException(status_code=422, detail=exc.public_message) from exc
+    except CFMServiceError as exc:
+        raise HTTPException(status_code=503, detail="Não foi possível sincronizar os dados com o CFM") from exc
+    apply_cfm_professional_data(user.doctor, result)
+    user.doctor.verification_method = "cfm_browser"
+    user.doctor.verification_last_error = None
+    db.commit()
+    db.refresh(user)
+    return user_with_doctor_dict(user)
 
 
 @app.get("/users")
@@ -858,12 +1101,12 @@ def account_status_page(request: Request, user: User = Depends(get_authenticated
 def complete_profile_page(request: Request, user: User = Depends(get_authenticated_user)):
     if user.account_type != ACCOUNT_DOCTOR or user.registration_status != STATUS_APPROVED_INCOMPLETE:
         return RedirectResponse(destination_for(user), status_code=303)
-    return templates.TemplateResponse(request=request, name="complete_profile.html", context={"user": user})
+    return templates.TemplateResponse(request=request, name="doctor_profile.html", context={"user": user})
 
 
 @app.get("/doctor/dashboard")
 def doctor_dashboard_page(request: Request, user: User = Depends(require_active_doctor)):
-    return templates.TemplateResponse(request=request, name="dashboard.html", context={"user": user, "kind": ACCOUNT_DOCTOR})
+    return templates.TemplateResponse(request=request, name="doctor_profile.html", context={"user": user})
 
 
 @app.get("/non-medical/dashboard")

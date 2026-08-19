@@ -38,12 +38,18 @@ class DoctorVerificationService:
     def __init__(self, cfm_service: CFMService) -> None:
         self.cfm_service = cfm_service
 
-    def verify(self, name: str, crm: str, uf: str) -> CFMDoctor:
+    def lookup_for_manual_review(self, crm: str, uf: str) -> CFMDoctor:
+        """Obtém os dados oficiais sem substituir a decisão do administrador."""
+
         doctor = self.cfm_service.find_doctor(crm, uf)
         if doctor is None:
             raise DoctorNotFound
         if doctor.uf.upper() != uf.upper() or crm_digits(doctor.crm_display) != crm_digits(crm):
             raise DoctorNotFound
+        return doctor
+
+    def verify(self, name: str, crm: str, uf: str) -> CFMDoctor:
+        doctor = self.lookup_for_manual_review(crm, uf)
         if normalize_name(doctor.registration_status) not in {"a", "regular"}:
             raise DoctorIrregular
         if normalize_name(name) != normalize_name(doctor.official_name):

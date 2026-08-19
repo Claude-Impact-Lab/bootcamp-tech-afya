@@ -1,41 +1,53 @@
 <!doctype html>
 <html lang="pt-BR">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Status do cadastro</title>
-    <style>
-      body{min-height:100vh;margin:0;padding:1rem;display:grid;place-items:center;background:#07111f;color:#f8fafc;font-family:system-ui,sans-serif}
-      .card{width:min(38rem,100%);padding:2.5rem;border:1px solid #284058;border-radius:1rem;background:#122236;text-align:center}
-      p{color:#a9b8c8;line-height:1.6}.reason{padding:1rem;border-radius:.6rem;background:#3a1f25;color:#fecdd3}
-      button{padding:.75rem 1rem;border:0;border-radius:.6rem;background:#18a8a3;color:white;font-weight:800;cursor:pointer}
-      .actions{display:flex;justify-content:center;gap:1rem;align-items:center;flex-wrap:wrap}.back-link{color:#a9b8c8}
-    </style>
-  </head>
-  <body>
-    <main class="card">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Status do cadastro</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <style>
+    .status-card h1{margin-top:.75rem}.retry-section{margin-top:1.5rem;padding-top:1.5rem;border-top:1px solid var(--border)}.retry-section h2{margin:0;font-size:1.2rem}.retry-section>p{margin:.35rem 0 1rem}.retry-actions{margin-top:1rem}.retry-actions button{width:100%}.field-help{color:var(--muted);font-size:.78rem;font-weight:500}
+  </style>
+  <script src="/static/theme.js" defer></script>
+</head>
+<body>
+  <div class="center-shell"><main class="medium">
+    <header class="site-header"><a class="brand" href="/"><span class="brand-mark">+</span><span>Portal de acessos</span></a><button class="theme-toggle" type="button" data-theme-toggle>Tema escuro</button></header>
+    <section class="card status-card">
+      <span class="eyebrow">ACOMPANHAMENTO</span>
       {% if user.registration_status in ["pending_verification", "pending_admin_approval"] %}
-        <h1>Seu cadastro ainda está em análise</h1>
-        <p>O administrador analisará sua solicitação e informará quando o acesso estiver liberado.</p>
+        <span class="badge warning">Em análise</span><h1>Seu cadastro ainda está em análise</h1><p class="lead">Você pode conferir os dados profissionais abaixo e enviar uma nova consulta ao CFM.</p>
       {% elif user.registration_status == "crm_verification_pending" %}
-        <h1>Validação do CRM pendente</h1>
-        <p>A consulta automática não foi concluída. Seus dados estão salvos para uma nova tentativa ou análise administrativa.</p>
+        <span class="badge warning">Validação pendente</span><h1>Validação do CRM pendente</h1><p class="lead">A consulta automática não foi concluída. Confira seus dados e tente novamente quando desejar.</p>
       {% elif user.registration_status == "crm_verification_failed" %}
-        <h1>Não foi possível validar o CRM</h1>
-        <p>Os dados informados não corresponderam ao resultado público do CFM.</p>
-        {% if user.doctor and user.doctor.verification_last_error %}<p class="reason">{{ user.doctor.verification_last_error }}</p>{% endif %}
+        <span class="badge danger">Validação não concluída</span><h1>Não foi possível validar o CRM</h1><p class="lead">Confira nome, CRM e UF antes de realizar uma nova tentativa.</p>{% if user.doctor and user.doctor.verification_last_error %}<p class="message">{{ user.doctor.verification_last_error }}</p>{% endif %}
       {% else %}
-        <h1>Cadastro rejeitado</h1>
-        <p>Sua solicitação não pôde ser aprovada.</p>
-        {% if user.rejection_reason %}<p class="reason">{{ user.rejection_reason }}</p>{% endif %}
+        <span class="badge danger">Cadastro rejeitado</span><h1>Cadastro rejeitado</h1><p class="lead">Sua solicitação não pôde ser aprovada.</p>{% if user.rejection_reason %}<p class="message">{{ user.rejection_reason }}</p>{% endif %}
       {% endif %}
-      <div class="actions"><a class="back-link" href="/">← Voltar para o início</a><button id="logout">Sair</button></div>
-    </main>
-    <script>
-      document.getElementById("logout").addEventListener("click", async () => {
-        await fetch("/account/logout", {method:"POST"});
-        window.location.assign({{ ('/doctor/login' if user.account_type == 'doctor' else '/non-medical/login') | tojson }});
-      });
-    </script>
-  </body>
+
+      {% if user.account_type == "doctor" and user.doctor and user.registration_status in ["pending_verification", "pending_admin_approval", "crm_verification_pending", "crm_verification_failed"] %}
+      <section class="retry-section">
+        <h2>Corrigir e tentar novamente</h2>
+        <p>Os campos já estão preenchidos. Altere somente o que estiver incorreto ou reenvie os mesmos dados se a página do CFM apresentou instabilidade.</p>
+        <form id="retry-form" class="form-grid">
+          <label class="full">Nome completo conforme o CFM<input id="retry-name" value="{{ user.nome }}" required minlength="2" maxlength="80" autocomplete="name" /><span class="field-help">Use o mesmo nome exibido no registro profissional.</span></label>
+          <label>CRM<input id="retry-crm" value="{{ user.doctor.crm }}" required maxlength="20" inputmode="text" pattern="[0-9]+(-[0-9]+)?" /></label>
+          <label>UF do CRM<select id="retry-uf" required>
+            {% for uf in ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"] %}<option value="{{ uf }}"{% if user.doctor.uf == uf %} selected{% endif %}>{{ uf }}</option>{% endfor %}
+          </select></label>
+          <div class="full retry-actions"><button id="retry-submit" type="submit">Salvar e consultar o CFM novamente</button></div>
+        </form>
+        <p id="retry-message" class="message" role="status" hidden></p>
+      </section>
+      {% endif %}
+
+      <div class="actions" style="margin-top:1.5rem"><a href="/">← Voltar para o início</a><button id="logout">Sair</button></div>
+    </section>
+  </main></div>
+  <script>
+    const retryForm=document.getElementById("retry-form");
+    if(retryForm){retryForm.addEventListener("submit",async event=>{event.preventDefault();if(!retryForm.checkValidity()){retryForm.reportValidity();return}const button=document.getElementById("retry-submit"),message=document.getElementById("retry-message");button.disabled=true;message.textContent="Consultando o CFM. Se aparecer um CAPTCHA, resolva-o na janela do Chrome.";message.className="message success";message.hidden=false;try{const response=await fetch("/doctor/retry-cfm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({nome:document.getElementById("retry-name").value,doctor:{crm:document.getElementById("retry-crm").value,uf:document.getElementById("retry-uf").value}})}),body=await response.json();if(!response.ok){const detail=Array.isArray(body?.detail)?body.detail.map(item=>String(item.msg).replace("Value error, ","")).join("; "):body?.detail;throw new Error(detail||"Não foi possível consultar o CFM.")}window.location.assign(body.redirect_url)}catch(reason){message.textContent=reason.message;message.className="message";button.disabled=false}})}
+    document.getElementById("logout").addEventListener("click",async()=>{await fetch("/account/logout",{method:"POST"});window.location.assign({{ ('/doctor/login' if user.account_type == 'doctor' else '/non-medical/login') | tojson }})});
+  </script>
+</body>
 </html>

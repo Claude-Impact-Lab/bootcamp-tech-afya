@@ -238,10 +238,19 @@ a sete posições. Não existe tabela fixa de prefixos no projeto. A senha é ar
 como hash. Usuários sem CRM possuem cadastro e login próprios em `/non-medical/register` e
 `/non-medical/login` e continuam dependendo de aprovação manual.
 
-O administrador aprova ou rejeita cada solicitação. Um médico aprovado passa por
+O administrador aprova ou rejeita cada solicitação. Na aprovação administrativa de um
+médico, o sistema consulta novamente o CFM e salva automaticamente a foto e a ficha
+profissional; a decisão continua sendo do administrador. Um médico aprovado passa por
 `approved_incomplete` e precisa concluir a segunda etapa antes de ficar `active`. Um
 usuário sem CRM aprovado fica `active` imediatamente. Pendentes e rejeitados conseguem
 se autenticar, mas o backend bloqueia os painéis e mostra apenas o status da solicitação.
+Médicos com validação pendente ou não concluída podem corrigir nome, CRM e UF nessa
+página e iniciar uma nova consulta sem depender do administrador.
+
+Após a aprovação, o médico visualiza a própria ficha validada: foto, nome oficial,
+CRM/UF, situação, inscrição, especialidades, RQE e datas do CFM ficam somente para
+leitura. E-mail, CPF, estado civil e celular são editáveis. O perfil pode ser salvo como
+rascunho ou concluído; CPF e celular são normalizados e validados pelo backend.
 
 Rotas dessa relação:
 
@@ -250,10 +259,13 @@ Rotas dessa relação:
 | `POST /registrations` | cria o médico e inicia a validação local no CFM |
 | `POST /non-medical/registrations` | cria pré-cadastro sem CRM pendente |
 | `POST /doctor/login` | autentica um médico e direciona conforme seu status |
+| `POST /doctor/retry-cfm` | médico autenticado corrige os próprios dados e tenta novamente |
+| `PUT /doctor/profile` | salva rascunho ou conclui os dados pessoais do perfil médico |
 | `POST /non-medical/login` | autentica um usuário sem CRM |
 | `POST /admin/registrations/{id}/approve` | aprova manualmente uma solicitação |
 | `POST /admin/registrations/{id}/reject` | rejeita uma solicitação com motivo |
 | `POST /admin/registrations/{id}/retry-cfm` | abre o Chrome para tentar o CFM novamente |
+| `POST /admin/registrations/{id}/sync-cfm` | atualiza foto e ficha CFM sem alterar a aprovação |
 | `POST /doctor/complete-profile` | conclui a segunda etapa do médico aprovado |
 | `PUT /registrations/{user_id}` | administrador edita usuário e perfil médico |
 | `POST /users/{user_id}/doctor` | adiciona perfil médico a um usuário existente |

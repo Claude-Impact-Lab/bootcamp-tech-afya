@@ -8,7 +8,7 @@ from app.dependencies import get_doctor_verification_service
 from app.main import app
 from app.models import Base, User
 from app.security import verify_password
-from app.services.cfm import CFMUnavailableError
+from app.services.cfm import CFMDoctor, CFMSpecialty, CFMUnavailableError
 
 client = TestClient(app)
 
@@ -16,6 +16,20 @@ client = TestClient(app)
 class PendingDoctorVerifier:
     def verify(self, name, crm, uf):
         raise CFMUnavailableError("Consulta indisponível no teste", code="TEST_PENDING")
+
+    def lookup_for_manual_review(self, crm, uf):
+        return CFMDoctor(
+            crm_display=crm,
+            uf=uf,
+            official_name="Ana Médica",
+            registration_status="Regular",
+            registration_type="Principal",
+            source_updated_at=None,
+            specialties=(
+                CFMSpecialty("CARDIOLOGIA", "1111", "CARDIOLOGIA - RQE Nº: 1111"),
+            ),
+            photo_url="https://portal.cfm.org.br/foto-oficial.png",
+        )
 
 
 @pytest.fixture
@@ -96,13 +110,163 @@ def test_aprovacao_medica_exige_conclusao_antes_do_painel(db_isolado):
     client.post("/admin/logout")
     login = client.post("/doctor/login", json={"email": "medica@exemplo.com", "senha": "senha-segura"})
     blocked = client.get("/doctor/profile")
-    completed = client.post("/doctor/complete-profile", json={"confirmar": True})
+    completed = client.put(
+        "/doctor/profile",
+        json={
+            "email": "medica@exemplo.com",
+            "cpf": "529.982.247-25",
+            "marital_status": "casado",
+            "mobile_phone": "(11) 99999-8888",
+            "action": "complete",
+        },
+    )
     allowed = client.get("/doctor/profile")
 
     assert login.json()["redirect_url"] == "/doctor/complete-profile"
     assert blocked.status_code == 403
     assert completed.json()["redirect_url"] == "/doctor/dashboard"
     assert allowed.status_code == 200
+
+
+def test_medico_visualiza_ficha_oficial_do_cfm_apos_login(db_isolado):
+    client.post("/registrations", json=doctor_payload())
+    client.post("/admin/registrations/1/approve")
+    client.post("/admin/logout")
+    client.post("/doctor/login", json={"email": "medica@exemplo.com", "senha": "senha-segura"})
+
+    page = client.get("/doctor/complete-profile")
+
+    assert page.status_code == 200
+    assert "Meu perfil profissional" in page.text
+    assert "Ana Médica" in page.text
+    assert "CARDIOLOGIA" in page.text
+    assert "RQE 1111" in page.text
+    assert "https://portal.cfm.org.br/foto-oficial.png" in page.text
+    assert 'id="profile-cpf"' in page.text
+    assert 'id="profile-marital"' in page.text
+    assert 'id="profile-phone"' in page.text
+
+
+def test_medico_salva_rascunho_e_continua_perfil_depois(db_isolado):
+    client.post("/registrations", json=doctor_payload())
+    client.post("/admin/registrations/1/approve")
+    client.post("/admin/logout")
+    client.post("/doctor/login", json={"email": "medica@exemplo.com", "senha": "senha-segura"})
+
+    draft = client.put(
+        "/doctor/profile",
+        json={
+            "email": "novo-email@exemplo.com",
+            "cpf": "529.982.247-25",
+            "marital_status": "",
+            "mobile_phone": "",
+            "action": "draft",
+        },
+    )
+
+    assert draft.status_code == 200
+    assert draft.json()["message"] == "Rascunho salvo"
+    assert draft.json()["registration_status"] == "approved_incomplete"
+    assert draft.json()["email"] == "novo-email@exemplo.com"
+    assert draft.json()["doctor"]["cpf"] == "52998224725"
+    assert draft.json()["redirect_url"] == "/doctor/complete-profile"
+
+
+def test_medico_precisa_preencher_dados_validos_para_concluir(db_isolado):
+    client.post("/registrations", json=doctor_payload())
+    client.post("/admin/registrations/1/approve")
+    client.post("/admin/logout")
+    client.post("/doctor/login", json={"email": "medica@exemplo.com", "senha": "senha-segura"})
+
+    missing = client.put(
+        "/doctor/profile",
+        json={
+            "email": "medica@exemplo.com",
+            "cpf": "",
+            "marital_status": "",
+            "mobile_phone": "",
+            "action": "complete",
+        },
+    )
+    invalid_cpf = client.put(
+        "/doctor/profile",
+        json={
+            "email": "medica@exemplo.com",
+            "cpf": "111.111.111-11",
+            "marital_status": "solteiro",
+            "mobile_phone": "(11) 99999-8888",
+            "action": "complete",
+        },
+    )
+
+    assert missing.status_code == 422
+    assert invalid_cpf.status_code == 422
+    assert client.get("/account/me").json()["registration_status"] == "approved_incomplete"
+
+
+def test_medico_nao_altera_campos_oficiais_pela_edicao_do_perfil(db_isolado):
+    client.post("/registrations", json=doctor_payload())
+    client.post("/admin/registrations/1/approve")
+    client.post("/admin/logout")
+    client.post("/doctor/login", json={"email": "medica@exemplo.com", "senha": "senha-segura"})
+
+    response = client.put(
+        "/doctor/profile",
+        json={
+            "email": "medica@exemplo.com",
+            "cpf": "52998224725",
+            "marital_status": "casado",
+            "mobile_phone": "11999998888",
+            "action": "complete",
+            "crm": "999999",
+        },
+    )
+
+    assert response.status_code == 422
+    assert client.get("/account/me").json()["doctor"]["crm"] == "123456"
+
+
+def test_aprovacao_manual_busca_e_salva_foto_publica_do_cfm(db_isolado):
+    client.post("/registrations", json=doctor_payload())
+
+    approval = client.post("/admin/registrations/1/approve")
+
+    assert approval.status_code == 200
+    assert approval.json()["doctor"]["cfm_photo_url"] == "https://portal.cfm.org.br/foto-oficial.png"
+    assert approval.json()["doctor"]["cfm_official_name"] == "Ana Médica"
+    assert approval.json()["doctor"]["specialties"][0]["rqe"] == "1111"
+
+
+def test_aprovacao_manual_nao_cria_ficha_incompleta_quando_cfm_indisponivel(db_isolado):
+    client.post("/registrations", json=doctor_payload())
+
+    class UnavailableEnrichmentVerifier(PendingDoctorVerifier):
+        def lookup_for_manual_review(self, crm, uf):
+            raise CFMUnavailableError("CFM indisponível")
+
+    app.dependency_overrides[get_doctor_verification_service] = UnavailableEnrichmentVerifier
+    approval = client.post("/admin/registrations/1/approve")
+
+    assert approval.status_code == 503
+    assert client.get("/admin/registrations/1").json()["registration_status"] == "crm_verification_pending"
+
+
+def test_admin_sincroniza_foto_de_medico_ja_aprovado_sem_reabrir_analise(db_isolado):
+    client.post("/registrations", json=doctor_payload())
+    client.post("/admin/registrations/1/approve")
+    db = db_isolado()
+    try:
+        user = db.scalar(select(User).where(User.id == 1))
+        user.doctor.cfm_photo_url = None
+        db.commit()
+    finally:
+        db.close()
+
+    sync = client.post("/admin/registrations/1/sync-cfm")
+
+    assert sync.status_code == 200
+    assert sync.json()["registration_status"] == "approved_incomplete"
+    assert sync.json()["doctor"]["cfm_photo_url"] == "https://portal.cfm.org.br/foto-oficial.png"
 
 
 def test_usuario_sem_crm_e_aprovado_diretamente_como_ativo(db_isolado):

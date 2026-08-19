@@ -455,6 +455,99 @@ def test_medico_pendente_faz_login_mas_nao_acessa_painel(db_isolado):
     assert painel.status_code == 403
 
 
+def test_medico_pendente_ve_formulario_com_os_proprios_dados(db_isolado):
+    app.dependency_overrides[get_doctor_verification_service] = lambda: FailingDoctorVerifier(
+        CFMUnavailableError("timeout")
+    )
+    client.post(
+        "/registrations",
+        json={
+            "user": {"nome": "Carla Dias", "email": "carla@exemplo.com"},
+            "doctor": {"crm": "123456", "uf": "SP"},
+            "senha": "senha-segura",
+            "confirmacao_senha": "senha-segura",
+        },
+    )
+    client.post("/admin/logout")
+    client.post("/doctor/login", json={"email": "carla@exemplo.com", "senha": "senha-segura"})
+
+    page = client.get("/account/status")
+
+    assert page.status_code == 200
+    assert 'id="retry-form"' in page.text
+    assert 'value="Carla Dias"' in page.text
+    assert 'value="123456"' in page.text
+    assert 'value="SP" selected' in page.text
+
+
+def test_medico_pendente_corrige_dados_e_refaz_consulta_do_cfm(db_isolado):
+    app.dependency_overrides[get_doctor_verification_service] = lambda: FailingDoctorVerifier(
+        CFMUnavailableError("timeout")
+    )
+    client.post(
+        "/registrations",
+        json={
+            "user": {"nome": "Carla", "email": "carla@exemplo.com"},
+            "doctor": {"crm": "123456", "uf": "SP"},
+            "senha": "senha-segura",
+            "confirmacao_senha": "senha-segura",
+        },
+    )
+    client.post("/admin/logout")
+    client.post("/doctor/login", json={"email": "carla@exemplo.com", "senha": "senha-segura"})
+    app.dependency_overrides[get_doctor_verification_service] = SuccessfulDoctorVerifier
+
+    retry = client.post(
+        "/doctor/retry-cfm",
+        json={"nome": "Carla Dias", "doctor": {"crm": "654321", "uf": "RJ"}},
+    )
+
+    assert retry.status_code == 200
+    assert retry.json()["nome"] == "Carla Dias"
+    assert retry.json()["doctor"]["crm"] == "654321"
+    assert retry.json()["doctor"]["uf"] == "RJ"
+    assert retry.json()["doctor"]["cfm_photo_url"] == "https://portal.cfm.org.br/foto-oficial.png"
+    assert retry.json()["registration_status"] == "approved_incomplete"
+    assert retry.json()["redirect_url"] == "/doctor/complete-profile"
+
+
+def test_medico_pendente_pode_repetir_consulta_sem_alterar_dados(db_isolado):
+    app.dependency_overrides[get_doctor_verification_service] = lambda: FailingDoctorVerifier(
+        CFMUnavailableError("timeout")
+    )
+    client.post(
+        "/registrations",
+        json={
+            "user": {"nome": "Carla Dias", "email": "carla@exemplo.com"},
+            "doctor": {"crm": "123456", "uf": "SP"},
+            "senha": "senha-segura",
+            "confirmacao_senha": "senha-segura",
+        },
+    )
+    client.post("/admin/logout")
+    client.post("/doctor/login", json={"email": "carla@exemplo.com", "senha": "senha-segura"})
+    app.dependency_overrides[get_doctor_verification_service] = SuccessfulDoctorVerifier
+
+    retry = client.post(
+        "/doctor/retry-cfm",
+        json={"nome": "Carla Dias", "doctor": {"crm": "123456", "uf": "SP"}},
+    )
+
+    assert retry.status_code == 200
+    assert retry.json()["registration_status"] == "approved_incomplete"
+
+
+def test_usuario_nao_autenticado_nao_refaz_consulta_do_cfm(db_isolado):
+    client.post("/admin/logout")
+
+    retry = client.post(
+        "/doctor/retry-cfm",
+        json={"nome": "Carla Dias", "doctor": {"crm": "123456", "uf": "SP"}},
+    )
+
+    assert retry.status_code == 401
+
+
 def test_admin_associa_e_consulta_perfil_medico(db_isolado):
     adicionar_usuarios(db_isolado, [{"nome": "Ana Souza", "email": "ana@exemplo.com"}])
 
@@ -668,7 +761,7 @@ def test_admin_tem_login_e_acoes():
 
     assert 'id="login-form"' in admin_html
     assert "Cadastros pendentes" in admin_html
-    assert "Aprovar manualmente" in admin_html
+    assert "Aprovar com dados do CFM" in admin_html
     assert "Rejeitar cadastro" in admin_html
     assert "/admin/registrations/${selected.id}/approve" in admin_html
     assert "/admin/registrations/${selected.id}/reject" in admin_html
@@ -679,6 +772,63 @@ def test_admin_tem_login_e_acoes():
     assert "renderReviewProfile(user)" in admin_html
 
 
+def test_admin_tem_filtro_de_pendentes_e_acoes_conforme_status():
+    admin_html = Path(BASE_DIR / "templates" / "admin.html").read_text(encoding="utf-8")
+
+    assert 'id="pending-alert"' in admin_html
+    assert 'value="pending_all"' in admin_html
+    assert 'filter==="pending_all"' in admin_html
+    assert '?"Analisar":"Visualizar"' in admin_html
+    assert "reviewableStatuses.has(user.registration_status)" in admin_html
+
+
+def test_admin_exibe_ficha_profissional_e_indicador_de_crm_verificado():
+    admin_html = Path(BASE_DIR / "templates" / "admin.html").read_text(encoding="utf-8")
+
+    assert "✓ CRM verificado" in admin_html
+    assert "CRM VERIFICADO PELO CFM" in admin_html
+    assert "crm_registration_date" in admin_html
+    assert "cfm_validated_at" in admin_html
+    assert "official_name" in admin_html
+    assert "RQE" in admin_html
+    assert 'id="sync-cfm"' in admin_html
+    assert "/sync-cfm" in admin_html
+    assert "Aprovar com dados do CFM" in admin_html
+    assert "URL da foto no portal do CFM" not in admin_html
+
+
+def test_assets_visuais_compartilhados_sao_servidos():
+    styles = client.get("/static/styles.css")
+    theme = client.get("/static/theme.js")
+
+    assert styles.status_code == 200
+    assert "--background: #f4f8fb" in styles.text
+    assert 'html[data-theme="dark"]' in styles.text
+    assert theme.status_code == 200
+    assert 'const storageKey = "portal-theme"' in theme.text
+
+
+@pytest.mark.parametrize(
+    "template_name",
+    [
+        "index.html",
+        "account_login.html",
+        "account_status.html",
+        "admin.html",
+        "complete_profile.html",
+        "dashboard.html",
+        "doctor_profile.html",
+        "non_medical_register.html",
+    ],
+)
+def test_todas_as_paginas_possuem_tema_compartilhado(template_name):
+    html = Path(BASE_DIR / "templates" / template_name).read_text(encoding="utf-8")
+
+    assert "/static/styles.css" in html
+    assert "/static/theme.js" in html
+    assert "data-theme-toggle" in html
+
+
 @pytest.mark.parametrize(
     "template_name",
     [
@@ -687,6 +837,7 @@ def test_admin_tem_login_e_acoes():
         "admin.html",
         "complete_profile.html",
         "dashboard.html",
+        "doctor_profile.html",
         "non_medical_register.html",
     ],
 )

@@ -91,3 +91,24 @@ def test_medico_pode_ter_varias_especialidades_oficiais(db):
     db.delete(user)
     db.commit()
     assert db.scalar(select(DoctorSpecialty)) is None
+
+
+def test_medico_persiste_dados_pessoais_complementares(db):
+    user = User(
+        nome="Ana Souza",
+        email="ana@exemplo.com",
+        doctor=Doctor(
+            crm="123456",
+            uf="SP",
+            cpf="52998224725",
+            marital_status="casado",
+            mobile_phone="11999998888",
+        ),
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    assert user.doctor.to_dict()["cpf"] == "52998224725"
+    assert user.doctor.to_dict()["marital_status"] == "casado"
+    assert user.doctor.to_dict()["mobile_phone"] == "11999998888"

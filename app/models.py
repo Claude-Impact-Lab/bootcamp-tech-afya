@@ -101,6 +101,9 @@ class Doctor(Base):
     crm_first_registration_uf: Mapped[str | None] = mapped_column(String(100))
     graduation_institution: Mapped[str | None] = mapped_column(String(255))
     graduation_year: Mapped[str | None] = mapped_column(String(20))
+    cpf: Mapped[str | None] = mapped_column(String(11), unique=True, index=True)
+    marital_status: Mapped[str | None] = mapped_column(String(30))
+    mobile_phone: Mapped[str | None] = mapped_column(String(11))
     verification_method: Mapped[str | None] = mapped_column(String(32))
     verification_last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     verification_last_error: Mapped[str | None] = mapped_column(Text)
@@ -134,6 +137,9 @@ class Doctor(Base):
             "crm_first_registration_uf": self.crm_first_registration_uf,
             "graduation_institution": self.graduation_institution,
             "graduation_year": self.graduation_year,
+            "cpf": self.cpf,
+            "marital_status": self.marital_status,
+            "mobile_phone": self.mobile_phone,
             "verification_method": self.verification_method,
             "verification_last_attempt_at": (
                 self.verification_last_attempt_at.isoformat()
