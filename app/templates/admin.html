@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Painel administrativo · Afya Medicine</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+      :root {
+        --pink: #E91E63;
+        --pink-dark: #D81B60;
+        --pink-dark-hover: #C2185B;
+        --pink-pale: #FCE4EC;
+        --bg: #FFFFFF;
+        --bg-soft: #FFF9FC;
+        --ink: #252A35;
+        --muted: #6B7280;
+        --line: #E5E7EB;
+        --shadow-soft: 0 12px 32px rgba(216, 27, 96, 0.08);
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+        min-height: 100vh;
+        color: var(--ink);
+        background: var(--bg-soft);
+        font-family: "Inter", "Poppins", sans-serif;
+      }
+
+      h1, h2, p { margin: 0; }
+
+      .topbar {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 20px max(16px, calc((100vw - 1180px) / 2));
+        background: var(--bg); border-bottom: 2px solid var(--pink-pale);
+      }
+      .brand-title { font-size: 1.5rem; font-weight: 800; color: var(--pink-dark); }
+      .brand-subtitle { margin-left: 6px; color: var(--muted); font-size: 0.85rem; font-weight: 500; }
+      .btn-sair { border: 1px solid var(--line); background: #fff; color: var(--ink); border-radius: 10px; padding: 10px 16px; font: inherit; font-weight: 600; cursor: pointer; }
+      .btn-sair:hover { background: var(--pink-pale); }
+
+      .shell { width: min(1180px, calc(100% - 32px)); margin: 32px auto 64px; }
+      .card { background: var(--bg); border-radius: 20px; box-shadow: var(--shadow-soft); padding: 30px; }
+      .eyebrow { color: var(--pink-dark); font-size: 0.72rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; }
+      h1 { margin: 8px 0 24px; font-size: 1.7rem; font-weight: 800; }
+
+      .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+      .stat { border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
+      .stat-label { font-size: 0.75rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+      .stat-value { margin-top: 6px; font-size: 1.6rem; font-weight: 800; color: var(--pink-dark); }
+
+      .toolbar { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+      .toolbar input, .toolbar select {
+        height: 44px; border: 1px solid var(--line); border-radius: 10px; padding: 0 14px;
+        font: inherit; font-size: 0.9rem; color: var(--ink); background: var(--bg);
+      }
+      .toolbar input { flex: 1; min-width: 200px; }
+
+      #lista { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+      .item { display: flex; flex-direction: column; justify-content: space-between; gap: 12px; padding: 16px; border: 1px solid var(--line); border-left: 4px solid var(--pink); border-radius: 14px; background: var(--bg-soft); }
+      .item.pendente { border-left-color: #D97706; }
+      .item.comum { border-left-color: var(--muted); }
+      .item-name { font-weight: 700; }
+      .item-email { color: var(--muted); font-size: 0.85rem; margin-top: 2px; }
+      .badge { display: inline-flex; width: fit-content; padding: 4px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; background: var(--pink-pale); color: var(--pink-dark); }
+      .badge.pendente { background: #FEF3C7; color: #92400E; }
+      .badge.comum { background: #F3F4F6; color: var(--muted); }
+      .item-actions { display: flex; gap: 8px; }
+      .item-actions button { flex: 1; height: 38px; border-radius: 10px; font: inherit; font-size: 0.8rem; font-weight: 600; cursor: pointer; border: 1px solid var(--line); background: #fff; }
+      .item-actions .excluir { color: var(--pink-dark); }
+      .item-actions .excluir:hover { background: var(--pink-pale); }
+      .empty { grid-column: 1 / -1; padding: 32px; border: 1px dashed var(--line); border-radius: 12px; color: var(--muted); text-align: center; }
+      .status { min-height: 20px; margin-top: 14px; color: var(--muted); font-size: 0.85rem; }
+      .status.error { color: var(--pink-dark); }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <div><span class="brand-title">AFYA</span><span class="brand-subtitle">Painel administrativo</span></div>
+      <button class="btn-sair" id="sair">Sair</button>
+    </header>
+
+    <main class="shell">
+      <section class="card">
+        <p class="eyebrow">Administração</p>
+        <h1>Médicos cadastrados</h1>
+
+        <div class="stats">
+          <div class="stat"><div class="stat-label">Total de usuários</div><div class="stat-value" id="stat-total">0</div></div>
+          <div class="stat"><div class="stat-label">Médicos com ficha completa</div><div class="stat-value" id="stat-completos">0</div></div>
+          <div class="stat"><div class="stat-label">Fichas pendentes</div><div class="stat-value" id="stat-pendentes">0</div></div>
+        </div>
+
+        <div class="toolbar">
+          <input id="busca" type="search" placeholder="Pesquisar por nome, e-mail ou usuário…" aria-label="Pesquisar médicos" />
+          <select id="filtro" aria-label="Filtrar por situação">
+            <option value="todos">Todas as situações</option>
+            <option value="completo">Ficha completa</option>
+            <option value="pendente">Ficha pendente</option>
+            <option value="comum">Usuários comuns</option>
+          </select>
+        </div>
+
+        <div id="lista" aria-live="polite"></div>
+        <p id="status" class="status" aria-live="polite"></p>
+      </section>
+    </main>
+
+    <script>
+      let usuarios = [];
+
+      function escapar(texto) {
+        return String(texto).replace(/[&<>'"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[c]);
+      }
+
+      function situacao(usuario) {
+        if (!usuario.is_doctor) return "comum";
+        return usuario.has_doctor_profile ? "completo" : "pendente";
+      }
+
+      function renderizar() {
+        const termo = document.getElementById("busca").value.trim().toLowerCase();
+        const filtro = document.getElementById("filtro").value;
+
+        const filtrados = usuarios.filter((usuario) => {
+          const bateBusca = !termo
+            || usuario.name.toLowerCase().includes(termo)
+            || (usuario.email || "").toLowerCase().includes(termo)
+            || (usuario.username || "").toLowerCase().includes(termo);
+          const bateFiltro = filtro === "todos" || situacao(usuario) === filtro;
+          return bateBusca && bateFiltro;
+        });
+
+        document.getElementById("stat-total").textContent = usuarios.length;
+        document.getElementById("stat-completos").textContent = usuarios.filter((u) => situacao(u) === "completo").length;
+        document.getElementById("stat-pendentes").textContent = usuarios.filter((u) => situacao(u) === "pendente").length;
+
+        const lista = document.getElementById("lista");
+        if (!filtrados.length) {
+          lista.innerHTML = '<p class="empty">Nenhum registro encontrado.</p>';
+          return;
+        }
+
+        lista.innerHTML = filtrados.map((usuario) => {
+          const s = situacao(usuario);
+          const rotulo = s === "completo" ? "Ficha completa" : s === "pendente" ? "Ficha pendente" : "Usuário comum";
+          const detalhe = s === "completo" ? `CRM ${escapar(usuario.doctor.crm)} · ${escapar(usuario.doctor.uf)}` : (usuario.username ? `@${escapar(usuario.username)}` : "");
+          return `<div class="item ${s}">
+            <div>
+              <div class="item-name">${escapar(usuario.name)}</div>
+              <div class="item-email">${escapar(usuario.email)}</div>
+              <span class="badge ${s}" style="margin-top:8px;">${rotulo}${detalhe ? " · " + detalhe : ""}</span>
+            </div>
+            <div class="item-actions">
+              ${s !== "comum" ? `<button type="button" class="ver-ficha" data-id="${usuario.id}">Ver ficha</button>` : ""}
+              <button type="button" class="excluir" data-id="${usuario.id}">Excluir</button>
+            </div>
+          </div>`;
+        }).join("");
+      }
+
+      function carregar() {
+        return fetch("/users")
+          .then((resposta) => {
+            if (resposta.status === 403) { throw new Error("Acesso restrito ao administrador."); }
+            if (!resposta.ok) { throw new Error(`Erro HTTP: ${resposta.status}`); }
+            return resposta.json();
+          })
+          .then((dados) => { usuarios = dados; renderizar(); });
+      }
+
+      const status = document.getElementById("status");
+      document.getElementById("busca").addEventListener("input", renderizar);
+      document.getElementById("filtro").addEventListener("change", renderizar);
+
+      document.getElementById("lista").addEventListener("click", (evento) => {
+        const verFicha = evento.target.closest(".ver-ficha");
+        if (verFicha) { window.location.href = `/medico/${verFicha.dataset.id}/ficha`; return; }
+
+        const excluir = evento.target.closest(".excluir");
+        if (!excluir || !window.confirm("Excluir este cadastro?")) return;
+        fetch(`/users/${excluir.dataset.id}`, { method: "DELETE" })
+          .then((resposta) => {
+            if (!resposta.ok) throw new Error(resposta.status === 409 ? "Usuários médicos não podem ser excluídos." : `Erro HTTP: ${resposta.status}`);
+            return carregar();
+          })
+          .then(() => { status.textContent = "Cadastro excluído."; status.className = "status"; })
+          .catch((erro) => { status.textContent = erro.message; status.className = "status error"; });
+      });
+
+      document.getElementById("sair").addEventListener("click", () => {
+        fetch("/auth/logout", { method: "POST" }).finally(() => { window.location.href = "/"; });
+      });
+
+      carregar().catch((erro) => { status.textContent = erro.message; status.className = "status error"; });
+    </script>
+  </body>
+</html>

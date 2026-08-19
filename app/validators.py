@@ -19,6 +19,29 @@ UFS_VALIDAS: frozenset[str] = frozenset(
 # CRM: somente dígitos, de 4 a 20 caracteres (regra já usada no projeto).
 CRM_REGEX = re.compile(r"^\d{4,20}$")
 
+# Especialidades disponíveis na Ficha do Médico (Etapa 2).
+ESPECIALIDADES_VALIDAS: tuple[str, ...] = (
+    "Clínica Médica",
+    "Cardiologia",
+    "Dermatologia",
+    "Endocrinologia",
+    "Ginecologia e Obstetrícia",
+    "Neurologia",
+    "Oftalmologia",
+    "Ortopedia",
+    "Pediatria",
+    "Psiquiatria",
+    "Radiologia",
+    "Urologia",
+    "Cirurgia Geral",
+    "Medicina de Família e Comunidade",
+    "Medicina Intensiva",
+    "Outra",
+)
+
+# Idiomas selecionáveis na Ficha do Médico (Etapa 2).
+IDIOMAS_VALIDOS: tuple[str, ...] = ("Português", "Inglês", "Espanhol", "Francês")
+
 
 class RegraInvalidaError(ValueError):
     """Erro de validação de domínio com o campo e a mensagem já formatados."""
@@ -71,3 +94,34 @@ def validar_crm_pydantic(cls, value: str | None) -> str | None:
         return normalizar_crm(value)
     except RegraInvalidaError as erro:
         raise ValueError(erro.message) from erro
+
+
+def campo_obrigatorio_pydantic(mensagem: str):
+    """Gera um validador de `field_validator` que rejeita valores em branco."""
+
+    def _validar(cls, value: str) -> str:
+        valor_normalizado = value.strip() if isinstance(value, str) else value
+        if not valor_normalizado:
+            raise ValueError(mensagem)
+        return valor_normalizado
+
+    return _validar
+
+
+def validar_especialidade_pydantic(cls, value: str) -> str:
+    """Garante que a especialidade escolhida está na lista centralizada."""
+    valor = value.strip() if isinstance(value, str) else value
+    if valor not in ESPECIALIDADES_VALIDAS:
+        raise ValueError("Selecione uma especialidade válida da lista.")
+    return valor
+
+
+def normalizar_idiomas_pydantic(cls, value: list[str]) -> list[str]:
+    """Garante que cada idioma informado está entre os suportados."""
+    invalidos = [idioma for idioma in value if idioma not in IDIOMAS_VALIDOS]
+    if invalidos:
+        raise ValueError(
+            f"Idioma(s) inválido(s): {', '.join(invalidos)}. "
+            f"Opções válidas: {', '.join(IDIOMAS_VALIDOS)}."
+        )
+    return value

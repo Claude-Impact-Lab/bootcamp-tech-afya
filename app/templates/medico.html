@@ -1,0 +1,581 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ficha do Médico · Afya Medicine</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+      :root {
+        --pink: #E83E8C;
+        --pink-dark: #D92F7A;
+        --pink-dark-hover: #C72C72;
+        --pink-soft: #F06AA5;
+        --pink-pale: #FFF0F6;
+        --bg: #FFFFFF;
+        --bg-soft: #FFF9FC;
+        --ink: #202124;
+        --muted: #6B7280;
+        --line: #E5E7EB;
+        --shadow-soft: 0 12px 32px rgba(217, 47, 122, 0.08);
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+        color: var(--ink);
+        background: var(--bg-soft);
+        font-family: "Inter", "Trebuchet MS", sans-serif;
+        font-weight: 400;
+      }
+
+      .shell { width: min(1100px, calc(100% - 32px)); margin: 0 auto; padding: 0 0 64px; }
+      h1, h2, h3, p { margin: 0; }
+
+      .topbar {
+        width: 100vw;
+        margin-left: calc(50% - 50vw);
+        margin-bottom: 32px;
+        padding: 20px max(16px, calc((100vw - 1100px) / 2));
+        background: var(--bg);
+        border-bottom: 2px solid var(--pink-soft);
+      }
+      .topbar a { text-decoration: none; }
+      .brand-title { font-size: 1.7rem; font-weight: 800; color: var(--pink-dark); letter-spacing: -0.01em; }
+      .brand-subtitle { display: block; margin-top: 2px; color: var(--muted); font-size: 0.9rem; font-weight: 500; }
+
+      .card { background: var(--bg); border-radius: 20px; box-shadow: var(--shadow-soft); padding: 32px; }
+      .hidden { display: none !important; }
+
+      .steps { display: flex; gap: 18px; margin-bottom: 32px; }
+      .step { flex: 1; display: flex; align-items: center; gap: 12px; padding: 16px 18px; background: var(--bg); border-radius: 16px; box-shadow: var(--shadow-soft); }
+      .step-badge { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; font-weight: 700; font-size: 0.9rem; flex-shrink: 0; }
+      .step-label { font-size: 0.75rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+      .step-status { font-size: 0.82rem; font-weight: 600; }
+      .step.done .step-badge { background: var(--pink-dark); color: #fff; }
+      .step.done .step-status { color: var(--pink-dark); }
+      .step.active .step-badge { background: var(--pink); color: #fff; }
+      .step.active .step-status { color: var(--pink); }
+      .step.pending .step-badge { background: #F3F4F6; color: var(--muted); }
+      .step.pending .step-status { color: var(--muted); }
+
+      .page-heading { margin-bottom: 28px; }
+      .eyebrow { color: var(--pink-dark); font-size: 0.72rem; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; }
+      .page-heading h1 { margin: 8px 0 8px; font-size: 1.9rem; font-weight: 800; color: var(--ink); }
+      .page-heading p { color: var(--muted); font-size: 0.95rem; }
+
+      .grid-2 { display: grid; grid-template-columns: 1.6fr 1fr; gap: 24px; align-items: start; }
+      .stack { display: flex; flex-direction: column; gap: 24px; }
+
+      .section-title { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--pink-dark); margin-bottom: 18px; }
+      .fields-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 14px; }
+      .field { display: grid; gap: 6px; }
+      .field.full { grid-column: 1 / -1; }
+      label { font-size: 0.85rem; font-weight: 600; color: var(--ink); }
+      input, select, textarea {
+        width: 100%;
+        min-height: 50px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 10px 14px;
+        color: var(--ink);
+        background: var(--bg);
+        font: inherit;
+        font-size: 0.94rem;
+        outline: 0;
+        transition: border-color 200ms ease, box-shadow 200ms ease;
+      }
+      textarea { min-height: 100px; resize: vertical; }
+      select[multiple] { min-height: 110px; }
+      input:focus, select:focus, textarea:focus { border-color: var(--pink); box-shadow: 0 0 0 3px rgba(232, 62, 140, 0.12); }
+      input[readonly] { background: #F9FAFB; color: var(--muted); }
+      .field-error { min-height: 16px; margin: 0; color: var(--pink-dark); font-size: 0.78rem; }
+      .field-hint { color: var(--muted); font-size: 0.78rem; }
+
+      .photo-card { text-align: center; }
+      .photo-circle {
+        width: 132px; height: 132px; margin: 0 auto 18px; border-radius: 50%;
+        background: var(--pink-pale); display: grid; place-items: center; overflow: hidden;
+        border: 2px dashed var(--pink-soft); color: var(--pink);
+      }
+      .photo-circle img { width: 100%; height: 100%; object-fit: cover; }
+      .photo-actions { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+      .btn-secondary {
+        border: 1px solid var(--pink-soft); background: #fff; color: var(--pink-dark);
+        border-radius: 12px; padding: 11px 18px; font-weight: 600; font-size: 0.88rem; cursor: pointer;
+      }
+      .link-button { border: 0; background: none; color: var(--muted); font-size: 0.82rem; cursor: pointer; text-decoration: underline; }
+
+      .form-actions { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 28px; }
+      button { border: 0; border-radius: 12px; cursor: pointer; font: inherit; transition: transform 200ms ease, background 200ms ease, box-shadow 200ms ease; }
+      .btn-voltar { background: #fff; border: 1px solid var(--line); color: var(--ink); padding: 14px 22px; font-weight: 600; }
+      .btn-salvar { background: var(--pink-dark); color: #fff; padding: 14px 26px; font-weight: 600; font-size: 0.98rem; }
+      .btn-salvar:hover { background: var(--pink-dark-hover); transform: translateY(-2px); box-shadow: 0 10px 20px rgba(217, 47, 122, 0.24); }
+      .status { min-height: 20px; margin-top: 12px; color: var(--muted); font-size: 0.85rem; text-align: right; }
+      .status.error { color: var(--pink-dark); }
+      .status.success { color: #0f8a4a; }
+
+      .estado-card { text-align: center; padding: 60px 32px; }
+      .estado-card h2 { font-size: 1.4rem; font-weight: 700; margin-bottom: 10px; }
+      .estado-card p { color: var(--muted); margin-bottom: 22px; }
+
+      .sucesso-card { text-align: center; padding: 60px 32px; }
+      .sucesso-mark { width: 72px; height: 72px; margin: 0 auto 22px; border-radius: 50%; background: var(--pink-pale); color: var(--pink-dark); display: grid; place-items: center; }
+      .sucesso-card h2 { font-size: 1.6rem; font-weight: 800; margin-bottom: 10px; }
+      .sucesso-card p { color: var(--muted); margin-bottom: 26px; }
+      .sucesso-actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+
+      @media (max-width: 900px) {
+        .grid-2 { grid-template-columns: 1fr; }
+        .steps { flex-direction: column; }
+      }
+      @media (max-width: 600px) {
+        .fields-grid { grid-template-columns: 1fr; }
+        .card { padding: 22px; }
+        .form-actions { flex-direction: column-reverse; align-items: stretch; }
+        .status { text-align: left; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <a href="/"><span class="brand-title">Afya</span><span class="brand-subtitle">Medicine</span></a>
+    </header>
+
+    <main class="shell">
+      <div id="carregando" class="card">
+        <p>Carregando dados do usuário…</p>
+      </div>
+
+      <div id="erro-nao-encontrado" class="card estado-card hidden">
+        <h2>Usuário não encontrado.</h2>
+        <p>Não foi possível localizar um cadastro com este identificador.</p>
+        <a class="btn-voltar" href="/" style="text-decoration:none; display:inline-block;">← Voltar</a>
+      </div>
+
+      <div id="erro-nao-medico" class="card estado-card hidden">
+        <h2>Este usuário não possui um cadastro médico.</h2>
+        <p>Apenas usuários marcados como médicos na Etapa 1 possuem ficha profissional.</p>
+        <a class="btn-voltar" href="/" style="text-decoration:none; display:inline-block;">← Voltar</a>
+      </div>
+
+      <div id="ficha" class="hidden">
+        <div class="steps">
+          <div class="step done">
+            <div class="step-badge">✓</div>
+            <div><div class="step-label">01 · Cadastro</div><div class="step-status">Concluído</div></div>
+          </div>
+          <div id="step-ficha" class="step active">
+            <div class="step-badge">●</div>
+            <div><div class="step-label">02 · Ficha do médico</div><div class="step-status">Etapa atual</div></div>
+          </div>
+          <div id="step-concluido" class="step pending">
+            <div class="step-badge">○</div>
+            <div><div class="step-label">03 · Concluído</div><div class="step-status">Pendente</div></div>
+          </div>
+        </div>
+
+        <div class="page-heading">
+          <p class="eyebrow">Ficha do médico</p>
+          <h1>Complete suas informações profissionais</h1>
+          <p>Preencha os dados abaixo para finalizar seu cadastro.</p>
+        </div>
+
+        <form id="doctor-form" novalidate>
+          <div class="grid-2">
+            <div class="stack">
+              <section class="card">
+                <p class="section-title">Dados pessoais</p>
+                <div class="fields-grid">
+                  <div class="field full">
+                    <label for="name">Nome completo</label>
+                    <input id="name" name="name" readonly />
+                  </div>
+                  <div class="field">
+                    <label for="data_nascimento">Data de nascimento</label>
+                    <input id="data_nascimento" name="data_nascimento" placeholder="DD/MM/AAAA" inputmode="numeric" maxlength="10" />
+                    <p class="field-error" data-error-for="data_nascimento"></p>
+                  </div>
+                  <div class="field">
+                    <label for="cpf">CPF</label>
+                    <input id="cpf" name="cpf" placeholder="000.000.000-00" inputmode="numeric" maxlength="14" />
+                    <p class="field-error" data-error-for="cpf"></p>
+                  </div>
+                  <div class="field">
+                    <label for="telefone">Telefone</label>
+                    <input id="telefone" name="telefone" placeholder="(00) 00000-0000" inputmode="tel" maxlength="15" />
+                    <p class="field-error" data-error-for="telefone"></p>
+                  </div>
+                  <div class="field">
+                    <label for="email">E-mail</label>
+                    <input id="email" name="email" type="email" readonly />
+                  </div>
+                </div>
+              </section>
+
+              <section class="card">
+                <p class="section-title">Dados profissionais</p>
+                <div class="fields-grid">
+                  <div class="field">
+                    <label for="crm">CRM</label>
+                    <input id="crm" name="crm" placeholder="123456" />
+                    <p class="field-error" data-error-for="crm"></p>
+                  </div>
+                  <div class="field">
+                    <label for="uf">UF do CRM</label>
+                    <select id="uf" name="uf" aria-label="UF do CRM"><option value="">Selecione</option></select>
+                    <p class="field-error" data-error-for="uf"></p>
+                  </div>
+                  <div class="field full">
+                    <label for="especialidade">Especialidade</label>
+                    <select id="especialidade" name="especialidade"><option value="">Selecione</option></select>
+                    <p class="field-error" data-error-for="especialidade"></p>
+                  </div>
+                  <div id="especialidade-outra-campo" class="field full hidden">
+                    <label for="especialidade_outra">Digite sua especialidade</label>
+                    <input id="especialidade_outra" name="especialidade_outra" placeholder="Ex.: Medicina do Trabalho" />
+                    <p class="field-error" data-error-for="especialidade_outra"></p>
+                  </div>
+                  <div class="field">
+                    <label for="instituicao_formacao">Instituição onde se formou</label>
+                    <input id="instituicao_formacao" name="instituicao_formacao" placeholder="Ex.: USP" />
+                  </div>
+                  <div class="field">
+                    <label for="ano_formacao">Ano de formação</label>
+                    <input id="ano_formacao" name="ano_formacao" placeholder="2015" inputmode="numeric" maxlength="4" />
+                  </div>
+                </div>
+              </section>
+
+              <section class="card">
+                <p class="section-title">Endereço</p>
+                <div class="fields-grid">
+                  <div class="field">
+                    <label for="cep">CEP</label>
+                    <input id="cep" name="cep" placeholder="00000-000" inputmode="numeric" maxlength="9" />
+                    <p class="field-error" data-error-for="cep"></p>
+                  </div>
+                  <div class="field">
+                    <label for="numero">Número</label>
+                    <input id="numero" name="numero" placeholder="Ex.: 123" />
+                    <p class="field-error" data-error-for="numero"></p>
+                  </div>
+                  <div class="field full">
+                    <label for="logradouro">Rua / Logradouro</label>
+                    <input id="logradouro" name="logradouro" placeholder="Ex.: Av. Paulista" />
+                    <p class="field-error" data-error-for="logradouro"></p>
+                  </div>
+                  <div class="field">
+                    <label for="complemento">Complemento</label>
+                    <input id="complemento" name="complemento" placeholder="Ex.: Sala 2" />
+                  </div>
+                  <div class="field">
+                    <label for="bairro">Bairro</label>
+                    <input id="bairro" name="bairro" placeholder="Ex.: Centro" />
+                    <p class="field-error" data-error-for="bairro"></p>
+                  </div>
+                  <div class="field">
+                    <label for="cidade">Cidade</label>
+                    <input id="cidade" name="cidade" placeholder="Ex.: São Paulo" />
+                    <p class="field-error" data-error-for="cidade"></p>
+                  </div>
+                  <div class="field">
+                    <label for="estado">Estado</label>
+                    <select id="estado" name="estado" aria-label="Estado"><option value="">Selecione</option></select>
+                    <p class="field-error" data-error-for="estado"></p>
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            <div class="stack">
+              <section class="card photo-card">
+                <p class="section-title">Foto profissional</p>
+                <p class="field-hint" style="margin-bottom:18px;">Adicione uma foto para identificar o perfil do médico.</p>
+                <div id="photo-circle" class="photo-circle">
+                  <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="4"/></svg>
+                </div>
+                <div class="photo-actions">
+                  <input id="foto-input" type="file" accept="image/jpeg,image/png,image/webp" class="hidden" />
+                  <button type="button" id="foto-botao" class="btn-secondary">Adicionar foto</button>
+                  <button type="button" id="foto-remover" class="link-button hidden">Remover foto</button>
+                  <p id="foto-erro" class="field-error"></p>
+                </div>
+              </section>
+
+              <section class="card">
+                <p class="section-title">Informações adicionais</p>
+                <div class="field full" style="margin-bottom:16px;">
+                  <label for="bio">Mini bio profissional</label>
+                  <textarea id="bio" name="bio" placeholder="Conte brevemente sobre sua experiência profissional…"></textarea>
+                </div>
+                <div class="field full">
+                  <label for="idiomas">Idiomas</label>
+                  <select id="idiomas" name="idiomas" multiple aria-label="Idiomas"></select>
+                  <p class="field-hint">Segure Ctrl (ou Cmd) para selecionar mais de um idioma.</p>
+                </div>
+              </section>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <a class="btn-voltar" href="/" style="text-decoration:none; display:inline-block;">← Voltar</a>
+            <button type="submit" class="btn-salvar">Salvar ficha</button>
+          </div>
+          <p id="ficha-status" class="status" aria-live="polite"></p>
+        </form>
+      </div>
+
+      <div id="sucesso" class="card sucesso-card hidden">
+        <div class="sucesso-mark" aria-hidden="true">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        </div>
+        <h2>Cadastro concluído!</h2>
+        <p>O perfil profissional do médico foi salvo com sucesso.</p>
+        <div class="sucesso-actions">
+          <a id="ver-perfil" class="btn-voltar" href="#" style="text-decoration:none;">Ver perfil</a>
+          <a class="btn-salvar" href="/" style="text-decoration:none; padding:14px 22px; display:inline-block;">Cadastrar outro médico</a>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      const userId = {{ user_id }};
+      const UFS = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
+      const ESPECIALIDADES = ["Clínica Médica","Cardiologia","Dermatologia","Endocrinologia","Ginecologia e Obstetrícia","Neurologia","Oftalmologia","Ortopedia","Pediatria","Psiquiatria","Radiologia","Urologia","Cirurgia Geral","Medicina de Família e Comunidade","Medicina Intensiva","Outra"];
+      const IDIOMAS = ["Português","Inglês","Espanhol","Francês"];
+
+      const ufSelect = document.getElementById("uf");
+      const estadoSelect = document.getElementById("estado");
+      const especialidadeSelect = document.getElementById("especialidade");
+      const idiomasSelect = document.getElementById("idiomas");
+
+      UFS.forEach((uf) => {
+        ufSelect.add(new Option(uf, uf));
+        estadoSelect.add(new Option(uf, uf));
+      });
+      ESPECIALIDADES.forEach((esp) => especialidadeSelect.add(new Option(esp, esp)));
+      IDIOMAS.forEach((idioma) => idiomasSelect.add(new Option(idioma, idioma)));
+
+      const especialidadeOutraCampo = document.getElementById("especialidade-outra-campo");
+      especialidadeSelect.addEventListener("change", () => {
+        especialidadeOutraCampo.classList.toggle("hidden", especialidadeSelect.value !== "Outra");
+      });
+
+      // --- Máscaras leves, sem impedir a digitação normal do CRM ---
+      function aplicarMascara(id, formatador) {
+        const campo = document.getElementById(id);
+        campo.addEventListener("input", () => { campo.value = formatador(campo.value); });
+      }
+      aplicarMascara("cpf", (valor) => valor.replace(/\D/g, "").slice(0, 11)
+        .replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2"));
+      aplicarMascara("telefone", (valor) => valor.replace(/\D/g, "").slice(0, 11)
+        .replace(/(\d{2})(\d)/, "($1) $2").replace(/(\d{5})(\d{1,4})$/, "$1-$2"));
+      aplicarMascara("cep", (valor) => valor.replace(/\D/g, "").slice(0, 8).replace(/(\d{5})(\d{1,3})$/, "$1-$2"));
+      aplicarMascara("data_nascimento", (valor) => valor.replace(/\D/g, "").slice(0, 8)
+        .replace(/(\d{2})(\d)/, "$1/$2").replace(/(\d{2})(\d{1,4})$/, "$1/$2"));
+
+      // --- Foto profissional ---
+      const fotoInput = document.getElementById("foto-input");
+      const fotoBotao = document.getElementById("foto-botao");
+      const fotoRemover = document.getElementById("foto-remover");
+      const fotoCirculo = document.getElementById("photo-circle");
+      const fotoErro = document.getElementById("foto-erro");
+      const TIPOS_ACEITOS = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+      let fotoDataUrl = null;
+      const ICONE_CAMERA = '<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="4"/></svg>';
+
+      function mostrarPreviewFoto(dataUrl) {
+        fotoDataUrl = dataUrl;
+        fotoCirculo.innerHTML = `<img src="${dataUrl}" alt="Foto do médico" />`;
+        fotoBotao.textContent = "Alterar foto";
+        fotoRemover.classList.remove("hidden");
+      }
+
+      fotoBotao.addEventListener("click", () => fotoInput.click());
+      fotoInput.addEventListener("change", () => {
+        fotoErro.textContent = "";
+        const arquivo = fotoInput.files[0];
+        if (!arquivo) return;
+        if (!TIPOS_ACEITOS.includes(arquivo.type)) {
+          fotoErro.textContent = "Formato inválido. Envie um arquivo JPG, JPEG, PNG ou WEBP.";
+          fotoInput.value = "";
+          return;
+        }
+        const leitor = new FileReader();
+        leitor.onload = () => mostrarPreviewFoto(leitor.result);
+        leitor.readAsDataURL(arquivo);
+      });
+      fotoRemover.addEventListener("click", () => {
+        fotoDataUrl = null;
+        fotoInput.value = "";
+        fotoCirculo.innerHTML = ICONE_CAMERA;
+        fotoBotao.textContent = "Adicionar foto";
+        fotoRemover.classList.add("hidden");
+      });
+
+      // --- Carregamento do usuário ---
+      const carregando = document.getElementById("carregando");
+      const erroNaoEncontrado = document.getElementById("erro-nao-encontrado");
+      const erroNaoMedico = document.getElementById("erro-nao-medico");
+      const fichaEl = document.getElementById("ficha");
+      const fichaStatus = document.getElementById("ficha-status");
+
+      function preencherFormulario(usuario) {
+        document.getElementById("name").value = usuario.name;
+        document.getElementById("email").value = usuario.email;
+        document.getElementById("ver-perfil").href = `/medico/${usuario.id}`;
+
+        const doctor = usuario.doctor;
+        if (!doctor) return;
+        document.getElementById("data_nascimento").value = doctor.data_nascimento || "";
+        document.getElementById("cpf").value = doctor.cpf || "";
+        document.getElementById("telefone").value = doctor.telefone || "";
+        document.getElementById("crm").value = doctor.crm || "";
+        ufSelect.value = doctor.uf || "";
+        especialidadeSelect.value = doctor.especialidade || "";
+        especialidadeOutraCampo.classList.toggle("hidden", doctor.especialidade !== "Outra");
+        document.getElementById("especialidade_outra").value = doctor.especialidade_outra || "";
+        document.getElementById("instituicao_formacao").value = doctor.instituicao_formacao || "";
+        document.getElementById("ano_formacao").value = doctor.ano_formacao || "";
+        document.getElementById("cep").value = doctor.cep || "";
+        document.getElementById("logradouro").value = doctor.logradouro || "";
+        document.getElementById("numero").value = doctor.numero || "";
+        document.getElementById("complemento").value = doctor.complemento || "";
+        document.getElementById("bairro").value = doctor.bairro || "";
+        document.getElementById("cidade").value = doctor.cidade || "";
+        estadoSelect.value = doctor.estado || "";
+        document.getElementById("bio").value = doctor.bio || "";
+        Array.from(idiomasSelect.options).forEach((opcao) => {
+          opcao.selected = (doctor.idiomas || []).includes(opcao.value);
+        });
+        if (doctor.foto) mostrarPreviewFoto(doctor.foto);
+      }
+
+      fetch(`/users/${userId}`)
+        .then((resposta) => {
+          if (resposta.status === 404) { throw { tipo: "nao_encontrado" }; }
+          return resposta.json();
+        })
+        .then((usuario) => {
+          if (!usuario.is_doctor) { throw { tipo: "nao_medico" }; }
+          preencherFormulario(usuario);
+          carregando.classList.add("hidden");
+          fichaEl.classList.remove("hidden");
+        })
+        .catch((erro) => {
+          carregando.classList.add("hidden");
+          if (erro && erro.tipo === "nao_medico") { erroNaoMedico.classList.remove("hidden"); return; }
+          erroNaoEncontrado.classList.remove("hidden");
+        });
+
+      // --- Validação e salvamento da ficha ---
+      function limparErrosDeCampo() {
+        document.querySelectorAll(".field-error").forEach((el) => { el.textContent = ""; });
+      }
+
+      function exibirErro(campo, mensagem) {
+        const alvo = document.querySelector(`[data-error-for="${campo}"]`);
+        if (alvo) alvo.textContent = mensagem;
+      }
+
+      function validarCamposObrigatorios(payload) {
+        const obrigatorios = {
+          data_nascimento: "Informe a data de nascimento.",
+          telefone: "Informe o telefone.",
+          crm: "Informe o CRM.",
+          uf: "Selecione a UF do CRM.",
+          especialidade: "Selecione uma especialidade.",
+          cep: "Informe o CEP.",
+          logradouro: "Informe a rua/logradouro.",
+          numero: "Informe o número.",
+          bairro: "Informe o bairro.",
+          cidade: "Informe a cidade.",
+          estado: "Selecione o estado.",
+        };
+        let valido = true;
+        Object.entries(obrigatorios).forEach(([campo, mensagem]) => {
+          if (!payload[campo]) { exibirErro(campo, mensagem); valido = false; }
+        });
+        if (payload.especialidade === "Outra" && !payload.especialidade_outra) {
+          exibirErro("especialidade_outra", "Digite sua especialidade.");
+          valido = false;
+        }
+        return valido;
+      }
+
+      document.getElementById("doctor-form").addEventListener("submit", (evento) => {
+        evento.preventDefault();
+        limparErrosDeCampo();
+
+        const payload = {
+          data_nascimento: document.getElementById("data_nascimento").value.trim(),
+          cpf: document.getElementById("cpf").value.trim() || null,
+          telefone: document.getElementById("telefone").value.trim(),
+          crm: document.getElementById("crm").value.trim(),
+          uf: ufSelect.value,
+          especialidade: especialidadeSelect.value,
+          especialidade_outra: document.getElementById("especialidade_outra").value.trim() || null,
+          instituicao_formacao: document.getElementById("instituicao_formacao").value.trim() || null,
+          ano_formacao: document.getElementById("ano_formacao").value.trim() || null,
+          cep: document.getElementById("cep").value.trim(),
+          logradouro: document.getElementById("logradouro").value.trim(),
+          numero: document.getElementById("numero").value.trim(),
+          complemento: document.getElementById("complemento").value.trim() || null,
+          bairro: document.getElementById("bairro").value.trim(),
+          cidade: document.getElementById("cidade").value.trim(),
+          estado: estadoSelect.value,
+          foto: fotoDataUrl,
+          bio: document.getElementById("bio").value.trim() || null,
+          idiomas: Array.from(idiomasSelect.selectedOptions).map((o) => o.value),
+        };
+
+        if (!validarCamposObrigatorios(payload)) {
+          fichaStatus.textContent = "Verifique os campos destacados.";
+          fichaStatus.className = "status error";
+          return;
+        }
+
+        fichaStatus.textContent = "Salvando…";
+        fichaStatus.className = "status";
+
+        fetch(`/users/${userId}/doctor`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+          .then((resposta) => resposta.json().then((corpo) => ({ ok: resposta.ok, status: resposta.status, corpo })))
+          .then(({ ok, status: codigo, corpo }) => {
+            if (!ok) {
+              if (codigo === 422 && Array.isArray(corpo.detail)) {
+                corpo.detail.forEach((erro) => {
+                  const campo = erro.loc && erro.loc[erro.loc.length - 1];
+                  exibirErro(campo, erro.msg.replace(/^Value error, /, ""));
+                });
+                fichaStatus.textContent = "Verifique os campos destacados.";
+                fichaStatus.className = "status error";
+                return;
+              }
+              throw new Error((corpo && corpo.detail) || `Erro HTTP: ${codigo}`);
+            }
+            fichaStatus.textContent = "Ficha médica salva com sucesso.";
+            fichaStatus.className = "status success";
+            document.getElementById("step-ficha").className = "step done";
+            document.getElementById("step-ficha").querySelector(".step-badge").textContent = "✓";
+            document.getElementById("step-concluido").className = "step done";
+            document.getElementById("step-concluido").querySelector(".step-badge").textContent = "✓";
+            fichaEl.classList.add("hidden");
+            document.getElementById("sucesso").classList.remove("hidden");
+          })
+          .catch((erro) => {
+            fichaStatus.textContent = erro.message;
+            fichaStatus.className = "status error";
+          });
+      });
+    </script>
+  </body>
+</html>

@@ -5,7 +5,7 @@ Cada classe aqui herda de Base e é automaticamente mapeada para uma tabela.
 SQLAlchemy cuida de converter operações Python em SQL.
 """
 
-from sqlalchemy import Column, ForeignKey, Integer, String
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -59,6 +59,15 @@ class User(Base):
         doc="Email único do usuário",
     )
 
+    # Marcado na Etapa 1; a ficha (Doctor) só é criada na Etapa 2.
+    is_doctor = Column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
+        doc="Indica se o usuário se cadastrou como médico",
+    )
+
     doctor = relationship(
         "Doctor",
         back_populates="user",
@@ -72,7 +81,7 @@ class User(Base):
 
 
 class Doctor(Base):
-    """Dados médicos opcionais vinculados exclusivamente a um usuário."""
+    """Ficha médica (Etapa 2) vinculada exclusivamente a um usuário."""
 
     __tablename__ = "doctors"
 
@@ -86,5 +95,31 @@ class Doctor(Base):
     )
     crm = Column(String(20), nullable=False)
     uf = Column(String(2), nullable=False)
+    cfm_validated_at = Column(DateTime(timezone=True), nullable=True)
+
+    # Dados pessoais
+    data_nascimento = Column(String(10), nullable=True)
+    cpf = Column(String(14), nullable=True)
+    telefone = Column(String(20), nullable=True)
+
+    # Dados profissionais
+    especialidade = Column(String(80), nullable=True)
+    especialidade_outra = Column(String(120), nullable=True)
+    instituicao_formacao = Column(String(160), nullable=True)
+    ano_formacao = Column(String(4), nullable=True)
+
+    # Endereço
+    cep = Column(String(9), nullable=True)
+    logradouro = Column(String(160), nullable=True)
+    numero = Column(String(20), nullable=True)
+    complemento = Column(String(120), nullable=True)
+    bairro = Column(String(80), nullable=True)
+    cidade = Column(String(80), nullable=True)
+    estado = Column(String(80), nullable=True)
+
+    # Informações adicionais
+    foto = Column(String, nullable=True)
+    bio = Column(String(600), nullable=True)
+    idiomas = Column(String(200), nullable=True)
 
     user = relationship("User", back_populates="doctor")

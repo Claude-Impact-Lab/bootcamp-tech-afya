@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Minha área · Afya Medicine</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+      :root {
+        --pink: #E91E63;
+        --pink-dark: #D81B60;
+        --pink-dark-hover: #C2185B;
+        --pink-pale: #FCE4EC;
+        --bg: #FFFFFF;
+        --bg-soft: #FFF9FC;
+        --ink: #252A35;
+        --muted: #6B7280;
+        --line: #E5E7EB;
+        --shadow-soft: 0 12px 32px rgba(216, 27, 96, 0.08);
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+        min-height: 100vh;
+        color: var(--ink);
+        background: var(--bg-soft);
+        font-family: "Inter", "Poppins", sans-serif;
+      }
+
+      h1, h2, p { margin: 0; }
+
+      .topbar {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 20px max(16px, calc((100vw - 1000px) / 2));
+        background: var(--bg); border-bottom: 2px solid var(--pink-pale);
+      }
+      .brand-title { font-size: 1.5rem; font-weight: 800; color: var(--pink-dark); }
+      .brand-subtitle { margin-left: 6px; color: var(--muted); font-size: 0.85rem; font-weight: 500; }
+      .btn-sair { border: 1px solid var(--line); background: #fff; color: var(--ink); border-radius: 10px; padding: 10px 16px; font: inherit; font-weight: 600; cursor: pointer; }
+      .btn-sair:hover { background: var(--pink-pale); }
+
+      .shell { width: min(1000px, calc(100% - 32px)); margin: 40px auto; }
+      .card { background: var(--bg); border-radius: 20px; box-shadow: var(--shadow-soft); padding: 40px; }
+      .eyebrow { color: var(--pink-dark); font-size: 0.72rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; }
+      .card h1 { margin: 8px 0 10px; font-size: 1.8rem; font-weight: 800; }
+      .card p.subtitle { color: var(--muted); margin-bottom: 26px; }
+
+      .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 26px; }
+      .info-item { border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
+      .info-item span { display: block; }
+      .info-label { font-size: 0.75rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+      .info-value { margin-top: 4px; font-size: 1rem; font-weight: 600; }
+
+      .btn-primary { display: inline-flex; align-items: center; gap: 8px; height: 50px; padding: 0 22px; border-radius: 12px; background: var(--pink-dark); color: #fff; font-weight: 600; text-decoration: none; }
+      .btn-primary:hover { background: var(--pink-dark-hover); }
+
+      @media (max-width: 600px) {
+        .topbar { padding: 16px; }
+        .card { padding: 26px; }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <div><span class="brand-title">AFYA</span><span class="brand-subtitle">Medicine</span></div>
+      <button class="btn-sair" id="sair">Sair</button>
+    </header>
+
+    <main class="shell">
+      <div class="card">
+        <p class="eyebrow">Área do médico</p>
+        <h1 id="saudacao">Bem-vindo(a)</h1>
+        <p class="subtitle">Este é o seu espaço na Afya Medicine. Aqui você acompanha seu cadastro profissional.</p>
+
+        <div class="info-grid">
+          <div class="info-item"><span class="info-label">Nome</span><span class="info-value" id="info-nome">—</span></div>
+          <div class="info-item"><span class="info-label">Usuário</span><span class="info-value" id="info-usuario">—</span></div>
+          <div class="info-item"><span class="info-label">E-mail</span><span class="info-value" id="info-email">—</span></div>
+        </div>
+
+        <a class="btn-primary" id="editar-ficha" href="#">Ver/editar minha ficha</a>
+      </div>
+    </main>
+
+    <script>
+      fetch("/auth/me")
+        .then((resposta) => { if (!resposta.ok) throw new Error(); return resposta.json(); })
+        .then((usuario) => {
+          document.getElementById("saudacao").textContent = `Bem-vindo(a), ${usuario.name.split(" ")[0]}`;
+          document.getElementById("info-nome").textContent = usuario.name;
+          document.getElementById("info-usuario").textContent = usuario.username || "—";
+          document.getElementById("info-email").textContent = usuario.email;
+          document.getElementById("editar-ficha").href = `/medico/${usuario.id}/ficha`;
+        })
+        .catch(() => { window.location.href = "/"; });
+
+      document.getElementById("sair").addEventListener("click", () => {
+        fetch("/auth/logout", { method: "POST" }).finally(() => { window.location.href = "/"; });
+      });
+    </script>
+  </body>
+</html>

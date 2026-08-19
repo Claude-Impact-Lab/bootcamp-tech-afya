@@ -1,20 +1,30 @@
 """
 Aplicação FastAPI com persistência em PostgreSQL:
 - GET /health: retorna JSON com status da aplicação
-- GET /: retorna página HTML que fetcha a mensagem da API
+- GET /: página de cadastro inicial (Etapa 1) + lista de usuários
+- GET /medico/{id}: Ficha do Médico (Etapa 2)
 - GET /users: retorna lista de usuários do banco de dados
 """
 
+from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, field_validator, model_validator
 from sqlalchemy.exc import IntegrityError
 
 from app.database import engine, SessionLocal, Base
+from app.cfm.client import CFMClient
+from app.cfm.dependency import get_cfm_client
 from app.models import Doctor, User
-from app.validators import validar_crm_pydantic, validar_uf_pydantic
+from app.validators import (
+    campo_obrigatorio_pydantic,
+    normalizar_idiomas_pydantic,
+    validar_crm_pydantic,
+    validar_especialidade_pydantic,
+    validar_uf_pydantic,
+)
 
 # Configuração de diretórios
 BASE_DIR = Path(__file__).resolve().parent
@@ -38,39 +48,82 @@ class UserUpdate(BaseModel):
 
 
 class UserCreate(BaseModel):
-    """Dados para criar usuário comum ou usuário com perfil médico."""
+    """Etapa 1: cadastro inicial. CRM/UF não são coletados aqui.
+
+    Se `is_doctor` for verdadeiro, o frontend deve navegar para a Etapa 2
+    (`/medico/{id}`) para preencher a Ficha do Médico completa.
+    """
 
     name: str
     email: str
     is_doctor: bool = False
-    crm: str | None = None
-    uf: str | None = None
-
-    _validar_uf = field_validator("uf")(validar_uf_pydantic)
-    _validar_crm = field_validator("crm")(validar_crm_pydantic)
-
-    @model_validator(mode="after")
-    def validar_consistencia_medico(self) -> "UserCreate":
-        """CRM/UF são obrigatórios apenas quando is_doctor é verdadeiro."""
-        if self.is_doctor and (not self.crm or not self.uf):
-            raise ValueError(
-                "Para cadastrar um médico, CRM e UF são obrigatórios."
-            )
-        if not self.is_doctor and (self.crm or self.uf):
-            raise ValueError(
-                "CRM e UF só podem ser informados quando is_doctor for verdadeiro."
-            )
-        return self
 
 
-class DoctorUpdate(BaseModel):
-    """Dados para atualizar o CRM/UF de um usuário que já é médico."""
+class DoctorProfileIn(BaseModel):
+    """Etapa 2: Ficha do Médico completa (cria ou atualiza o perfil)."""
 
+    data_nascimento: str
+    cpf: str | None = None
+    telefone: str
     crm: str
     uf: str
+    especialidade: str
+    especialidade_outra: str | None = None
+    instituicao_formacao: str | None = None
+    ano_formacao: str | None = None
+    cep: str
+    logradouro: str
+    numero: str
+    complemento: str | None = None
+    bairro: str
+    cidade: str
+    estado: str
+    foto: str | None = None
+    bio: str | None = None
+    idiomas: list[str] = []
 
     _validar_uf = field_validator("uf")(validar_uf_pydantic)
     _validar_crm = field_validator("crm")(validar_crm_pydantic)
+    _validar_especialidade = field_validator("especialidade")(
+        validar_especialidade_pydantic
+    )
+    _validar_idiomas = field_validator("idiomas")(normalizar_idiomas_pydantic)
+
+    _validar_data_nascimento = field_validator("data_nascimento")(
+        campo_obrigatorio_pydantic("Informe a data de nascimento.")
+    )
+    _validar_telefone = field_validator("telefone")(
+        campo_obrigatorio_pydantic("Informe o telefone.")
+    )
+    _validar_cep = field_validator("cep")(
+        campo_obrigatorio_pydantic("Informe o CEP.")
+    )
+    _validar_logradouro = field_validator("logradouro")(
+        campo_obrigatorio_pydantic("Informe a rua/logradouro.")
+    )
+    _validar_numero = field_validator("numero")(
+        campo_obrigatorio_pydantic("Informe o número.")
+    )
+    _validar_bairro = field_validator("bairro")(
+        campo_obrigatorio_pydantic("Informe o bairro.")
+    )
+    _validar_cidade = field_validator("cidade")(
+        campo_obrigatorio_pydantic("Informe a cidade.")
+    )
+    _validar_estado = field_validator("estado")(
+        campo_obrigatorio_pydantic("Selecione o estado.")
+    )
+
+    @model_validator(mode="after")
+    def validar_especialidade_outra(self) -> "DoctorProfileIn":
+        """Exige o texto livre quando a especialidade selecionada for 'Outra'."""
+        if self.especialidade == "Outra" and not (
+            self.especialidade_outra and self.especialidade_outra.strip()
+        ):
+            raise ValueError(
+                "Informe sua especialidade quando selecionar 'Outra'."
+            )
+        return self
 
 
 # Criar tabelas no banco de dados (se não existirem)
@@ -103,21 +156,25 @@ def health() -> dict[str, str]:
 
 @app.get("/", tags=["Pages"])
 def index(request: Request):
-    """
-    Página inicial da aplicação.
-    
-    Renderiza o arquivo index.html que fará uma requisição ao /health
-    para buscar a mensagem a ser exibida.
-    
-    Args:
-        request: Objeto Request do FastAPI (necessário para Jinja2Templates)
-    
-    Returns:
-        TemplateResponse com o HTML renderizado
-    """
+    """Página inicial: cadastro (Etapa 1) + lista de usuários."""
     return templates.TemplateResponse(
         request=request,
         name="index.html",
+    )
+
+
+@app.get("/medico/{user_id}", tags=["Pages"])
+def pagina_ficha_medica(request: Request, user_id: int):
+    """Etapa 2: página da Ficha do Médico.
+
+    O carregamento e a validação (usuário existe? é médico?) acontecem no
+    cliente via fetch em `/users/{user_id}`, para exibir mensagens amigáveis
+    sem duplicar essa regra aqui no servidor.
+    """
+    return templates.TemplateResponse(
+        request=request,
+        name="medico.html",
+        context={"user_id": user_id},
     )
 
 
@@ -147,35 +204,61 @@ def get_users():
 
 
 def serialize_user(usuario: User) -> dict:
-    """Converte usuário e perfil médico para o formato público da API."""
+    """Converte usuário e ficha médica para o formato público da API."""
     doctor = usuario.doctor
+    doctor_dict = None
+    if doctor is not None:
+        doctor_dict = {
+            "crm": doctor.crm,
+            "uf": doctor.uf,
+            "cfm_validated_at": (
+                doctor.cfm_validated_at.isoformat()
+                if doctor.cfm_validated_at is not None
+                else None
+            ),
+            "data_nascimento": doctor.data_nascimento,
+            "cpf": doctor.cpf,
+            "telefone": doctor.telefone,
+            "especialidade": doctor.especialidade,
+            "especialidade_outra": doctor.especialidade_outra,
+            "instituicao_formacao": doctor.instituicao_formacao,
+            "ano_formacao": doctor.ano_formacao,
+            "cep": doctor.cep,
+            "logradouro": doctor.logradouro,
+            "numero": doctor.numero,
+            "complemento": doctor.complemento,
+            "bairro": doctor.bairro,
+            "cidade": doctor.cidade,
+            "estado": doctor.estado,
+            "foto": doctor.foto,
+            "bio": doctor.bio,
+            "idiomas": doctor.idiomas.split(",") if doctor.idiomas else [],
+        }
     return {
         "id": usuario.id,
         "name": usuario.name,
         "email": usuario.email,
-        "is_doctor": doctor is not None,
-        "doctor": (
-            {"crm": doctor.crm, "uf": doctor.uf}
-            if doctor is not None
-            else None
-        ),
+        "is_doctor": usuario.is_doctor,
+        "has_doctor_profile": doctor is not None,
+        "doctor": doctor_dict,
     }
 
 
 @app.post("/users", status_code=201, tags=["Users"])
 def create_user(user_data: UserCreate):
-    """Cria usuário comum ou usuário com perfil médico.
+    """Cria o usuário da Etapa 1.
 
-    CRM e UF já chegam validados e normalizados pelo schema `UserCreate`
-    (ver app/validators.py), que é a fonte única dessa regra de negócio.
+    Se `is_doctor` for verdadeiro, a ficha médica (Doctor) ainda não existe:
+    ela só é criada quando a Etapa 2 for salva em `PUT /users/{id}/doctor`.
     """
     db = SessionLocal()
     try:
-        usuario = User(name=user_data.name.strip(), email=user_data.email)
+        usuario = User(
+            name=user_data.name.strip(),
+            email=user_data.email,
+            is_doctor=user_data.is_doctor,
+        )
         db.add(usuario)
-        db.flush()
-        if user_data.is_doctor:
-            db.add(Doctor(user_id=usuario.id, crm=user_data.crm, uf=user_data.uf))
         db.commit()
         db.refresh(usuario)
         return serialize_user(usuario)
@@ -222,26 +305,63 @@ def update_user(user_id: int, user_data: UserUpdate):
 
 
 @app.put("/users/{user_id}/doctor", tags=["Users"])
-def update_doctor(user_id: int, doctor_data: DoctorUpdate):
-    """Atualiza CRM e UF de um usuário que já possui perfil médico.
+def salvar_ficha_medica(
+    user_id: int,
+    perfil: DoctorProfileIn,
+    cfm_client: CFMClient = Depends(get_cfm_client),
+):
+    """Etapa 2: cria ou atualiza a Ficha do Médico de um usuário.
 
-    Aplica a mesma validação da criação (schema `DoctorUpdate`), garantindo
-    que um médico cadastrado com dados válidos não possa ser alterado para
-    CRM ou UF inválidos.
+    Só é permitido para usuários que marcaram "Este usuário é médico" na
+    Etapa 1. Todos os campos já chegam validados pelo schema `DoctorProfileIn`
+    (ver app/validators.py), que é a fonte única dessa regra de negócio.
     """
     db = SessionLocal()
     try:
         usuario = db.query(User).filter(User.id == user_id).first()
         if usuario is None:
             raise HTTPException(status_code=404, detail="Usuário não encontrado")
-        if usuario.doctor is None:
+        if not usuario.is_doctor:
             raise HTTPException(
                 status_code=422,
-                detail="Usuário não possui perfil médico para atualizar CRM/UF",
+                detail="Este usuário não possui um cadastro médico.",
             )
 
-        usuario.doctor.crm = doctor_data.crm
-        usuario.doctor.uf = doctor_data.uf
+        medico_cfm = cfm_client.find_doctor(perfil.crm, perfil.uf)
+        if medico_cfm is None:
+            raise HTTPException(
+                status_code=422,
+                detail="Médico não encontrado no CFM para o CRM e UF informados.",
+            )
+
+        doctor = usuario.doctor
+        if doctor is None:
+            doctor = Doctor(user_id=usuario.id)
+            db.add(doctor)
+
+        doctor.crm = perfil.crm
+        doctor.uf = perfil.uf
+        doctor.cfm_validated_at = datetime.now(timezone.utc)
+        doctor.data_nascimento = perfil.data_nascimento
+        doctor.cpf = perfil.cpf
+        doctor.telefone = perfil.telefone
+        doctor.especialidade = perfil.especialidade
+        doctor.especialidade_outra = (
+            perfil.especialidade_outra if perfil.especialidade == "Outra" else None
+        )
+        doctor.instituicao_formacao = perfil.instituicao_formacao
+        doctor.ano_formacao = perfil.ano_formacao
+        doctor.cep = perfil.cep
+        doctor.logradouro = perfil.logradouro
+        doctor.numero = perfil.numero
+        doctor.complemento = perfil.complemento
+        doctor.bairro = perfil.bairro
+        doctor.cidade = perfil.cidade
+        doctor.estado = perfil.estado
+        doctor.foto = perfil.foto
+        doctor.bio = perfil.bio
+        doctor.idiomas = ",".join(perfil.idiomas) if perfil.idiomas else None
+
         db.commit()
         db.refresh(usuario)
         return serialize_user(usuario)
@@ -251,22 +371,30 @@ def update_doctor(user_id: int, doctor_data: DoctorUpdate):
 
 @app.delete("/users/{user_id}", tags=["Users"])
 def delete_user(user_id: int):
-    """Exclui um usuário existente."""
+    """Exclui um usuário existente.
+
+    Se o usuário possuir ficha médica (Doctor), ela é excluída primeiro,
+    na mesma transação, para respeitar a FK `doctors.user_id` (ON DELETE
+    RESTRICT) sem deixar dados órfãos nem exclusões parciais.
+    """
     db = SessionLocal()
 
     try:
         usuario = db.query(User).filter(User.id == user_id).first()
         if usuario is None:
             raise HTTPException(status_code=404, detail="Usuário não encontrado")
-        if usuario.doctor is not None:
-            raise HTTPException(
-                status_code=409,
-                detail="Usuário médico não pode ser excluído",
-            )
 
+        if usuario.doctor is not None:
+            db.delete(usuario.doctor)
         db.delete(usuario)
         db.commit()
         return {"message": "Usuário excluído com sucesso"}
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Não foi possível excluir: existem dados relacionados a este usuário.",
+        )
     finally:
         db.close()
 

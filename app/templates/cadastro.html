@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Criar conta · Afya Medicine</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+      :root {
+        --pink: #E91E63;
+        --pink-dark: #D81B60;
+        --pink-dark-hover: #C2185B;
+        --pink-pale: #FCE4EC;
+        --bg: #FFFFFF;
+        --ink: #252A35;
+        --muted: #6B7280;
+        --line: #E5E7EB;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+        min-height: 100vh;
+        color: var(--ink);
+        background: var(--bg);
+        font-family: "Inter", "Poppins", sans-serif;
+      }
+
+      h1, h2, p { margin: 0; }
+
+      .layout { display: grid; grid-template-columns: 46fr 54fr; min-height: 100vh; }
+
+      .form-side { display: flex; align-items: center; justify-content: center; padding: 48px; animation: fade-in-up 450ms ease both; }
+      .form-box { width: 100%; max-width: 420px; }
+      .brand-title { font-size: 2rem; font-weight: 800; color: var(--pink-dark); letter-spacing: -0.01em; line-height: 1; }
+      .brand-subtitle { display: block; margin-top: 2px; color: var(--muted); font-size: 0.95rem; font-weight: 500; }
+      .form-title { margin: 32px 0 8px; font-size: 1.5rem; font-weight: 700; }
+      .form-subtitle { color: var(--muted); font-size: 0.92rem; line-height: 1.6; margin-bottom: 26px; }
+
+      .field { display: grid; gap: 7px; margin-bottom: 16px; }
+      label { font-size: 0.85rem; font-weight: 600; color: var(--ink); }
+      input {
+        width: 100%;
+        height: 50px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 0 14px;
+        color: var(--ink);
+        background: var(--bg);
+        font: inherit;
+        font-size: 0.94rem;
+        outline: 0;
+        transition: border-color 200ms ease, box-shadow 200ms ease;
+      }
+      input::placeholder { color: var(--muted); }
+      input:focus { border-color: var(--pink); box-shadow: 0 0 0 3px rgba(233, 30, 99, 0.12); }
+      .field-error { min-height: 16px; margin: 0; color: var(--pink-dark); font-size: 0.78rem; }
+
+      button { border: 0; border-radius: 12px; cursor: pointer; font: inherit; transition: transform 200ms ease, background 200ms ease, box-shadow 200ms ease; }
+      .primary {
+        width: 100%; height: 52px; color: #fff; background: var(--pink-dark);
+        font-weight: 600; font-size: 0.98rem; margin-top: 6px;
+      }
+      .primary:hover { background: var(--pink-dark-hover); transform: translateY(-2px); box-shadow: 0 10px 20px rgba(216, 27, 96, 0.24); }
+
+      .status { min-height: 20px; margin: 12px 0; color: var(--muted); font-size: 0.85rem; }
+      .status.error { color: var(--pink-dark); }
+
+      .login-hint { text-align: center; font-size: 0.9rem; color: var(--muted); margin-top: 8px; }
+      .login-hint a { color: var(--pink-dark); font-weight: 700; text-decoration: none; }
+      .login-hint a:hover { text-decoration: underline; }
+
+      .hero-side {
+        position: relative; overflow: hidden; display: grid; place-items: center;
+        padding: 48px; text-align: center; color: #fff;
+        background: linear-gradient(135deg, var(--pink-dark) 0%, var(--pink) 100%);
+        animation: fade-in-up 450ms ease 80ms both;
+      }
+      .hero-decoration { position: absolute; inset: 0; opacity: 0.18; pointer-events: none; }
+      .hero-content { position: relative; z-index: 1; max-width: 420px; }
+      .stetho-mark { display: grid; width: 72px; height: 72px; margin: 0 auto 26px; place-items: center; border: 2px solid #fff; border-radius: 50%; background: rgba(255,255,255,0.12); color: #fff; }
+      .hero-content h2 { font-size: clamp(1.7rem, 3vw, 2.4rem); font-weight: 800; line-height: 1.2; margin-bottom: 16px; }
+      .hero-content p { font-size: 1.05rem; color: rgba(255,255,255,0.92); line-height: 1.6; }
+
+      @keyframes fade-in-up { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+
+      @media (max-width: 900px) {
+        .layout { grid-template-columns: 1fr; }
+        .hero-side { order: -1; padding: 36px 24px; }
+        .form-side { padding: 32px 20px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <section class="form-side">
+        <div class="form-box">
+          <span class="brand-title">AFYA</span>
+          <span class="brand-subtitle">Medicine</span>
+          <h1 class="form-title">Crie sua conta</h1>
+          <p class="form-subtitle">Cadastre-se na Afya Medicine para acessar sua área profissional.</p>
+
+          <form id="cadastro-form" novalidate>
+            <div class="field">
+              <label for="name">Nome completo</label>
+              <input id="name" name="name" placeholder="Ex.: Ana Souza" required />
+              <p class="field-error" id="name-error"></p>
+            </div>
+            <div class="field">
+              <label for="username">Nome de usuário</label>
+              <input id="username" name="username" placeholder="Ex.: ana.souza" autocomplete="username" required />
+              <p class="field-error" id="username-error"></p>
+            </div>
+            <div class="field">
+              <label for="email">E-mail</label>
+              <input id="email" name="email" type="email" placeholder="ana@exemplo.com" required />
+              <p class="field-error" id="email-error"></p>
+            </div>
+            <div class="field">
+              <label for="password">Senha</label>
+              <input id="password" name="password" type="password" placeholder="Mínimo de 6 caracteres" autocomplete="new-password" required />
+              <p class="field-error" id="password-error"></p>
+            </div>
+            <div class="field">
+              <label for="confirm_password">Confirmar senha</label>
+              <input id="confirm_password" name="confirm_password" type="password" placeholder="Repita a senha" autocomplete="new-password" required />
+              <p class="field-error" id="confirm_password-error"></p>
+            </div>
+            <button class="primary" type="submit">Criar minha conta</button>
+          </form>
+
+          <p id="status" class="status" aria-live="polite"></p>
+          <p class="login-hint">Já possui uma conta? <a href="/">Entrar</a></p>
+        </div>
+      </section>
+
+      <aside class="hero-side">
+        <svg class="hero-decoration" viewBox="0 0 400 400" aria-hidden="true" focusable="false">
+          <path d="M0 90 Q 100 20 200 70 T 400 40" fill="none" stroke="#fff" stroke-width="2" />
+          <path d="M40 320 Q 140 260 240 305 T 440 270" fill="none" stroke="#fff" stroke-width="6" />
+          <circle cx="330" cy="300" r="26" fill="none" stroke="#fff" stroke-width="3" />
+          <line x1="349" y1="319" x2="368" y2="338" stroke="#fff" stroke-width="3" stroke-linecap="round" />
+        </svg>
+        <div class="hero-content">
+          <div class="stetho-mark" aria-hidden="true">
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.8 2.3A.3.3 0 1 0 4.2 2.3.3.3 0 1 0 4.8 2.3M15 2v4.8a4.5 4.5 0 0 1-4.5 4.5h-1A4.5 4.5 0 0 1 5 6.8V2M8 15v3.5A4.5 4.5 0 0 0 12.5 23A4.5 4.5 0 0 0 17 18.5V17a5 5 0 1 0-5-5"/></svg>
+          </div>
+          <h2>Conhecimento para decisões que importam.</h2>
+          <p>Pesquisa médica de forma simples, rápida e confiável.</p>
+        </div>
+      </aside>
+    </div>
+
+    <script>
+      const status = document.getElementById("status");
+      const campos = ["name", "username", "email", "password", "confirm_password"];
+
+      function limparErros() {
+        campos.forEach((campo) => { document.getElementById(`${campo}-error`).textContent = ""; });
+        status.textContent = "";
+        status.className = "status";
+      }
+
+      function exibirErrosDeValidacao(detalhe) {
+        if (!Array.isArray(detalhe)) {
+          status.textContent = detalhe || "Não foi possível concluir o cadastro.";
+          status.className = "status error";
+          return;
+        }
+        let mensagemGeral = "";
+        detalhe.forEach((erro) => {
+          const campo = erro.loc && erro.loc[erro.loc.length - 1];
+          const mensagem = erro.msg.replace(/^Value error, /, "");
+          const alvo = campos.includes(campo) ? document.getElementById(`${campo}-error`) : null;
+          if (alvo) { alvo.textContent = mensagem; } else { mensagemGeral = mensagem; }
+        });
+        status.textContent = mensagemGeral || "Verifique os campos destacados.";
+        status.className = "status error";
+      }
+
+      document.getElementById("cadastro-form").addEventListener("submit", (evento) => {
+        evento.preventDefault();
+        limparErros();
+
+        const payload = {};
+        campos.forEach((campo) => { payload[campo] = document.getElementById(campo).value; });
+
+        fetch("/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+          .then((resposta) => resposta.json().then((corpo) => ({ ok: resposta.ok, status: resposta.status, corpo })))
+          .then(({ ok, status: codigo, corpo }) => {
+            if (!ok) {
+              if (codigo === 422) { exibirErrosDeValidacao(corpo.detail); return; }
+              throw new Error(corpo.detail || "Não foi possível concluir o cadastro. Verifique a conexão com o servidor e tente novamente.");
+            }
+            window.location.href = corpo.redirect;
+          })
+          .catch((erro) => { status.textContent = erro.message; status.className = "status error"; });
+      });
+    </script>
+  </body>
+</html>
