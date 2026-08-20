@@ -1165,13 +1165,17 @@
         }
 
         // Regular médico signup (not André): create user in DB with UF and CRM
+        let cfmRequestTimeout;
         try {
           submitButton.disabled = true;
           submitButton.textContent = 'Validando no CFM...';
+          const cfmController = new AbortController();
+          cfmRequestTimeout = setTimeout(() => cfmController.abort(), 60000);
           const payload = { nome, email, uf: ufVal || undefined, crm: crmVal || undefined, is_doctor: true };
           const res = await fetch('/users', {
             method: 'POST', headers: {'Content-Type':'application/json'},
-            body: JSON.stringify(payload)
+            body: JSON.stringify(payload),
+            signal: cfmController.signal
           });
           if ([200, 201, 400].includes(res.status)) {
             const medico = await res.json();
@@ -1205,8 +1209,14 @@
             aviso.textContent = data.detail || 'Erro ao cadastrar médico';
           }
         } catch (err) {
-          aviso.textContent = 'erro ao cadastrar médico';
+          if (err.name === 'AbortError') {
+            showFeedback('Cadastro pendente de aprovação', 'error');
+            aviso.textContent = 'A consulta ao CFM demorou mais que o esperado.';
+          } else {
+            aviso.textContent = 'erro ao cadastrar médico';
+          }
         } finally {
+          clearTimeout(cfmRequestTimeout);
           submitButton.disabled = false;
           submitButton.textContent = 'Entrar/Cadastrar';
         }

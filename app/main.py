@@ -390,51 +390,6 @@ def criar_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db), respons
     db.refresh(medico)
     return medico
 
-    # fallback para DB (não usado nos testes atuais)
-    # procura por e-mail de forma normalizada
-    existente_db = db.query(Usuario).filter(func.lower(func.trim(Usuario.email)) == normalize_email(usuario.email)).first()
-    if existente_db:
-        # Só atualiza se payload contém dados de médico ou senha (completar cadastro)
-        has_medico_data = (hasattr(usuario, 'crm') and usuario.crm not in (None, '')) or (hasattr(usuario, 'uf') and usuario.uf not in (None, '')) or (usuario.senha not in (None, ''))
-        if has_medico_data:
-            if hasattr(usuario, 'crm') and usuario.crm is not None:
-                existente_db.crm = normalize_crm(usuario.crm)
-            if hasattr(usuario, 'uf') and usuario.uf is not None:
-                existente_db.uf = validate_uf(usuario.uf)
-            if usuario.senha:
-                existente_db.senha = hashlib.sha256(usuario.senha.encode('utf-8')).hexdigest()
-            status_cfm, validado_em = validar_medico_no_cfm(existente_db.crm, existente_db.uf)
-            if usuario.is_doctor and status_cfm is None:
-                status_cfm = CfmLookupStatus.UNAVAILABLE.value
-            existente_db.cfm_status = status_cfm
-            existente_db.cfm_validated_at = validado_em
-            db.add(existente_db)
-            db.commit()
-            db.refresh(existente_db)
-            if response is not None:
-                response.status_code = 200
-            return existente_db
-        # sem dados adicionais, considerada tentativa de login como usuário: informar duplicado
-        raise HTTPException(status_code=400, detail="Email já cadastrado")
-
-    # armazena senha hashed se fornecida
-    novo_usuario = Usuario(nome=usuario.nome, email=usuario.email)
-    if usuario.senha:
-        novo_usuario.senha = hashlib.sha256(usuario.senha.encode('utf-8')).hexdigest()
-    if hasattr(usuario, 'crm') and usuario.crm is not None:
-        novo_usuario.crm = normalize_crm(usuario.crm)
-    if hasattr(usuario, 'uf') and usuario.uf is not None:
-        novo_usuario.uf = validate_uf(usuario.uf)
-    status_cfm, validado_em = validar_medico_no_cfm(novo_usuario.crm, novo_usuario.uf)
-    if usuario.is_doctor and status_cfm is None:
-        status_cfm = CfmLookupStatus.UNAVAILABLE.value
-    novo_usuario.cfm_status = status_cfm
-    novo_usuario.cfm_validated_at = validado_em
-    db.add(novo_usuario)
-    db.commit()
-    db.refresh(novo_usuario)
-    return novo_usuario
-
 
 @app.get("/")
 def index(request: Request):
