@@ -3,31 +3,290 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>User Manager</title>
+    <title>Pré-cadastro médico</title>
+    <link rel="stylesheet" href="/static/styles.css" />
     <style>
+      :root {
+        --background: #f4f8fb;
+        --surface: #e9f2f7;
+        --card: #ffffff;
+        --input: #ffffff;
+        --border: #cfdee8;
+        --text: #102338;
+        --muted: #52677b;
+        --primary: #168f8b;
+        --primary-hover: #0f7774;
+        --accent: #168f8b;
+        --success-bg: #ecfdf5;
+        --success-border: #6ee7b7;
+        --success-text: #065f46;
+        --danger-bg: #fff1f2;
+        --danger-border: #fda4af;
+        --danger-text: #9f1239;
+      }
+
+      html[data-theme="dark"] {
+        --background: #07111f;
+        --surface: #0d1b2c;
+        --card: #122236;
+        --input: #0a1727;
+        --border: #284058;
+        --text: #f8fafc;
+        --muted: #a9b8c8;
+        --primary: #21aaa5;
+        --primary-hover: #36beb9;
+        --accent: #55d5cd;
+        --success-bg: #0f302e;
+        --success-border: #1c7771;
+        --success-text: #b9fff9;
+        --danger-bg: #3a1f25;
+        --danger-border: #7f1d2d;
+        --danger-text: #fecdd3;
+      }
+
+      * { box-sizing: border-box; }
+
       body {
-        font-family: system-ui, sans-serif;
-        display: grid;
-        place-items: center;
         min-height: 100vh;
         margin: 0;
+        padding: 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background:
+          radial-gradient(circle at 15% 15%, rgba(24, 168, 163, .14), transparent 28rem),
+          var(--background);
+        color: var(--text);
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      main { position: relative; width: 100%; max-width: 70rem; }
+      .brand { display: flex; align-items: center; gap: .7rem; margin-bottom: 2.5rem; font-weight: 800; }
+      .brand-mark {
+        width: 2.2rem; height: 2.2rem; display: grid; place-items: center; border-radius: .65rem;
+        background: var(--primary); color: #fff; font-size: 1.4rem;
+      }
+      .layout { display: grid; grid-template-columns: .9fr 1.1fr; gap: clamp(2rem, 7vw, 6rem); align-items: center; }
+      .eyebrow { color: var(--accent); font-size: .76rem; font-weight: 800; letter-spacing: .13em; }
+      h1 { max-width: 12ch; margin: .8rem 0 1.2rem; font-size: clamp(2.5rem, 6vw, 4.6rem); line-height: 1.02; }
+      .intro > p { max-width: 32rem; color: var(--muted); font-size: 1.08rem; line-height: 1.7; }
+      .card {
+        padding: clamp(1.5rem, 4vw, 2.4rem);
+        border: 1px solid var(--border);
+        border-radius: 1.2rem;
+        background: var(--card);
+        box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, .28);
+      }
+      .card h2 { margin: .45rem 0 .4rem; font-size: 1.65rem; }
+      .card-intro { margin: 0 0 1.6rem; color: var(--muted); line-height: 1.5; }
+      .form-tag { color: var(--accent); font-size: .72rem; font-weight: 800; letter-spacing: .12em; }
+      form { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+      label { display: flex; flex-direction: column; gap: .45rem; font-size: .86rem; font-weight: 700; }
+
+      input, select {
+        width: 100%;
+        padding: .8rem .85rem;
+        border: 1px solid var(--border);
+        border-radius: .6rem;
+        outline: none;
+        background: var(--input);
+        color: var(--text);
+        font: inherit;
+        transition: border-color .2s, box-shadow .2s;
+      }
+      input::placeholder { color: var(--muted); opacity: .7; }
+      input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(24, 168, 163, .22); }
+
+      button {
+        padding: .85rem 1.25rem;
+        border: 0;
+        border-radius: .65rem;
+        background: var(--primary);
+        color: #fff;
+        cursor: pointer;
+        font: inherit;
+        font-weight: 800;
+        transition: background .2s, transform .2s;
+      }
+      button:hover { background: var(--primary-hover); transform: translateY(-1px); }
+      button:disabled { cursor: progress; opacity: .65; transform: none; }
+      #botao-salvar { grid-column: 1 / -1; margin-top: .25rem; }
+      #botao-tema {
+        position: absolute; top: 0; right: 0; padding: .4rem .6rem;
+        border: 1px solid var(--border); background: transparent; color: var(--text); font-size: .65rem;
+      }
+      #resultado {
+        margin: 1rem 0 0; padding: .8rem 1rem; border: 1px solid var(--success-border);
+        border-radius: .6rem; background: var(--success-bg); color: var(--success-text);
+      }
+      #resultado.erro { border-color: var(--danger-border); background: var(--danger-bg); color: var(--danger-text); }
+      .privacidade { margin: 1rem 0 0; color: var(--muted); font-size: .76rem; line-height: 1.5; text-align: center; }
+      .access-panel { max-width: 32rem; margin-top: 2rem; }
+      .access-heading { margin: 0 0 .85rem; color: var(--text); font-size: 1rem; }
+      .access-actions { display: grid; grid-template-columns: 1fr; gap: .7rem; }
+      .access-button {
+        min-height: 4.5rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+        padding: 1rem 1.15rem; border: 1px solid var(--primary); border-radius: .8rem;
+        background: var(--primary); color: #fff; text-decoration: none;
+        box-shadow: 0 .55rem 1.4rem rgba(22, 143, 139, .16); transition: transform .2s, background .2s;
+      }
+      .access-button:hover { background: var(--primary-hover); color: #fff; transform: translateY(-2px); }
+      .access-button.secondary { background: var(--card); color: var(--text); box-shadow: none; }
+      .access-button.secondary:hover { background: var(--surface); color: var(--text); }
+      .access-copy { display: grid; gap: .12rem; }
+      .access-copy strong { font-size: 1rem; }
+      .access-copy small { color: inherit; font-size: .76rem; opacity: .82; }
+      .access-arrow { font-size: 1.3rem; font-weight: 800; }
+      .utility-links { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .8rem; margin-top: .85rem; }
+      .utility-links a { color: var(--muted); font-size: .8rem; }
+      .admin-link { opacity: .82; }
+      [hidden] { display: none !important; }
+
+      @media (max-width: 820px) {
+        body { align-items: flex-start; padding: 1rem; }
+        main { padding-top: 3rem; }
+        .brand { margin-bottom: 2rem; }
+        .layout { grid-template-columns: 1fr; gap: 2.5rem; }
+        h1 { max-width: 15ch; }
+      }
+      @media (max-width: 540px) {
+        form { grid-template-columns: 1fr; }
+        #botao-salvar { grid-column: auto; }
+        .access-actions { grid-template-columns: 1fr; }
+        .access-button { min-height: 4.2rem; }
+        .utility-links { align-items: flex-start; flex-direction: column; }
       }
     </style>
   </head>
   <body>
-    <h1 id="mensagem">carregando...</h1>
+    <main>
+      <button id="botao-tema" class="theme-toggle" type="button" data-theme-toggle>Tema escuro</button>
+      <div class="brand"><span class="brand-mark">+</span><span>Portal de acessos</span></div>
+
+      <div class="layout">
+        <section class="intro">
+          <span class="eyebrow">ACESSO PARA PROFISSIONAIS</span>
+          <h1>Seu perfil médico em um só lugar.</h1>
+          <p>Faça seu pré-cadastro. O CRM será consultado no portal público do CFM.</p>
+          <section class="access-panel" aria-labelledby="access-heading">
+            <h2 id="access-heading" class="access-heading">Já possui cadastro? Entre no seu perfil</h2>
+            <div class="access-actions">
+              <a class="access-button" href="/doctor/login"><span class="access-copy"><strong>Entrar como médico</strong><small>Acompanhar validação ou acessar perfil</small></span><span class="access-arrow" aria-hidden="true">→</span></a>
+              <a class="access-button secondary" href="/non-medical/login"><span class="access-copy"><strong>Entrar sem CRM</strong><small>Acompanhar solicitação ou acessar perfil</small></span><span class="access-arrow" aria-hidden="true">→</span></a>
+            </div>
+            <div class="utility-links">
+              <a href="/non-medical/register">Criar acesso sem CRM</a>
+              <a class="admin-link" href="/admin">Acesso administrativo</a>
+            </div>
+          </section>
+        </section>
+
+        <section class="card">
+          <span class="form-tag">CADASTRO MÉDICO</span>
+          <h2>Solicite seu acesso</h2>
+          <p class="card-intro">Preencha os dados abaixo. Você poderá entrar para acompanhar a análise.</p>
+          <form id="form-novo" novalidate>
+            <label>Nome completo<input id="campo-nome" name="nome" autocomplete="name" required minlength="2" /></label>
+            <label>E-mail profissional<input id="campo-email" name="email" type="email" autocomplete="email" required /></label>
+            <label>CRM<input id="campo-crm" name="crm" placeholder="Ex.: 42106072-4" required maxlength="20" inputmode="text" pattern="[0-9]+(-[0-9]+)?" /></label>
+            <label>UF do CRM
+              <select id="campo-uf" name="uf" required>
+                <option value="">Selecione o estado</option>
+                <option value="AC">Acre (AC)</option><option value="AL">Alagoas (AL)</option>
+                <option value="AP">Amapá (AP)</option><option value="AM">Amazonas (AM)</option>
+                <option value="BA">Bahia (BA)</option><option value="CE">Ceará (CE)</option>
+                <option value="DF">Distrito Federal (DF)</option><option value="ES">Espírito Santo (ES)</option>
+                <option value="GO">Goiás (GO)</option><option value="MA">Maranhão (MA)</option>
+                <option value="MT">Mato Grosso (MT)</option><option value="MS">Mato Grosso do Sul (MS)</option>
+                <option value="MG">Minas Gerais (MG)</option><option value="PA">Pará (PA)</option>
+                <option value="PB">Paraíba (PB)</option><option value="PR">Paraná (PR)</option>
+                <option value="PE">Pernambuco (PE)</option><option value="PI">Piauí (PI)</option>
+                <option value="RJ">Rio de Janeiro (RJ)</option><option value="RN">Rio Grande do Norte (RN)</option>
+                <option value="RS">Rio Grande do Sul (RS)</option><option value="RO">Rondônia (RO)</option>
+                <option value="RR">Roraima (RR)</option><option value="SC">Santa Catarina (SC)</option>
+                <option value="SP">São Paulo (SP)</option><option value="SE">Sergipe (SE)</option>
+                <option value="TO">Tocantins (TO)</option>
+              </select>
+            </label>
+            <label>Senha<input id="campo-senha" name="senha" type="password" autocomplete="new-password" required minlength="8" /></label>
+            <label>Confirme a senha<input id="campo-confirmacao" name="confirmacao" type="password" autocomplete="new-password" required minlength="8" /></label>
+            <button id="botao-salvar" type="submit">Enviar pré-cadastro</button>
+          </form>
+          <p id="resultado" role="status" hidden></p>
+          <p class="privacidade">Seus dados ficam disponíveis somente no ambiente administrativo.</p>
+        </section>
+      </div>
+
+    </main>
 
     <script>
-      // Busca a mensagem na API em vez de escrever no HTML:
-      // e o primeiro contato do time com fetch + JSON.
-      fetch("/health")
-        .then((resposta) => resposta.json())
-        .then((dados) => {
-          document.getElementById("mensagem").textContent = dados.message;
+      const form = document.getElementById("form-novo");
+      const campoNome = document.getElementById("campo-nome");
+      const campoEmail = document.getElementById("campo-email");
+      const campoCrm = document.getElementById("campo-crm");
+      const campoUf = document.getElementById("campo-uf");
+      const campoSenha = document.getElementById("campo-senha");
+      const campoConfirmacao = document.getElementById("campo-confirmacao");
+      const botaoSalvar = document.getElementById("botao-salvar");
+      const resultado = document.getElementById("resultado");
+
+      function mensagemDeErro(corpo, resposta) {
+        if (typeof corpo?.detail === "string") return corpo.detail;
+        if (Array.isArray(corpo?.detail)) {
+          return corpo.detail.map((erro) => String(erro.msg || "Dados inválidos").replace("Value error, ", "")).join("; ");
+        }
+        return `A API respondeu ${resposta.status}.`;
+      }
+
+      form.addEventListener("submit", (evento) => {
+        evento.preventDefault();
+        if (!form.checkValidity()) { form.reportValidity(); return; }
+        resultado.textContent = "Validando seus dados. Aguarde a janela do Chrome; se o CFM pedir CAPTCHA, resolva-o manualmente nela.";
+        resultado.hidden = false;
+        resultado.classList.remove("erro");
+        botaoSalvar.disabled = true;
+
+        fetch("/registrations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user: { nome: campoNome.value, email: campoEmail.value },
+            doctor: { crm: campoCrm.value, uf: campoUf.value },
+            senha: campoSenha.value,
+            confirmacao_senha: campoConfirmacao.value,
+          }),
         })
-        .catch(() => {
-          document.getElementById("mensagem").textContent = "erro ao chamar a API";
-        });
+          .then((resposta) => resposta.json().then((corpo) => {
+            if (!resposta.ok) throw new Error(mensagemDeErro(corpo, resposta));
+            return corpo;
+          }))
+          .then((corpo) => {
+            form.reset();
+            if (corpo.registration_status === "approved_incomplete") {
+              resultado.textContent = "CRM validado no CFM. Seu cadastro médico foi aprovado automaticamente.";
+            } else if (corpo.registration_status === "crm_verification_failed") {
+              resultado.textContent = corpo.doctor?.verification_last_error || "Não foi possível validar os dados profissionais no CFM.";
+              resultado.classList.add("erro");
+            } else {
+              resultado.textContent = "A validação não foi concluída. O cadastro foi salvo para uma nova tentativa ou análise administrativa.";
+            }
+            resultado.hidden = false;
+            if (corpo.redirect_url) {
+              window.setTimeout(() => window.location.assign(corpo.redirect_url), 900);
+            } else {
+              campoNome.focus();
+            }
+          })
+          .catch((erro) => {
+            resultado.textContent = erro?.name === "Error"
+              ? erro.message
+              : "Não foi possível conectar ao servidor. Tente novamente.";
+            resultado.classList.add("erro");
+            resultado.hidden = false;
+          })
+          .finally(() => { botaoSalvar.disabled = false; });
+      });
     </script>
+    <script src="/static/theme.js"></script>
   </body>
 </html>

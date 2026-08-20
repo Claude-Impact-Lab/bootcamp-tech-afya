@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Meu perfil profissional</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <style>
+    .profile-heading{margin-bottom:1.5rem}.profile-heading p{max-width:48rem}.professional-hero{display:grid;grid-template-columns:auto 1fr;gap:1.4rem;align-items:center}.profile-photo,.photo-placeholder{width:9rem;height:9rem;border:2px solid var(--card);border-radius:1rem;background:var(--surface);box-shadow:0 .5rem 1.4rem rgba(16,40,63,.14)}.profile-photo{object-fit:cover}.photo-placeholder{display:grid;place-items:center;color:var(--primary);font-size:2.2rem;font-weight:850}.professional-hero h1{margin:.45rem 0 .25rem}.professional-hero p{margin:0}.verified-strip{display:flex;flex-wrap:wrap;gap:.6rem 1.5rem;margin-top:1.25rem;padding:1rem;border:1px solid rgba(8,122,91,.3);border-radius:.8rem;background:var(--success-bg);color:var(--success)}.profile-section{margin-top:1.25rem}.profile-section h2{margin:0 0 .75rem;font-size:1.15rem}.detail-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem}.detail{min-width:0;padding:.85rem;border:1px solid var(--border);border-radius:.75rem;background:var(--card)}.detail span{display:block;margin-bottom:.25rem;color:var(--muted);font-size:.73rem}.specialties{display:grid;gap:.65rem;margin:0;padding:0;list-style:none}.specialties li{display:flex;justify-content:space-between;gap:1rem;padding:.85rem;border:1px solid var(--border);border-radius:.75rem}.specialties small{color:var(--muted)}.editable-card{margin-top:1.25rem}.form-heading{display:flex;justify-content:space-between;gap:1rem;align-items:start;margin-bottom:1rem}.form-heading h2{margin:0}.form-heading p{margin:.25rem 0 0}.locked-note{padding:.65rem .8rem;border-radius:.65rem;background:var(--surface);color:var(--muted);font-size:.8rem}.save-actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:.7rem;margin-top:1rem}.privacy-note{font-size:.82rem}.footer-actions{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;margin-top:1.25rem}@media(max-width:720px){.professional-hero{grid-template-columns:1fr}.profile-photo,.photo-placeholder{width:7rem;height:7rem}.detail-grid{grid-template-columns:1fr}.form-heading{flex-direction:column}.save-actions button{width:100%}}
+  </style>
+  <script src="/static/theme.js" defer></script>
+</head>
+<body>
+  <main class="page-shell">
+    <header class="site-header"><a class="brand" href="/"><span class="brand-mark">+</span><span>Portal de acessos</span></a><div class="header-actions"><button class="theme-toggle" type="button" data-theme-toggle>Tema escuro</button><button id="logout" class="secondary" type="button">Sair</button></div></header>
+    <section class="profile-heading"><span class="eyebrow">MEU PERFIL PROFISSIONAL</span><h1>{{ "Complete seu cadastro" if user.registration_status == "approved_incomplete" else "Seu cadastro profissional" }}</h1><p>{{ "Confira os dados oficiais e complete as informações pessoais. Você pode salvar um rascunho e continuar depois." if user.registration_status == "approved_incomplete" else "Consulte os dados validados pelo CFM e mantenha suas informações pessoais atualizadas." }}</p></section>
+
+    <section class="card">
+      <div class="professional-hero">
+        {% if user.doctor.cfm_photo_url %}<img class="profile-photo" src="{{ user.doctor.cfm_photo_url }}" alt="Foto profissional de {{ user.doctor.cfm_official_name or user.nome }}" />{% else %}<div class="photo-placeholder" aria-label="Foto não disponibilizada pelo CFM">{{ (user.doctor.cfm_official_name or user.nome)[0] }}</div>{% endif %}
+        <div><span class="badge success">✓ CRM verificado</span><h1>{{ user.doctor.cfm_official_name or user.nome }}</h1><p>CRM {{ user.doctor.cfm_crm_display or user.doctor.crm }}/{{ user.doctor.uf }}</p></div>
+      </div>
+      <div class="verified-strip"><strong>✓ DADOS VALIDADOS PELO CFM</strong><span>Situação: {{ user.doctor.cfm_registration_status or "Não informada" }}</span><span>Validado em: {{ user.doctor.cfm_validated_at.strftime("%d/%m/%Y às %H:%M") if user.doctor.cfm_validated_at else "—" }}</span></div>
+
+      <section class="profile-section"><h2>Registro profissional</h2><div class="detail-grid">
+        <div class="detail"><span>Nome oficial</span><strong>{{ user.doctor.cfm_official_name or "—" }}</strong></div><div class="detail"><span>CRM/UF</span><strong>{{ user.doctor.cfm_crm_display or user.doctor.crm }}/{{ user.doctor.uf }}</strong></div><div class="detail"><span>Situação</span><strong>{{ user.doctor.cfm_registration_status or "—" }}</strong></div>
+        <div class="detail"><span>Tipo de inscrição</span><strong>{{ user.doctor.cfm_registration_type or "—" }}</strong></div><div class="detail"><span>Data de inscrição</span><strong>{{ user.doctor.crm_registration_date.strftime("%d/%m/%Y") if user.doctor.crm_registration_date else "—" }}</strong></div><div class="detail"><span>Primeira inscrição</span><strong>{{ user.doctor.crm_first_registration_uf or "—" }}</strong></div>
+        <div class="detail"><span>Instituição de graduação</span><strong>{{ user.doctor.graduation_institution or "—" }}</strong></div><div class="detail"><span>Ano de graduação</span><strong>{{ user.doctor.graduation_year or "—" }}</strong></div><div class="detail"><span>Método de validação</span><strong>{{ "Consulta automática ao CFM" if user.doctor.verification_method == "cfm_browser" else "Decisão administrativa com dados do CFM" }}</strong></div>
+      </div></section>
+
+      <section class="profile-section"><h2>Especialidades e áreas de atuação</h2>{% if user.doctor.specialties %}<ul class="specialties">{% for specialty in user.doctor.specialties %}<li><div><strong>{{ specialty.official_name }}</strong><br /><small>{{ specialty.official_description }}</small></div><span class="badge success">{{ "RQE " ~ specialty.rqe if specialty.rqe else "Sem RQE informado" }}</span></li>{% endfor %}</ul>{% else %}<p class="notice">Nenhuma especialidade foi informada pelo CFM.</p>{% endif %}</section>
+    </section>
+
+    <section class="card editable-card">
+      <div class="form-heading"><div><span class="eyebrow">INFORMAÇÕES COMPLEMENTARES</span><h2>Dados pessoais</h2><p>Estes dados não vêm do CFM e podem ser alterados por você.</p></div><span class="locked-note">Dados oficiais acima são somente para leitura</span></div>
+      <form id="profile-form" class="form-grid">
+        <label class="full">E-mail de acesso<input id="profile-email" type="email" value="{{ user.email }}" autocomplete="email" required /></label>
+        <label>CPF<input id="profile-cpf" value="{{ user.doctor.cpf or '' }}" placeholder="000.000.000-00" maxlength="14" inputmode="numeric" autocomplete="off" /></label>
+        <label>Estado civil<select id="profile-marital"><option value="">Selecione</option>{% for value,label in [("solteiro","Solteiro(a)"),("casado","Casado(a)"),("separado","Separado(a)"),("divorciado","Divorciado(a)"),("viuvo","Viúvo(a)"),("uniao_estavel","União estável"),("prefiro_nao_informar","Prefiro não informar")] %}<option value="{{ value }}"{% if user.doctor.marital_status == value %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></label>
+        <label class="full">Número de celular<input id="profile-phone" value="{{ user.doctor.mobile_phone or '' }}" placeholder="(21) 99999-9999" maxlength="15" inputmode="tel" autocomplete="tel" /></label>
+      </form>
+      <p class="privacy-note">CPF e celular são dados pessoais e ficam disponíveis apenas na área autenticada e administrativa.</p>
+      <p id="profile-message" class="message" role="status" hidden></p>
+      <div class="save-actions">{% if user.registration_status == "approved_incomplete" %}<button id="save-draft" class="secondary" type="button">Salvar e continuar depois</button><button id="save-complete" type="button">Salvar e concluir perfil</button>{% else %}<button id="save-complete" type="button">Salvar alterações</button>{% endif %}</div>
+    </section>
+    <div class="footer-actions"><a href="/">← Voltar para o início</a></div>
+  </main>
+  <script>
+    const form=document.getElementById("profile-form"),message=document.getElementById("profile-message"),cpf=document.getElementById("profile-cpf"),phone=document.getElementById("profile-phone");
+    function digits(value){return value.replace(/\D/g,"")}
+    function formatCpf(value){const raw=digits(value).slice(0,11);return raw.replace(/(\d{3})(\d)/,"$1.$2").replace(/(\d{3})(\d)/,"$1.$2").replace(/(\d{3})(\d{1,2})$/,"$1-$2")}
+    function formatPhone(value){const raw=digits(value).slice(0,11);if(raw.length<=10)return raw.replace(/(\d{2})(\d)/,"($1) $2").replace(/(\d{4})(\d)/,"$1-$2");return raw.replace(/(\d{2})(\d)/,"($1) $2").replace(/(\d{5})(\d)/,"$1-$2")}
+    cpf.value=formatCpf(cpf.value);phone.value=formatPhone(phone.value);cpf.addEventListener("input",()=>cpf.value=formatCpf(cpf.value));phone.addEventListener("input",()=>phone.value=formatPhone(phone.value));
+    async function saveProfile(action,button){message.hidden=true;button.disabled=true;try{const response=await fetch("/doctor/profile",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({email:document.getElementById("profile-email").value,cpf:cpf.value,marital_status:document.getElementById("profile-marital").value,mobile_phone:phone.value,action})}),body=await response.json();if(!response.ok){const detail=Array.isArray(body?.detail)?body.detail.map(item=>String(item.msg).replace("Value error, ","")).join("; "):body?.detail;throw new Error(detail||"Não foi possível salvar o perfil.")}message.textContent=body.message;message.className="message success";message.hidden=false;if(action==="complete")window.location.assign(body.redirect_url)}catch(reason){message.textContent=reason.message;message.className="message";message.hidden=false}finally{button.disabled=false}}
+    document.getElementById("save-draft")?.addEventListener("click",event=>saveProfile("draft",event.currentTarget));document.getElementById("save-complete").addEventListener("click",event=>saveProfile("complete",event.currentTarget));document.getElementById("logout").addEventListener("click",async()=>{await fetch("/account/logout",{method:"POST"});window.location.assign("/doctor/login")});
+  </script>
+</body>
+</html>

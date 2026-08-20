@@ -1,0 +1,1 @@
+"""Implementações de dependências externas."""
