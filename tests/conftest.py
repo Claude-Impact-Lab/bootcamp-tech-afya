@@ -5,7 +5,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.main import app, Base
+from app.cfm_client import CFMDoctor
+from app.main import Base, app, get_cfm_client
 from app.database import get_db
 
 # Configurar banco de dados de teste (SQLite em memória)
@@ -31,6 +32,27 @@ def override_get_db():
 app.dependency_overrides[get_db] = override_get_db
 
 
+class FakeCFMClient:
+    """Substitui a rede nos testes da API."""
+
+    def find_doctor(self, crm: str, uf: str) -> CFMDoctor:
+        return CFMDoctor(
+            nome="Medico de Teste",
+            crm=crm,
+            uf=uf,
+            situacao="A",
+            tipo_inscricao="P",
+            especialidades=(),
+        )
+
+
+def override_get_cfm_client() -> FakeCFMClient:
+    return FakeCFMClient()
+
+
+app.dependency_overrides[get_cfm_client] = override_get_cfm_client
+
+
 @pytest.fixture
 def client():
     """Cliente de testes que usa banco isolado."""
@@ -39,3 +61,13 @@ def client():
     Base.metadata.create_all(bind=engine)
     
     return TestClient(app)
+
+
+@pytest.fixture
+def definir_cliente_cfm():
+    """Permite simular respostas do CFM sem acesso externo."""
+    def definir(cliente):
+        app.dependency_overrides[get_cfm_client] = lambda: cliente
+
+    yield definir
+    app.dependency_overrides[get_cfm_client] = override_get_cfm_client

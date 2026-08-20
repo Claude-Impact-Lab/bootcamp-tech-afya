@@ -742,9 +742,11 @@
         const submitBtn = form.querySelector(".submit-btn");
         const btnText = submitBtn.textContent;
         submitBtn.disabled = true;
-        submitBtn.textContent = "Processando...";
+        submitBtn.textContent = doctorToggle.checked ? "Aguardando CFM..." : "Processando...";
         
-        mensagem.textContent = "Enviando...";
+        mensagem.textContent = doctorToggle.checked
+          ? "Uma janela do CFM será aberta. Se aparecer um CAPTCHA, conclua-o manualmente."
+          : "Enviando...";
         mensagem.className = "message info";
 
         const novoUsuario = {
@@ -753,6 +755,13 @@
           senha: senhaInput.value,
         };
 
+        if (doctorToggle.checked) {
+          novoUsuario.doctor = {
+            crm: crmInput.value.trim(),
+            uf: ufInput.value.trim(),
+          };
+        }
+
         fetch("/users", {
           method: "POST",
           headers: {
@@ -760,34 +769,18 @@
           },
           body: JSON.stringify(novoUsuario),
         })
-          .then((resposta) => {
+          .then(async (resposta) => {
             if (!resposta.ok) {
-              throw new Error("Falha ao cadastrar usuário");
+              const erro = new Error("Falha ao cadastrar usuário");
+              erro.detalhes = (await resposta.json()).detail;
+              throw erro;
             }
             return resposta.json();
           })
           .then((usuarioCriado) => {
-                        if (doctorToggle.checked) {
-                            return fetch(`/users/${usuarioCriado.id}/doctor`, {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({
-                                    crm: crmInput.value.trim(),
-                                    uf: ufInput.value.trim(),
-                                }),
-                            }).then(async (resposta) => {
-                                if (!resposta.ok) {
-                                    const erro = new Error("Falha ao cadastrar médico");
-                                    erro.detalhes = (await resposta.json()).detail;
-                                    throw erro;
-                                }
-                                return usuarioCriado;
-                            });
-                        }
-                        return usuarioCriado;
-                    })
-                    .then((usuarioCriado) => {
-            mensagem.textContent = `✓ Usuário ${usuarioCriado.nome} cadastrado com sucesso!`;
+            mensagem.textContent = doctorToggle.checked
+              ? `Médico ${usuarioCriado.nome} cadastrado e validado pelo CFM.`
+              : `Usuário ${usuarioCriado.nome} cadastrado com sucesso!`;
             mensagem.className = "message success";
             nomeInput.value = "";
             emailInput.value = "";
@@ -810,7 +803,17 @@
                 if (campo === "crm") crmErro.textContent = detalhe.msg;
                 if (campo === "uf") ufErro.textContent = detalhe.msg;
               });
-              mensagem.textContent = "Usuário cadastrado, mas revise os dados médicos.";
+              mensagem.textContent = "Revise os dados médicos e tente novamente.";
+            } else if (erro.detalhes?.code === "CRM_NOT_FOUND") {
+              mensagem.textContent = "O CRM não foi encontrado no CFM. Nenhum cadastro foi salvo.";
+            } else if (erro.detalhes?.code === "CRM_INACTIVE") {
+              mensagem.textContent = "O CRM foi encontrado, mas não está ativo. Nenhum cadastro foi salvo.";
+            } else if (erro.detalhes?.code === "VALIDATION_TIMEOUT") {
+              mensagem.textContent = "A validação expirou. Nenhum cadastro foi salvo; tente novamente e conclua o CAPTCHA.";
+            } else if (erro.detalhes?.code === "CFM_UNAVAILABLE") {
+              mensagem.textContent = "Não foi possível checar o CFM agora. Nenhum cadastro foi salvo; tente novamente mais tarde.";
+            } else if (erro.detalhes?.code === "CFM_CONFIGURATION") {
+              mensagem.textContent = "A integração com o CFM não está disponível. Nenhum cadastro foi salvo.";
             } else {
               mensagem.textContent = "Erro ao cadastrar usuário. Tente novamente.";
             }

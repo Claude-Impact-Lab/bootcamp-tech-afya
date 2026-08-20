@@ -1,4 +1,4 @@
-from sqlalchemy import Column, ForeignKey, Integer, String
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
@@ -22,4 +22,5 @@ class Doctor(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False, index=True)
     crm = Column(String(32), nullable=False)
     uf = Column(String(2), nullable=False)
+    cfm_validated_at = Column(DateTime(timezone=True), nullable=True)
     user = relationship("User", back_populates="doctor")

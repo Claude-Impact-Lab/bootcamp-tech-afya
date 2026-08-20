@@ -4,6 +4,7 @@ import hmac
 import os
 import re
 import secrets
+from datetime import datetime, timezone
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -17,6 +18,16 @@ from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.database import get_db, engine
+from app.cfm_client import (
+    CFMClient,
+    CFMConfigurationError,
+    CFMDoctor,
+    CFMDoctorInactive,
+    CFMDoctorNotFound,
+    CFMInvalidInput,
+    CFMUnavailable,
+    CFMValidationTimeout,
+)
 from app.models import Base, Doctor as DoctorModel, User as UserModel
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -46,13 +57,19 @@ def hash_password(password: str) -> str:
 
 
 def ensure_legacy_schema() -> None:
-    """Acrescenta a coluna de senha em bancos SQLite criados antes desta versao."""
-    if not str(engine.url).startswith("sqlite") or "users" not in inspect(engine).get_table_names():
+    """Acrescenta colunas em bancos SQLite locais criados em versoes anteriores."""
+    if not str(engine.url).startswith("sqlite"):
         return
-    columns = {column["name"] for column in inspect(engine).get_columns("users")}
-    if "password_hash" not in columns:
-        with engine.begin() as connection:
-            connection.execute(text("ALTER TABLE users ADD COLUMN password_hash VARCHAR(512)"))
+    table_names = inspect(engine).get_table_names()
+    with engine.begin() as connection:
+        if "users" in table_names:
+            columns = {column["name"] for column in inspect(engine).get_columns("users")}
+            if "password_hash" not in columns:
+                connection.execute(text("ALTER TABLE users ADD COLUMN password_hash VARCHAR(512)"))
+        if "doctors" in table_names:
+            columns = {column["name"] for column in inspect(engine).get_columns("doctors")}
+            if "cfm_validated_at" not in columns:
+                connection.execute(text("ALTER TABLE doctors ADD COLUMN cfm_validated_at DATETIME"))
 
 
 @app.on_event("startup")
@@ -114,8 +131,8 @@ class DoctorCreate(BaseModel):
     @classmethod
     def validar_crm(cls, valor: str) -> str:
         valor = valor.strip()
-        if not re.fullmatch(r"\d{4,6}", valor):
-            raise ValueError("crm deve conter de 4 a 6 digitos numericos")
+        if not re.fullmatch(r"\d{1,7}", valor):
+            raise ValueError("crm deve conter de 1 a 7 digitos numericos")
         return valor
 
     @field_validator("uf")
@@ -127,10 +144,26 @@ class DoctorCreate(BaseModel):
         return valor
 
 
+class UserRegistration(UserCreate):
+    """Cadastro publico que cria usuario e medico na mesma transacao."""
+
+    doctor: DoctorCreate | None = None
+
+
 class Doctor(DoctorCreate):
     id: int
     user_id: int
+    cfm_validated_at: datetime | None = None
     model_config = ConfigDict(from_attributes=True)
+
+
+class CFMValidationResult(BaseModel):
+    valid: bool
+    crm: str
+    uf: str
+    name: str | None = None
+    status: str | None = None
+    reason: str | None = None
 
 
 class DoctorUpdate(DoctorCreate):
@@ -154,6 +187,62 @@ class AdminLogin(BaseModel):
 def exigir_admin(request: Request) -> None:
     if not request.session.get("admin"):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Acesso de administrador necessario")
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.getenv(name, str(default)))
+    except ValueError:
+        return default
+
+
+_cfm_client = CFMClient(
+    timeout_seconds=_env_float("CFM_PLAYWRIGHT_TIMEOUT_SECONDS", 120),
+    browser_channel=os.getenv("CFM_BROWSER_CHANNEL", "chrome"),
+    browser_path=os.getenv("CFM_BROWSER_PATH"),
+    cache_ttl_seconds=_env_float("CFM_CACHE_TTL_SECONDS", 3600),
+    min_request_interval_seconds=_env_float("CFM_MIN_REQUEST_INTERVAL_SECONDS", 3),
+)
+
+
+def get_cfm_client() -> CFMClient:
+    """Dependencia substituivel nos testes, sem chamadas reais ao CFM."""
+    return _cfm_client
+
+
+def validar_medico_no_cfm(cfm_client: CFMClient, dados: DoctorCreate) -> CFMDoctor:
+    try:
+        return cfm_client.find_doctor(dados.crm, dados.uf)
+    except CFMInvalidInput as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"code": "INVALID_INPUT", "message": "CRM ou UF invalido"},
+        ) from error
+    except CFMDoctorNotFound as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"code": "CRM_NOT_FOUND", "message": "CRM nao encontrado no CFM"},
+        ) from error
+    except CFMDoctorInactive as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={"code": "CRM_INACTIVE", "message": "O CRM nao esta ativo no CFM"},
+        ) from error
+    except CFMValidationTimeout as error:
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail={"code": "VALIDATION_TIMEOUT", "message": "A validacao do CFM expirou"},
+        ) from error
+    except CFMUnavailable as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"code": "CFM_UNAVAILABLE", "message": "Nao foi possivel checar o CFM agora"},
+        ) from error
+    except CFMConfigurationError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"code": "CFM_CONFIGURATION", "message": "A integracao com o CFM nao esta disponivel"},
+        ) from error
 
 
 @app.get("/")
@@ -198,9 +287,60 @@ def health() -> dict[str, str]:
     return {"status": "ok", "message": "Hello World"}
 
 
+@app.post("/cfm/validate", response_model=CFMValidationResult)
+def validar_crm_no_cfm(
+    dados: DoctorCreate,
+    cfm_client: CFMClient = Depends(get_cfm_client),
+) -> CFMValidationResult:
+    """Permite testar a validacao sem criar ou alterar um usuario."""
+    try:
+        doctor = cfm_client.find_doctor(dados.crm, dados.uf)
+        return CFMValidationResult(
+            valid=True,
+            crm=dados.crm,
+            uf=dados.uf,
+            name=doctor.nome,
+            status="ATIVO",
+        )
+    except CFMDoctorNotFound:
+        return CFMValidationResult(valid=False, crm=dados.crm, uf=dados.uf, reason="CRM_NOT_FOUND")
+    except CFMDoctorInactive as error:
+        return CFMValidationResult(
+            valid=False,
+            crm=dados.crm,
+            uf=dados.uf,
+            name=error.doctor.nome,
+            status=error.doctor.situacao.upper(),
+            reason="CRM_INACTIVE",
+        )
+    except CFMValidationTimeout:
+        return CFMValidationResult(valid=False, crm=dados.crm, uf=dados.uf, reason="VALIDATION_TIMEOUT")
+    except (CFMUnavailable, CFMConfigurationError):
+        return CFMValidationResult(valid=False, crm=dados.crm, uf=dados.uf, reason="CFM_UNAVAILABLE")
+    except CFMInvalidInput:
+        return CFMValidationResult(valid=False, crm=dados.crm, uf=dados.uf, reason="INVALID_INPUT")
+
+
 @app.post("/users", response_model=User, status_code=status.HTTP_201_CREATED)
-def criar_usuario(dados: UserCreate, db: Session = Depends(get_db)) -> User:
+def criar_usuario(
+    dados: UserRegistration,
+    db: Session = Depends(get_db),
+    cfm_client: CFMClient = Depends(get_cfm_client),
+) -> User:
+    if db.query(UserModel).filter(UserModel.email == dados.email).first() is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email ja cadastrado")
+
+    # A consulta externa acontece antes de qualquer INSERT: erro nao deixa cadastro parcial.
+    if dados.doctor is not None:
+        validar_medico_no_cfm(cfm_client, dados.doctor)
+
     usuario = UserModel(nome=dados.nome, email=dados.email, password_hash=hash_password(dados.senha))
+    if dados.doctor is not None:
+        usuario.doctor = DoctorModel(
+            crm=dados.doctor.crm,
+            uf=dados.doctor.uf,
+            cfm_validated_at=datetime.now(timezone.utc),
+        )
     db.add(usuario)
     try:
         db.commit()
@@ -253,13 +393,24 @@ def excluir_usuario(user_id: int, db: Session = Depends(get_db)) -> Response:
 
 
 @app.post("/users/{user_id}/doctor", response_model=Doctor, status_code=status.HTTP_201_CREATED)
-def criar_medico(user_id: int, dados: DoctorCreate, db: Session = Depends(get_db)) -> Doctor:
+def criar_medico(
+    user_id: int,
+    dados: DoctorCreate,
+    db: Session = Depends(get_db),
+    cfm_client: CFMClient = Depends(get_cfm_client),
+) -> Doctor:
     usuario = db.get(UserModel, user_id)
     if usuario is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario nao encontrado")
     if usuario.doctor is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Usuario ja e medico")
-    medico = DoctorModel(user_id=user_id, crm=dados.crm, uf=dados.uf)
+    validar_medico_no_cfm(cfm_client, dados)
+    medico = DoctorModel(
+        user_id=user_id,
+        crm=dados.crm,
+        uf=dados.uf,
+        cfm_validated_at=datetime.now(timezone.utc),
+    )
     db.add(medico)
     db.commit()
     db.refresh(medico)
@@ -267,7 +418,12 @@ def criar_medico(user_id: int, dados: DoctorCreate, db: Session = Depends(get_db
 
 
 @app.put("/users/{user_id}/doctor", response_model=Doctor, dependencies=[Depends(exigir_admin)])
-def editar_medico(user_id: int, dados: DoctorUpdate, db: Session = Depends(get_db)) -> Doctor:
+def editar_medico(
+    user_id: int,
+    dados: DoctorUpdate,
+    db: Session = Depends(get_db),
+    cfm_client: CFMClient = Depends(get_cfm_client),
+) -> Doctor:
     """Atualiza CRM e UF de um medico, aplicando as validacoes da Missao 06."""
     usuario = db.get(UserModel, user_id)
     if usuario is None:
@@ -275,8 +431,10 @@ def editar_medico(user_id: int, dados: DoctorUpdate, db: Session = Depends(get_d
     if usuario.doctor is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cadastro medico nao encontrado")
 
+    validar_medico_no_cfm(cfm_client, dados)
     usuario.doctor.crm = dados.crm
     usuario.doctor.uf = dados.uf
+    usuario.doctor.cfm_validated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(usuario.doctor)
     return usuario.doctor

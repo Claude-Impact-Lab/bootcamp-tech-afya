@@ -52,7 +52,12 @@
     function escapeHtml(valor) { const item = document.createElement('span'); item.textContent = valor; return item.innerHTML; }
     function mensagemDaApi(corpo) {
       if (Array.isArray(corpo.detail)) return corpo.detail.map(erro => erro.msg).join(' ');
+      if (typeof corpo.detail === 'object' && corpo.detail) return corpo.detail.message || 'Não foi possível salvar.';
       return corpo.detail || 'Não foi possível salvar.';
+    }
+    function statusCfm(medico) {
+      if (!medico.cfm_validated_at) return 'CFM ainda não confirmado';
+      return `CFM validado em ${new Date(medico.cfm_validated_at).toLocaleString('pt-BR')}`;
     }
     function limparErrosMedico() {
       ['crm', 'uf'].forEach(campo => { document.getElementById(campo).classList.remove('invalido'); document.getElementById(`erro-${campo}`).textContent = ''; });
@@ -71,7 +76,7 @@
       if (!resposta.ok) return aviso('Não foi possível carregar os usuários.', 'erro');
       const usuarios = await resposta.json();
       if (!usuarios.length) { tabela.innerHTML = '<p>Nenhum usuário cadastrado.</p>'; return; }
-      tabela.innerHTML = '<table><thead><tr><th>Nome</th><th>E-mail</th><th>Cadastro médico</th><th>Ações</th></tr></thead><tbody>' + usuarios.map(usuario => `<tr><td>${escapeHtml(usuario.nome)}</td><td>${escapeHtml(usuario.email)}</td><td>${usuario.doctor ? `CRM ${escapeHtml(usuario.doctor.crm)}/${escapeHtml(usuario.doctor.uf)}` : '—'}</td><td><button class="editar-usuario light" data-id="${usuario.id}">Editar usuário</button>${usuario.doctor ? ` <button class="editar-medico light" data-id="${usuario.id}">Editar médico</button>` : ''} <button class="excluir danger" data-id="${usuario.id}">Excluir</button></td></tr>`).join('') + '</tbody></table>';
+      tabela.innerHTML = '<table><thead><tr><th>Nome</th><th>E-mail</th><th>Cadastro médico</th><th>Ações</th></tr></thead><tbody>' + usuarios.map(usuario => `<tr><td>${escapeHtml(usuario.nome)}</td><td>${escapeHtml(usuario.email)}</td><td>${usuario.doctor ? `CRM ${escapeHtml(usuario.doctor.crm)}/${escapeHtml(usuario.doctor.uf)}<br><small>${statusCfm(usuario.doctor)}</small>` : '—'}</td><td><button class="editar-usuario light" data-id="${usuario.id}">Editar usuário</button>${usuario.doctor ? ` <button class="editar-medico light" data-id="${usuario.id}">Editar médico</button>` : ''} <button class="excluir danger" data-id="${usuario.id}">Excluir</button></td></tr>`).join('') + '</tbody></table>';
       document.querySelectorAll('.editar-usuario').forEach(botao => botao.onclick = () => abrirEdicaoUsuario(usuarios.find(usuario => usuario.id === Number(botao.dataset.id))));
       document.querySelectorAll('.editar-medico').forEach(botao => botao.onclick = () => abrirEdicaoMedico(usuarios.find(usuario => usuario.id === Number(botao.dataset.id))));
       document.querySelectorAll('.excluir').forEach(botao => botao.onclick = () => excluir(Number(botao.dataset.id)));
