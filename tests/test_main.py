@@ -95,6 +95,17 @@ def test_index_renderiza_a_tela():
     assert "Portal de acessos" in resposta.text
 
 
+def test_index_destaca_login_de_medico_e_usuario_sem_crm():
+    resposta = client.get("/")
+
+    assert 'class="access-button" href="/doctor/login"' in resposta.text
+    assert 'class="access-button secondary" href="/non-medical/login"' in resposta.text
+    assert "Já possui cadastro? Entre no seu perfil" in resposta.text
+    assert 'class="admin-link" href="/admin"' in resposta.text
+    assert "Dados pessoais e profissionais conectados" not in resposta.text
+    assert resposta.text.index('class="access-panel"') < resposta.text.index('class="card"')
+
+
 def test_list_users_retorna_a_lista(db_isolado):
     adicionar_usuarios(db_isolado, [
         {"nome": "Ana Souza", "email": "ana@exemplo.com"},
@@ -277,16 +288,18 @@ def test_registration_cria_usuario_e_perfil_medico_juntos(db_isolado):
         },
     )
 
-    assert resposta.status_code == 201
+    assert resposta.status_code == 202
     assert resposta.json()["nome"] == "Carla Dias"
     assert resposta.json()["doctor"]["crm"] == "123456"
     assert resposta.json()["doctor"]["uf"] == "SP"
-    assert resposta.json()["doctor"]["crm_verified"] is True
-    assert resposta.json()["doctor"]["verification_status"] == "verified"
-    assert resposta.json()["doctor"]["cfm_photo_url"] == "https://portal.cfm.org.br/foto-oficial.png"
-    assert resposta.json()["registration_status"] == "approved_incomplete"
+    assert resposta.json()["registration_status"] == "crm_verification_pending"
+    assert resposta.json()["redirect_url"] == "/account/status"
 
     usuarios = client.get("/users").json()
+    assert usuarios[0]["doctor"]["crm_verified"] is True
+    assert usuarios[0]["doctor"]["verification_status"] == "verified"
+    assert usuarios[0]["doctor"]["cfm_photo_url"] == "https://portal.cfm.org.br/foto-oficial.png"
+    assert usuarios[0]["registration_status"] == "approved_incomplete"
     assert usuarios[0]["doctor"]["user_id"] == usuarios[0]["id"]
 
 
@@ -341,7 +354,7 @@ def test_registration_aceita_crm_longo_com_hifen(db_isolado):
         },
     )
 
-    assert resposta.status_code == 201
+    assert resposta.status_code == 202
     assert resposta.json()["doctor"]["crm"] == "42106072-4"
 
 
@@ -406,7 +419,7 @@ def test_registration_informa_tamanho_da_senha_em_portugues(db_isolado):
         (DoctorIrregular(), "O CRM foi encontrado, mas não está regular no CFM"),
     ],
 )
-def test_falha_profissional_nao_salva_nem_reserva_email_ou_crm(
+def test_falha_profissional_fica_salva_para_correcao_e_nova_tentativa(
     db_isolado, failure, mensagem
 ):
     app.dependency_overrides[get_doctor_verification_service] = lambda: FailingDoctorVerifier(
@@ -421,14 +434,20 @@ def test_falha_profissional_nao_salva_nem_reserva_email_ou_crm(
 
     primeira_tentativa = client.post("/registrations", json=payload)
 
-    assert primeira_tentativa.status_code == 422
-    assert primeira_tentativa.json()["detail"] == mensagem
-    assert client.get("/users").json() == []
+    assert primeira_tentativa.status_code == 202
+    cadastro = client.get("/account/me").json()
+    assert cadastro["registration_status"] == "crm_verification_failed"
+    assert cadastro["doctor"]["verification_last_error"] == mensagem
 
     app.dependency_overrides[get_doctor_verification_service] = SuccessfulDoctorVerifier
-    nova_tentativa = client.post("/registrations", json=payload)
+    nova_tentativa = client.post(
+        "/doctor/retry-cfm",
+        json={"nome": "Carla Dias", "doctor": {"crm": "123456", "uf": "SP"}},
+    )
 
-    assert nova_tentativa.status_code == 201
+    assert nova_tentativa.status_code == 200
+    assert nova_tentativa.json()["registration_status"] == "crm_verification_pending"
+    assert client.get("/account/me").json()["registration_status"] == "approved_incomplete"
     assert len(client.get("/users").json()) == 1
 
 
@@ -506,9 +525,13 @@ def test_medico_pendente_corrige_dados_e_refaz_consulta_do_cfm(db_isolado):
     assert retry.json()["nome"] == "Carla Dias"
     assert retry.json()["doctor"]["crm"] == "654321"
     assert retry.json()["doctor"]["uf"] == "RJ"
-    assert retry.json()["doctor"]["cfm_photo_url"] == "https://portal.cfm.org.br/foto-oficial.png"
-    assert retry.json()["registration_status"] == "approved_incomplete"
-    assert retry.json()["redirect_url"] == "/doctor/complete-profile"
+    assert retry.json()["doctor"]["cfm_photo_url"] is None
+    assert retry.json()["registration_status"] == "crm_verification_pending"
+    assert retry.json()["redirect_url"] == "/account/status"
+    completed = client.get("/account/me").json()
+    assert completed["doctor"]["cfm_photo_url"] == "https://portal.cfm.org.br/foto-oficial.png"
+    assert completed["registration_status"] == "approved_incomplete"
+    assert completed["redirect_url"] == "/doctor/complete-profile"
 
 
 def test_medico_pendente_pode_repetir_consulta_sem_alterar_dados(db_isolado):
@@ -534,7 +557,8 @@ def test_medico_pendente_pode_repetir_consulta_sem_alterar_dados(db_isolado):
     )
 
     assert retry.status_code == 200
-    assert retry.json()["registration_status"] == "approved_incomplete"
+    assert retry.json()["registration_status"] == "crm_verification_pending"
+    assert client.get("/account/me").json()["registration_status"] == "approved_incomplete"
 
 
 def test_usuario_nao_autenticado_nao_refaz_consulta_do_cfm(db_isolado):
@@ -797,6 +821,13 @@ def test_admin_exibe_ficha_profissional_e_indicador_de_crm_verificado():
     assert "URL da foto no portal do CFM" not in admin_html
 
 
+def test_admin_diferencia_aprovacao_medica_de_usuario_sem_crm():
+    admin_html = Path(BASE_DIR / "templates" / "admin.html").read_text(encoding="utf-8")
+
+    assert 'medical?"Aprovar com dados do CFM":"Aprovar acesso"' in admin_html
+    assert 'document.getElementById("cfm-guidance").hidden=!medical' in admin_html
+
+
 def test_assets_visuais_compartilhados_sao_servidos():
     styles = client.get("/static/styles.css")
     theme = client.get("/static/theme.js")
@@ -818,7 +849,9 @@ def test_assets_visuais_compartilhados_sao_servidos():
         "complete_profile.html",
         "dashboard.html",
         "doctor_profile.html",
+        "forgot_password.html",
         "non_medical_register.html",
+        "reset_password.html",
     ],
 )
 def test_todas_as_paginas_possuem_tema_compartilhado(template_name):
@@ -838,7 +871,9 @@ def test_todas_as_paginas_possuem_tema_compartilhado(template_name):
         "complete_profile.html",
         "dashboard.html",
         "doctor_profile.html",
+        "forgot_password.html",
         "non_medical_register.html",
+        "reset_password.html",
     ],
 )
 def test_paginas_secundarias_tem_volta_para_o_inicio(template_name):

@@ -225,8 +225,10 @@ Para desfazer a última migration localmente: `uv run alembic downgrade -1`.
 ### Cadastro público e painel administrativo
 
 A página inicial (`/`) recebe nome, e-mail, CRM, UF e senha. Depois de salvar o cadastro,
-o backend abre o Chrome em uma sessão isolada, preenche CRM e UF no portal público do CFM
-e aguarda o resultado. Se aparecer CAPTCHA, ele deve ser resolvido manualmente nessa
+o backend agenda a validação em segundo plano, devolve imediatamente a página de
+acompanhamento e então abre o Chrome em uma sessão isolada, preenche CRM e UF no portal
+público do CFM e aguarda o resultado. A tela atualiza o status automaticamente. Se
+aparecer CAPTCHA, ele deve ser resolvido manualmente nessa
 janela; o sistema não tenta contorná-lo. Nome, CRM e UF correspondentes com situação
 `Regular` aprovam o médico automaticamente. Timeout ou fechamento da janela deixam o
 cadastro como `crm_verification_pending`, disponível para nova tentativa ou análise.
@@ -242,7 +244,9 @@ O administrador aprova ou rejeita cada solicitação. Na aprovação administrat
 médico, o sistema consulta novamente o CFM e salva automaticamente a foto e a ficha
 profissional; a decisão continua sendo do administrador. Um médico aprovado passa por
 `approved_incomplete` e precisa concluir a segunda etapa antes de ficar `active`. Um
-usuário sem CRM aprovado fica `active` imediatamente. Pendentes e rejeitados conseguem
+usuário sem CRM aprovado fica `active` imediatamente. Ele possui um perfil próprio para
+atualizar nome, e-mail, CPF e celular; se for rejeitado, pode corrigir os dados e reenviar a
+solicitação. Pendentes e rejeitados conseguem
 se autenticar, mas o backend bloqueia os painéis e mostra apenas o status da solicitação.
 Médicos com validação pendente ou não concluída podem corrigir nome, CRM e UF nessa
 página e iniciar uma nova consulta sem depender do administrador.
@@ -250,7 +254,8 @@ página e iniciar uma nova consulta sem depender do administrador.
 Após a aprovação, o médico visualiza a própria ficha validada: foto, nome oficial,
 CRM/UF, situação, inscrição, especialidades, RQE e datas do CFM ficam somente para
 leitura. E-mail, CPF, estado civil e celular são editáveis. O perfil pode ser salvo como
-rascunho ou concluído; CPF e celular são normalizados e validados pelo backend.
+rascunho ou concluído; no escopo didático, o CPF aceita qualquer combinação com 11
+dígitos, e o celular é normalizado e validado pelo backend.
 
 Rotas dessa relação:
 
@@ -262,6 +267,9 @@ Rotas dessa relação:
 | `POST /doctor/retry-cfm` | médico autenticado corrige os próprios dados e tenta novamente |
 | `PUT /doctor/profile` | salva rascunho ou conclui os dados pessoais do perfil médico |
 | `POST /non-medical/login` | autentica um usuário sem CRM |
+| `PUT /non-medical/profile` | atualiza o perfil ou reenvia um cadastro sem CRM rejeitado |
+| `POST /account/password-reset/request` | gera e envia um link temporário de recuperação |
+| `POST /account/password-reset/confirm` | redefine a senha usando o link temporário |
 | `POST /admin/registrations/{id}/approve` | aprova manualmente uma solicitação |
 | `POST /admin/registrations/{id}/reject` | rejeita uma solicitação com motivo |
 | `POST /admin/registrations/{id}/retry-cfm` | abre o Chrome para tentar o CFM novamente |
@@ -280,6 +288,13 @@ No ambiente local de demonstração, use o nome `santanna` e a senha definida em
 `ADMIN_PASSWORD` no arquivo `.env`. Pelo painel, o administrador pode consultar, editar
 ou excluir um cadastro. As rotas de consulta e alteração em `/users` também exigem a
 sessão administrativa, inclusive quando chamadas pela página `/docs`.
+O painel oferece busca por nome, e-mail ou CRM, filtros por status e paginação. Aprovações,
+rejeições e o resultado da validação automática podem ser enviados por SMTP. Sem SMTP
+configurado, as notificações aparecem no terminal para facilitar a demonstração local.
+
+O processamento em segundo plano usa as tarefas internas do FastAPI, adequado ao escopo
+didático e sem exigir Redis. Em uma implantação distribuída com vários servidores, essa
+fila deve ser substituída por um worker persistente.
 
 ### Se algo der errado
 
@@ -301,7 +316,9 @@ sessão administrativa, inclusive quando chamadas pela página `/docs`.
 uv run pytest
 ```
 
-Devem passar 73 testes. Se algum falhar, a mensagem diz qual e por quê.
+Devem passar 129 testes. Se algum falhar, a mensagem diz qual e por quê. O arquivo
+`tests/test_user_journeys.py` percorre as jornadas completas de médico, usuário sem CRM
+e administrador.
 
 ---
 

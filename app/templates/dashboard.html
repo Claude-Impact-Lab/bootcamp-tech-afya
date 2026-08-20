@@ -1,6 +1,31 @@
 <!doctype html>
 <html lang="pt-BR">
-<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /><title>Painel</title><link rel="stylesheet" href="/static/styles.css" /><script src="/static/theme.js" defer></script></head>
-<body><div class="center-shell"><main class="medium"><header class="site-header"><a class="brand" href="/"><span class="brand-mark">+</span><span>Portal de acessos</span></a><button class="theme-toggle" type="button" data-theme-toggle>Tema escuro</button></header><section class="card">
-  <span class="badge success">✓ Conta ativa</span><h1 style="margin-top:.9rem">Olá, {{ user.nome }}</h1>{% if kind == "doctor" %}<p class="lead">Este é o seu painel médico. Seu CRM foi validado com os dados públicos do CFM.</p>{% else %}<p class="lead">Este é seu painel de usuário. Seu acesso não utiliza CRM e possui permissões próprias.</p>{% endif %}<div class="actions"><a href="/">← Voltar para o início</a><button id="logout">Sair</button></div>
-</section></main></div><script>document.getElementById("logout").addEventListener("click",async()=>{await fetch("/account/logout",{method:"POST"});window.location.assign({{ ('/doctor/login' if kind == 'doctor' else '/non-medical/login') | tojson }})});</script></body></html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Meu perfil</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <style>
+    .profile-heading{margin-bottom:1.5rem}.profile-heading p{max-width:46rem}.summary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem}.summary-grid>div{padding:.9rem;border:1px solid var(--border);border-radius:.75rem;background:var(--surface)}.summary-grid span{display:block;color:var(--muted);font-size:.76rem;margin-bottom:.3rem}.editable-card{margin-top:1rem}.save-actions{display:flex;justify-content:flex-end;margin-top:1rem}@media(max-width:720px){.summary-grid{grid-template-columns:1fr}.save-actions button{width:100%}}
+  </style>
+  <script src="/static/theme.js" defer></script>
+</head>
+<body><main class="page-shell">
+  <header class="site-header"><a class="brand" href="/"><span class="brand-mark">+</span><span>Portal de acessos</span></a><div class="header-actions"><button class="theme-toggle" type="button" data-theme-toggle>Tema escuro</button><button id="logout" class="secondary" type="button">Sair</button></div></header>
+  <section class="profile-heading"><span class="eyebrow">MEU PERFIL</span><h1>Olá, {{ user.nome }}</h1><p>Sua conta está ativa. Consulte e mantenha seus dados de contato atualizados.</p></section>
+  <section class="card">
+    <span class="badge success">✓ Conta ativa</span><h2>Informações da conta</h2>
+    <div class="summary-grid"><div><span>Tipo de acesso</span><strong>Usuário sem CRM</strong></div><div><span>Cadastrado em</span><strong>{{ user.created_at.strftime("%d/%m/%Y") if user.created_at else "—" }}</strong></div><div><span>Aprovado em</span><strong>{{ user.approved_at.strftime("%d/%m/%Y") if user.approved_at else "—" }}</strong></div></div>
+  </section>
+  <section class="card editable-card">
+    <span class="eyebrow">DADOS PESSOAIS</span><h2>Informações de contato</h2><p>Você pode atualizar estes campos sempre que precisar.</p>
+    <form id="profile-form" class="form-grid"><label>Nome completo<input id="profile-name" value="{{ user.nome }}" required minlength="2" maxlength="80" autocomplete="name" /></label><label>E-mail de acesso<input id="profile-email" type="email" value="{{ user.email }}" required autocomplete="email" /></label><label>CPF<input id="profile-cpf" value="{{ user.cpf or '' }}" required placeholder="000.000.000-00" maxlength="14" inputmode="numeric" autocomplete="off" /></label><label>Número de celular<input id="profile-phone" value="{{ user.mobile_phone or '' }}" placeholder="(21) 99999-9999" maxlength="15" inputmode="tel" autocomplete="tel" /></label></form>
+    <p id="profile-message" class="message" role="status" hidden></p><div class="save-actions"><button id="save-profile" type="button">Salvar alterações</button></div>
+  </section>
+  <div class="actions" style="margin-top:1.25rem"><a href="/">← Voltar para o início</a></div>
+</main>
+<script>
+  const phone=document.getElementById("profile-phone"),cpf=document.getElementById("profile-cpf"),message=document.getElementById("profile-message");function digits(value){return value.replace(/\D/g,"")}function formatPhone(value){const raw=digits(value).slice(0,11);if(raw.length<=10)return raw.replace(/(\d{2})(\d)/,"($1) $2").replace(/(\d{4})(\d)/,"$1-$2");return raw.replace(/(\d{2})(\d)/,"($1) $2").replace(/(\d{5})(\d)/,"$1-$2")}function formatCpf(value){return digits(value).slice(0,11).replace(/(\d{3})(\d)/,"$1.$2").replace(/(\d{3})(\d)/,"$1.$2").replace(/(\d{3})(\d{1,2})$/,"$1-$2")}phone.value=formatPhone(phone.value);cpf.value=formatCpf(cpf.value);phone.addEventListener("input",()=>phone.value=formatPhone(phone.value));cpf.addEventListener("input",()=>cpf.value=formatCpf(cpf.value));
+  document.getElementById("save-profile").addEventListener("click",async event=>{const button=event.currentTarget,form=document.getElementById("profile-form");if(!form.checkValidity()){form.reportValidity();return}message.hidden=true;button.disabled=true;try{const response=await fetch("/non-medical/profile",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({nome:document.getElementById("profile-name").value,email:document.getElementById("profile-email").value,cpf:cpf.value,mobile_phone:phone.value,action:"save"})}),body=await response.json();if(!response.ok){const detail=Array.isArray(body.detail)?body.detail.map(item=>item.msg).join("; "):body.detail;throw new Error(detail||"Não foi possível salvar o perfil.")}message.textContent=body.message;message.className="message success";message.hidden=false}catch(reason){message.textContent=reason.message;message.className="message";message.hidden=false}finally{button.disabled=false}});
+  document.getElementById("logout").addEventListener("click",async()=>{await fetch("/account/logout",{method:"POST"});window.location.assign("/non-medical/login")});
+</script></body></html>

@@ -1,3 +1,4 @@
+import hashlib
 import os
 import re
 from datetime import UTC, datetime
@@ -5,7 +6,7 @@ from hmac import compare_digest
 from pathlib import Path
 from typing import Annotated, Literal
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -19,7 +20,7 @@ from pydantic import (
     field_validator,
     model_validator,
 )
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -28,7 +29,12 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.database import get_db
 from app.dependencies import get_doctor_verification_service, get_notification_publisher
 from app.models import Doctor, DoctorSpecialty, User
-from app.security import hash_password, verify_password
+from app.security import (
+    create_password_reset_token,
+    hash_password,
+    read_password_reset_token,
+    verify_password,
+)
 from app.services.cfm import CFMDoctor, CFMServiceError
 from app.services.crm_numbers import crm_digits
 from app.services.doctor_verification import DoctorVerificationFailure, DoctorVerificationService
@@ -161,13 +167,29 @@ ESTADOS_CIVIS = frozenset(
 
 
 def cpf_is_valid(value: str) -> bool:
-    if len(value) != 11 or len(set(value)) == 1:
-        return False
-    first_total = sum(int(digit) * weight for digit, weight in zip(value[:9], range(10, 1, -1)))
-    first = (first_total * 10 % 11) % 10
-    second_total = sum(int(digit) * weight for digit, weight in zip(value[:10], range(11, 1, -1)))
-    second = (second_total * 10 % 11) % 10
-    return value[-2:] == f"{first}{second}"
+    """Validação simplificada para o exercício: exige somente onze dígitos."""
+
+    return len(value) == 11 and value.isdigit()
+
+
+def normalize_cpf(value: str | None) -> str | None:
+    digits = re.sub(r"\D", "", value) if isinstance(value, str) else ""
+    if not digits:
+        return None
+    if not cpf_is_valid(digits):
+        raise ValueError("CPF deve conter 11 dígitos")
+    return digits
+
+
+def normalize_mobile_phone(value: str | None) -> str | None:
+    digits = re.sub(r"\D", "", value) if isinstance(value, str) else ""
+    if digits.startswith("55") and len(digits) in {12, 13}:
+        digits = digits[2:]
+    if not digits:
+        return None
+    if len(digits) not in {10, 11}:
+        raise ValueError("Celular deve conter DDD e número")
+    return digits
 
 
 class UserIn(BaseModel):
@@ -225,7 +247,15 @@ class DoctorRegistrationIn(PasswordRegistration):
 
 
 class NonDoctorRegistrationIn(PasswordRegistration):
-    pass
+    cpf: str
+
+    @field_validator("cpf", mode="before")
+    @classmethod
+    def validar_cpf(cls, value: str | None) -> str:
+        normalized = normalize_cpf(value)
+        if normalized is None:
+            raise ValueError("CPF deve conter 11 dígitos")
+        return normalized
 
 
 class DoctorRegistrationUpdateIn(BaseModel):
@@ -262,12 +292,7 @@ class DoctorProfileUpdateIn(BaseModel):
     @field_validator("cpf", mode="before")
     @classmethod
     def validar_cpf(cls, value: str | None) -> str | None:
-        digits = re.sub(r"\D", "", value) if isinstance(value, str) else ""
-        if not digits:
-            return None
-        if not cpf_is_valid(digits):
-            raise ValueError("CPF inválido")
-        return digits
+        return normalize_cpf(value)
 
     @field_validator("marital_status", mode="before")
     @classmethod
@@ -282,14 +307,7 @@ class DoctorProfileUpdateIn(BaseModel):
     @field_validator("mobile_phone", mode="before")
     @classmethod
     def validar_celular(cls, value: str | None) -> str | None:
-        digits = re.sub(r"\D", "", value) if isinstance(value, str) else ""
-        if digits.startswith("55") and len(digits) in {12, 13}:
-            digits = digits[2:]
-        if not digits:
-            return None
-        if len(digits) not in {10, 11}:
-            raise ValueError("Celular deve conter DDD e número")
-        return digits
+        return normalize_mobile_phone(value)
 
     @model_validator(mode="after")
     def validar_conclusao(self):
@@ -308,6 +326,48 @@ class AccountLogin(BaseModel):
     @classmethod
     def normalizar_email(cls, value: str) -> str:
         return value.strip().lower() if isinstance(value, str) else ""
+
+
+class NonDoctorProfileUpdateIn(UserIn):
+    cpf: str
+    mobile_phone: str | None = None
+    action: Literal["save", "resubmit"] = "save"
+
+    @field_validator("cpf", mode="before")
+    @classmethod
+    def validar_cpf(cls, value: str | None) -> str:
+        normalized = normalize_cpf(value)
+        if normalized is None:
+            raise ValueError("CPF deve conter 11 dígitos")
+        return normalized
+
+    @field_validator("mobile_phone", mode="before")
+    @classmethod
+    def validar_celular(cls, value: str | None) -> str | None:
+        return normalize_mobile_phone(value)
+
+
+class PasswordResetRequestIn(BaseModel):
+    email: str
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalizar_email(cls, value: str) -> str:
+        return value.strip().lower() if isinstance(value, str) else ""
+
+
+class PasswordResetConfirmIn(BaseModel):
+    token: str
+    senha: str
+    confirmacao_senha: str
+
+    @model_validator(mode="after")
+    def validar_senhas(self):
+        if not 8 <= len(self.senha) <= 128:
+            raise ValueError("A senha deve ter entre 8 e 128 caracteres")
+        if self.senha != self.confirmacao_senha:
+            raise ValueError("As senhas não coincidem")
+        return self
 
 
 class AdminLogin(BaseModel):
@@ -509,13 +569,65 @@ def attempt_automatic_verification(
     return user_with_doctor_dict(user)
 
 
-@app.post("/registrations", status_code=201)
+def process_cfm_verification_in_background(
+    user_id: int,
+    expected_name: str,
+    expected_crm: str,
+    expected_uf: str,
+    verifier: DoctorVerificationService,
+    notifications: NotificationPublisher,
+    bind,
+) -> None:
+    """Executa a consulta fora da resposta HTTP usando uma nova sessão do banco."""
+
+    with Session(bind=bind) as db:
+        user = db.scalar(
+            select(User).options(selectinload(User.doctor)).where(User.id == user_id)
+        )
+        if user is None or user.doctor is None:
+            return
+        if (
+            user.nome != expected_name
+            or user.doctor.crm != expected_crm
+            or user.doctor.uf != expected_uf
+            or user.registration_status != STATUS_CRM_PENDING
+        ):
+            return
+        result = attempt_automatic_verification(user, verifier, db)
+        notifications.account_status_changed(user.id, user.email, result["registration_status"])
+
+
+def schedule_cfm_verification(
+    background_tasks: BackgroundTasks,
+    user: User,
+    verifier: DoctorVerificationService,
+    notifications: NotificationPublisher,
+    db: Session,
+) -> None:
+    if user.doctor is None:
+        raise RuntimeError("Cadastro médico sem perfil profissional")
+    background_tasks.add_task(
+        process_cfm_verification_in_background,
+        user.id,
+        user.nome,
+        user.doctor.crm,
+        user.doctor.uf,
+        verifier,
+        notifications,
+        db.get_bind(),
+    )
+
+
+@app.post("/registrations", status_code=202)
 def create_doctor_registration(
     novo: DoctorRegistrationIn,
+    request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     verifier: DoctorVerificationService = Depends(get_doctor_verification_service),
+    notifications: NotificationPublisher = Depends(get_notification_publisher),
 ) -> dict:
-    """Só confirma o cadastro após validar os dados profissionais no CFM."""
+    """Salva o cadastro e agenda a validação profissional sem bloquear a resposta."""
     if db.scalar(select(User).where(User.email == novo.user.email)):
         raise HTTPException(status_code=409, detail=f"O e-mail {novo.user.email} já está cadastrado")
     ensure_doctor_is_available(novo.doctor, db)
@@ -536,26 +648,42 @@ def create_doctor_registration(
             status_code=409,
             detail="Não foi possível concluir: e-mail ou CRM já cadastrado",
         )
-    return attempt_automatic_verification(
-        user,
-        verifier,
-        db,
-        discard_on_professional_failure=True,
-    )
+    db.commit()
+    db.refresh(user)
+    request.session["user_id"] = user.id
+    schedule_cfm_verification(background_tasks, user, verifier, notifications, db)
+    return {
+        **user_with_doctor_dict(user),
+        "message": "Cadastro salvo. A validação do CFM foi iniciada em segundo plano.",
+        "redirect_url": "/account/status",
+    }
 
 
 @app.post("/non-medical/registrations", status_code=201)
-def create_non_doctor_registration(novo: NonDoctorRegistrationIn, db: Session = Depends(get_db)) -> dict:
+def create_non_doctor_registration(
+    novo: NonDoctorRegistrationIn,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> dict:
     if db.scalar(select(User).where(User.email == novo.user.email)):
         raise HTTPException(status_code=409, detail=f"O e-mail {novo.user.email} já está cadastrado")
+    if db.scalar(select(User).where(User.cpf == novo.cpf)):
+        raise HTTPException(status_code=409, detail="Este CPF já está cadastrado")
     user = User(
         nome=novo.user.nome,
         email=novo.user.email,
+        cpf=novo.cpf,
         password_hash=hash_password(novo.senha),
         account_type=ACCOUNT_NON_DOCTOR,
         registration_status=STATUS_ADMIN_PENDING,
     )
-    return commit_registration(db, user, "Não foi possível concluir: e-mail já cadastrado")
+    result = commit_registration(db, user, "Não foi possível concluir: e-mail ou CPF já cadastrado")
+    request.session["user_id"] = user.id
+    return {
+        **result,
+        "message": "Cadastro realizado. Acompanhe a análise da sua solicitação.",
+        "redirect_url": "/account/status",
+    }
 
 
 @app.post("/doctor/login")
@@ -568,6 +696,67 @@ def non_doctor_login(credentials: AccountLogin, request: Request, db: Session = 
     return authenticate_account(credentials, ACCOUNT_NON_DOCTOR, request, db)
 
 
+@app.post("/account/password-reset/request")
+def request_password_reset(
+    data: PasswordResetRequestIn,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    notifications: NotificationPublisher = Depends(get_notification_publisher),
+) -> dict:
+    """Gera um link temporário sem revelar se o e-mail existe."""
+
+    user = db.scalar(select(User).where(User.email == data.email))
+    reset_url = None
+    if user is not None and user.password_hash:
+        token = create_password_reset_token(
+            user.id,
+            user.email,
+            user.password_hash,
+            required_setting("SESSION_SECRET"),
+        )
+        reset_url = str(request.url_for("password_reset_page").include_query_params(token=token))
+        background_tasks.add_task(notifications.password_reset_requested, user.email, reset_url)
+    result = {
+        "message": "Se o e-mail estiver cadastrado, as instruções para criar uma nova senha serão enviadas.",
+    }
+    if reset_url and os.getenv("PASSWORD_RESET_SHOW_LINK", "true").lower() == "true":
+        result["reset_url"] = reset_url
+    return result
+
+
+@app.post("/account/password-reset/confirm")
+def confirm_password_reset(
+    data: PasswordResetConfirmIn,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    payload = read_password_reset_token(
+        data.token,
+        required_setting("SESSION_SECRET"),
+        max_age=int(os.getenv("PASSWORD_RESET_MAX_AGE_SECONDS", "3600")),
+    )
+    if payload is None:
+        raise HTTPException(status_code=400, detail="O link de recuperação é inválido ou expirou")
+    user = db.get(User, payload["user_id"])
+    current_version = (
+        hashlib.sha256(user.password_hash.encode()).hexdigest()[:16]
+        if user is not None and user.password_hash
+        else None
+    )
+    if (
+        user is None
+        or user.email != payload["email"]
+        or current_version != payload.get("password_version")
+    ):
+        raise HTTPException(status_code=400, detail="O link de recuperação é inválido ou já foi utilizado")
+    user.password_hash = hash_password(data.senha)
+    db.commit()
+    request.session.clear()
+    login_url = "/doctor/login" if user.account_type == ACCOUNT_DOCTOR else "/non-medical/login"
+    return {"message": "Senha atualizada com sucesso", "redirect_url": login_url}
+
+
 @app.post("/account/logout", status_code=204)
 def account_logout(request: Request) -> Response:
     request.session.clear()
@@ -576,7 +765,7 @@ def account_logout(request: Request) -> Response:
 
 @app.get("/account/me")
 def account_me(user: User = Depends(get_authenticated_user)) -> dict:
-    return user_with_doctor_dict(user)
+    return {**user_with_doctor_dict(user), "redirect_url": destination_for(user)}
 
 
 @app.get("/doctor/profile")
@@ -586,7 +775,47 @@ def doctor_profile(user: User = Depends(require_active_doctor)) -> dict:
 
 @app.get("/non-medical/profile")
 def non_doctor_profile(user: User = Depends(require_active_non_doctor)) -> dict:
-    return basic_user_dict(user)
+    return user.to_dict()
+
+
+@app.put("/non-medical/profile")
+def update_own_non_doctor_profile(
+    data: NonDoctorProfileUpdateIn,
+    user: User = Depends(get_authenticated_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Permite salvar o perfil e reenviar um cadastro rejeitado para análise."""
+
+    if user.account_type != ACCOUNT_NON_DOCTOR:
+        raise HTTPException(status_code=403, detail="Esta ação está disponível apenas para usuários sem CRM")
+    email_owner = db.scalar(select(User).where(User.email == data.email, User.id != user.id))
+    if email_owner:
+        raise HTTPException(status_code=409, detail=f"O e-mail {data.email} já está cadastrado")
+    cpf_owner = db.scalar(select(User).where(User.cpf == data.cpf, User.id != user.id))
+    if cpf_owner:
+        raise HTTPException(status_code=409, detail="Este CPF já está cadastrado")
+    if data.action == "resubmit" and user.registration_status != STATUS_REJECTED:
+        raise HTTPException(status_code=409, detail="Somente cadastros rejeitados precisam ser reenviados")
+    user.nome = data.nome
+    user.email = data.email
+    user.cpf = data.cpf
+    user.mobile_phone = data.mobile_phone
+    if data.action == "resubmit":
+        user.registration_status = STATUS_ADMIN_PENDING
+        user.rejection_reason = None
+        user.rejected_at = None
+        user.reviewed_by_admin = None
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="O e-mail ou CPF informado já está cadastrado")
+    db.refresh(user)
+    return {
+        **user.to_dict(),
+        "message": "Cadastro reenviado para análise" if data.action == "resubmit" else "Perfil atualizado",
+        "redirect_url": destination_for(user),
+    }
 
 
 @app.post("/doctor/complete-profile")
@@ -654,9 +883,11 @@ def update_own_doctor_profile(
 @app.post("/doctor/retry-cfm")
 def retry_own_cfm_verification(
     data: DoctorRetryIn,
+    background_tasks: BackgroundTasks,
     user: User = Depends(get_authenticated_user),
     db: Session = Depends(get_db),
     verifier: DoctorVerificationService = Depends(get_doctor_verification_service),
+    notifications: NotificationPublisher = Depends(get_notification_publisher),
 ) -> dict:
     """Permite ao médico corrigir o próprio cadastro pendente e tentar novamente."""
 
@@ -687,24 +918,65 @@ def retry_own_cfm_verification(
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=409, detail="O CRM informado já está cadastrado")
-    result = attempt_automatic_verification(user, verifier, db)
-    return {**result, "redirect_url": destination_for(user)}
+    db.commit()
+    db.refresh(user)
+    schedule_cfm_verification(background_tasks, user, verifier, notifications, db)
+    return {
+        **user_with_doctor_dict(user),
+        "message": "Nova consulta iniciada em segundo plano.",
+        "redirect_url": "/account/status",
+    }
 
 
 @app.get("/admin/registrations")
 def admin_registrations(
     registration_status: str | None = None,
+    pending_only: bool = False,
+    q: str | None = None,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
     _: str = Depends(require_admin),
-) -> list[dict]:
+) -> dict:
+    filters = []
+    if registration_status:
+        filters.append(User.registration_status == registration_status)
+    if pending_only:
+        filters.append(
+            User.registration_status.in_(
+                {STATUS_PENDING, STATUS_ADMIN_PENDING, STATUS_CRM_PENDING, STATUS_CRM_FAILED}
+            )
+        )
+    term = (q or "").strip()
+    if term:
+        pattern = f"%{term}%"
+        filters.append(
+            or_(User.nome.ilike(pattern), User.email.ilike(pattern), Doctor.crm.ilike(pattern))
+        )
+
     statement = (
         select(User)
+        .outerjoin(Doctor)
         .options(selectinload(User.doctor).selectinload(Doctor.specialties))
         .order_by(User.created_at, User.id)
     )
-    if registration_status:
-        statement = statement.where(User.registration_status == registration_status)
-    return [user_with_doctor_dict(user) for user in db.scalars(statement)]
+    count_statement = select(func.count(User.id)).select_from(User).outerjoin(Doctor)
+    if filters:
+        statement = statement.where(*filters)
+        count_statement = count_statement.where(*filters)
+    total = db.scalar(count_statement) or 0
+    pages = max(1, (total + page_size - 1) // page_size)
+    current_page = min(page, pages)
+    items = db.scalars(
+        statement.offset((current_page - 1) * page_size).limit(page_size)
+    ).all()
+    return {
+        "items": [user_with_doctor_dict(user) for user in items],
+        "total": total,
+        "page": current_page,
+        "page_size": page_size,
+        "pages": pages,
+    }
 
 
 @app.get("/admin/registrations/summary")
@@ -738,6 +1010,7 @@ def admin_registration_detail(
 @app.post("/admin/registrations/{user_id}/approve")
 def approve_registration(
     user_id: int,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     admin_name: str = Depends(require_admin),
     verifier: DoctorVerificationService = Depends(get_doctor_verification_service),
@@ -777,7 +1050,9 @@ def approve_registration(
         user.doctor.verification_last_error = None
     db.commit()
     db.refresh(user)
-    notifications.account_status_changed(user.id, user.email, user.registration_status)
+    background_tasks.add_task(
+        notifications.account_status_changed, user.id, user.email, user.registration_status
+    )
     return user_with_doctor_dict(user)
 
 
@@ -785,6 +1060,7 @@ def approve_registration(
 def reject_registration(
     user_id: int,
     data: RejectionIn,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     admin_name: str = Depends(require_admin),
     notifications: NotificationPublisher = Depends(get_notification_publisher),
@@ -807,16 +1083,20 @@ def reject_registration(
         user.doctor.verification_status = "rejected"
     db.commit()
     db.refresh(user)
-    notifications.account_status_changed(user.id, user.email, user.registration_status)
+    background_tasks.add_task(
+        notifications.account_status_changed, user.id, user.email, user.registration_status
+    )
     return user_with_doctor_dict(user)
 
 
 @app.post("/admin/registrations/{user_id}/retry-cfm")
 def retry_cfm_verification(
     user_id: int,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     _: str = Depends(require_admin),
     verifier: DoctorVerificationService = Depends(get_doctor_verification_service),
+    notifications: NotificationPublisher = Depends(get_notification_publisher),
 ) -> dict:
     user = db.scalar(
         select(User).options(selectinload(User.doctor)).where(User.id == user_id)
@@ -830,7 +1110,12 @@ def retry_cfm_verification(
     user.registration_status = STATUS_CRM_PENDING
     user.doctor.verification_status = "pending_browser"
     db.commit()
-    return attempt_automatic_verification(user, verifier, db)
+    db.refresh(user)
+    schedule_cfm_verification(background_tasks, user, verifier, notifications, db)
+    return {
+        **user_with_doctor_dict(user),
+        "message": "Nova consulta ao CFM iniciada em segundo plano.",
+    }
 
 
 @app.post("/admin/registrations/{user_id}/sync-cfm")
@@ -1086,6 +1371,20 @@ def doctor_login_page(request: Request):
 @app.get("/non-medical/login")
 def non_medical_login_page(request: Request):
     return templates.TemplateResponse(request=request, name="account_login.html", context={"account_type": ACCOUNT_NON_DOCTOR})
+
+
+@app.get("/account/forgot-password")
+def forgot_password_page(request: Request):
+    return templates.TemplateResponse(request=request, name="forgot_password.html")
+
+
+@app.get("/account/reset-password", name="password_reset_page")
+def password_reset_page(request: Request, token: str = ""):
+    return templates.TemplateResponse(
+        request=request,
+        name="reset_password.html",
+        context={"token": token},
+    )
 
 
 @app.get("/account/status")

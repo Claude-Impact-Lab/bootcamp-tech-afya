@@ -20,6 +20,8 @@ class User(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     nome: Mapped[str] = mapped_column(String(80), nullable=False)
     email: Mapped[str] = mapped_column(String(120), unique=True, index=True, nullable=False)
+    cpf: Mapped[str | None] = mapped_column(String(11), unique=True, index=True)
+    mobile_phone: Mapped[str | None] = mapped_column(String(11))
     password_hash: Mapped[str | None] = mapped_column(String(255))
     account_type: Mapped[str] = mapped_column(
         String(20), default="non_doctor", server_default="non_doctor", nullable=False
@@ -48,6 +50,8 @@ class User(Base):
             "id": self.id,
             "nome": self.nome,
             "email": self.email,
+            "cpf": self.cpf,
+            "mobile_phone": self.mobile_phone,
             "account_type": self.account_type,
             "registration_status": self.registration_status,
             "created_at": self.created_at.isoformat() if self.created_at else None,

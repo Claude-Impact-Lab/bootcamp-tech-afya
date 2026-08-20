@@ -16,13 +16,28 @@
     <section class="card status-card">
       <span class="eyebrow">ACOMPANHAMENTO</span>
       {% if user.registration_status in ["pending_verification", "pending_admin_approval"] %}
-        <span class="badge warning">Em análise</span><h1>Seu cadastro ainda está em análise</h1><p class="lead">Você pode conferir os dados profissionais abaixo e enviar uma nova consulta ao CFM.</p>
+        <span class="badge warning">Em análise</span><h1>Seu cadastro ainda está em análise</h1>{% if user.account_type == "doctor" %}<p class="lead">Você pode conferir os dados profissionais abaixo e enviar uma nova consulta ao CFM.</p>{% else %}<p class="lead">Seus dados foram recebidos e aguardam a decisão do administrador. Você pode atualizá-los enquanto espera.</p>{% endif %}
       {% elif user.registration_status == "crm_verification_pending" %}
         <span class="badge warning">Validação pendente</span><h1>Validação do CRM pendente</h1><p class="lead">A consulta automática não foi concluída. Confira seus dados e tente novamente quando desejar.</p>
       {% elif user.registration_status == "crm_verification_failed" %}
         <span class="badge danger">Validação não concluída</span><h1>Não foi possível validar o CRM</h1><p class="lead">Confira nome, CRM e UF antes de realizar uma nova tentativa.</p>{% if user.doctor and user.doctor.verification_last_error %}<p class="message">{{ user.doctor.verification_last_error }}</p>{% endif %}
       {% else %}
         <span class="badge danger">Cadastro rejeitado</span><h1>Cadastro rejeitado</h1><p class="lead">Sua solicitação não pôde ser aprovada.</p>{% if user.rejection_reason %}<p class="message">{{ user.rejection_reason }}</p>{% endif %}
+      {% endif %}
+
+      {% if user.account_type == "non_doctor" %}
+      <section class="retry-section">
+        <h2>{{ "Corrigir e reenviar" if user.registration_status == "rejected" else "Seus dados" }}</h2>
+        <p>{{ "Atualize as informações e envie uma nova solicitação ao administrador." if user.registration_status == "rejected" else "Mantenha seus dados de contato corretos durante a análise." }}</p>
+        <form id="non-doctor-form" class="form-grid">
+          <label>Nome completo<input id="non-doctor-name" value="{{ user.nome }}" required minlength="2" maxlength="80" autocomplete="name" /></label>
+          <label>E-mail<input id="non-doctor-email" type="email" value="{{ user.email }}" required autocomplete="email" /></label>
+          <label>CPF<input id="non-doctor-cpf" value="{{ user.cpf or '' }}" required placeholder="000.000.000-00" maxlength="14" inputmode="numeric" autocomplete="off" /></label>
+          <label>Número de celular<input id="non-doctor-phone" value="{{ user.mobile_phone or '' }}" placeholder="(21) 99999-9999" maxlength="15" inputmode="tel" autocomplete="tel" /></label>
+          <div class="full retry-actions"><button id="non-doctor-submit" type="submit">{{ "Salvar e reenviar para análise" if user.registration_status == "rejected" else "Salvar dados" }}</button></div>
+        </form>
+        <p id="non-doctor-message" class="message" role="status" hidden></p>
+      </section>
       {% endif %}
 
       {% if user.account_type == "doctor" and user.doctor and user.registration_status in ["pending_verification", "pending_admin_approval", "crm_verification_pending", "crm_verification_failed"] %}
@@ -47,6 +62,8 @@
   <script>
     const retryForm=document.getElementById("retry-form");
     if(retryForm){retryForm.addEventListener("submit",async event=>{event.preventDefault();if(!retryForm.checkValidity()){retryForm.reportValidity();return}const button=document.getElementById("retry-submit"),message=document.getElementById("retry-message");button.disabled=true;message.textContent="Consultando o CFM. Se aparecer um CAPTCHA, resolva-o na janela do Chrome.";message.className="message success";message.hidden=false;try{const response=await fetch("/doctor/retry-cfm",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({nome:document.getElementById("retry-name").value,doctor:{crm:document.getElementById("retry-crm").value,uf:document.getElementById("retry-uf").value}})}),body=await response.json();if(!response.ok){const detail=Array.isArray(body?.detail)?body.detail.map(item=>String(item.msg).replace("Value error, ","")).join("; "):body?.detail;throw new Error(detail||"Não foi possível consultar o CFM.")}window.location.assign(body.redirect_url)}catch(reason){message.textContent=reason.message;message.className="message";button.disabled=false}})}
+    const nonDoctorForm=document.getElementById("non-doctor-form");if(nonDoctorForm){const phone=document.getElementById("non-doctor-phone"),cpf=document.getElementById("non-doctor-cpf"),formatPhone=value=>{const raw=value.replace(/\D/g,"").slice(0,11);return raw.length<=10?raw.replace(/(\d{2})(\d)/,"($1) $2").replace(/(\d{4})(\d)/,"$1-$2"):raw.replace(/(\d{2})(\d)/,"($1) $2").replace(/(\d{5})(\d)/,"$1-$2")},formatCpf=value=>value.replace(/\D/g,"").slice(0,11).replace(/(\d{3})(\d)/,"$1.$2").replace(/(\d{3})(\d)/,"$1.$2").replace(/(\d{3})(\d{1,2})$/,"$1-$2");phone.value=formatPhone(phone.value);cpf.value=formatCpf(cpf.value);phone.addEventListener("input",()=>phone.value=formatPhone(phone.value));cpf.addEventListener("input",()=>cpf.value=formatCpf(cpf.value));nonDoctorForm.addEventListener("submit",async event=>{event.preventDefault();if(!nonDoctorForm.checkValidity()){nonDoctorForm.reportValidity();return}const button=document.getElementById("non-doctor-submit"),message=document.getElementById("non-doctor-message");button.disabled=true;message.hidden=true;try{const response=await fetch("/non-medical/profile",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({nome:document.getElementById("non-doctor-name").value,email:document.getElementById("non-doctor-email").value,cpf:cpf.value,mobile_phone:phone.value,action:{{ ('resubmit' if user.registration_status == 'rejected' else 'save') | tojson }}})}),body=await response.json();if(!response.ok){const detail=Array.isArray(body.detail)?body.detail.map(item=>item.msg).join("; "):body.detail;throw new Error(detail||"Não foi possível salvar.")}message.textContent=body.message;message.className="message success";message.hidden=false;if(body.redirect_url!=="/account/status")window.location.assign(body.redirect_url);else if({{ (user.registration_status == 'rejected') | tojson }})window.location.reload()}catch(reason){message.textContent=reason.message;message.className="message";message.hidden=false}finally{button.disabled=false}})}
+    {% if user.registration_status != "rejected" %}setInterval(async()=>{try{const response=await fetch("/account/me");if(!response.ok)return;const body=await response.json();if(body.redirect_url&&body.redirect_url!=="/account/status")window.location.assign(body.redirect_url)}catch(_){}},5000);{% endif %}
     document.getElementById("logout").addEventListener("click",async()=>{await fetch("/account/logout",{method:"POST"});window.location.assign({{ ('/doctor/login' if user.account_type == 'doctor' else '/non-medical/login') | tojson }})});
   </script>
 </body>

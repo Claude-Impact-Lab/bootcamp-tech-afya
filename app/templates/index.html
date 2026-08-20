@@ -70,13 +70,6 @@
       .eyebrow { color: var(--accent); font-size: .76rem; font-weight: 800; letter-spacing: .13em; }
       h1 { max-width: 12ch; margin: .8rem 0 1.2rem; font-size: clamp(2.5rem, 6vw, 4.6rem); line-height: 1.02; }
       .intro > p { max-width: 32rem; color: var(--muted); font-size: 1.08rem; line-height: 1.7; }
-      .beneficios { display: grid; gap: .8rem; margin: 2rem 0 0; padding: 0; list-style: none; }
-      .beneficios li { display: flex; align-items: center; gap: .7rem; color: var(--muted); }
-      .beneficios li::before {
-        content: "✓"; width: 1.45rem; height: 1.45rem; display: grid; place-items: center;
-        border-radius: 50%; background: rgba(24, 168, 163, .16); color: var(--accent); font-weight: 900;
-      }
-
       .card {
         padding: clamp(1.5rem, 4vw, 2.4rem);
         border: 1px solid var(--border);
@@ -128,8 +121,25 @@
       }
       #resultado.erro { border-color: var(--danger-border); background: var(--danger-bg); color: var(--danger-text); }
       .privacidade { margin: 1rem 0 0; color: var(--muted); font-size: .76rem; line-height: 1.5; text-align: center; }
-      .links { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1.5rem; }
-      .admin-link { color: var(--muted); font-size: .82rem; }
+      .access-panel { max-width: 32rem; margin-top: 2rem; }
+      .access-heading { margin: 0 0 .85rem; color: var(--text); font-size: 1rem; }
+      .access-actions { display: grid; grid-template-columns: 1fr; gap: .7rem; }
+      .access-button {
+        min-height: 4.5rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+        padding: 1rem 1.15rem; border: 1px solid var(--primary); border-radius: .8rem;
+        background: var(--primary); color: #fff; text-decoration: none;
+        box-shadow: 0 .55rem 1.4rem rgba(22, 143, 139, .16); transition: transform .2s, background .2s;
+      }
+      .access-button:hover { background: var(--primary-hover); color: #fff; transform: translateY(-2px); }
+      .access-button.secondary { background: var(--card); color: var(--text); box-shadow: none; }
+      .access-button.secondary:hover { background: var(--surface); color: var(--text); }
+      .access-copy { display: grid; gap: .12rem; }
+      .access-copy strong { font-size: 1rem; }
+      .access-copy small { color: inherit; font-size: .76rem; opacity: .82; }
+      .access-arrow { font-size: 1.3rem; font-weight: 800; }
+      .utility-links { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .8rem; margin-top: .85rem; }
+      .utility-links a { color: var(--muted); font-size: .8rem; }
+      .admin-link { opacity: .82; }
       [hidden] { display: none !important; }
 
       @media (max-width: 820px) {
@@ -142,6 +152,9 @@
       @media (max-width: 540px) {
         form { grid-template-columns: 1fr; }
         #botao-salvar { grid-column: auto; }
+        .access-actions { grid-template-columns: 1fr; }
+        .access-button { min-height: 4.2rem; }
+        .utility-links { align-items: flex-start; flex-direction: column; }
       }
     </style>
   </head>
@@ -155,11 +168,17 @@
           <span class="eyebrow">ACESSO PARA PROFISSIONAIS</span>
           <h1>Seu perfil médico em um só lugar.</h1>
           <p>Faça seu pré-cadastro. O CRM será consultado no portal público do CFM.</p>
-          <ul class="beneficios">
-            <li>Dados pessoais e profissionais conectados</li>
-            <li>CRM validado no CFM com Chrome local e visível</li>
-            <li>Informações protegidas no painel administrativo</li>
-          </ul>
+          <section class="access-panel" aria-labelledby="access-heading">
+            <h2 id="access-heading" class="access-heading">Já possui cadastro? Entre no seu perfil</h2>
+            <div class="access-actions">
+              <a class="access-button" href="/doctor/login"><span class="access-copy"><strong>Entrar como médico</strong><small>Acompanhar validação ou acessar perfil</small></span><span class="access-arrow" aria-hidden="true">→</span></a>
+              <a class="access-button secondary" href="/non-medical/login"><span class="access-copy"><strong>Entrar sem CRM</strong><small>Acompanhar solicitação ou acessar perfil</small></span><span class="access-arrow" aria-hidden="true">→</span></a>
+            </div>
+            <div class="utility-links">
+              <a href="/non-medical/register">Criar acesso sem CRM</a>
+              <a class="admin-link" href="/admin">Acesso administrativo</a>
+            </div>
+          </section>
         </section>
 
         <section class="card">
@@ -198,11 +217,6 @@
         </section>
       </div>
 
-      <div class="links">
-        <a class="admin-link" href="/doctor/login">Já sou médico cadastrado</a>
-        <a class="admin-link" href="/non-medical/register">Não sou médico</a>
-        <a class="admin-link" href="/admin">Acesso administrativo</a>
-      </div>
     </main>
 
     <script>
@@ -257,7 +271,11 @@
               resultado.textContent = "A validação não foi concluída. O cadastro foi salvo para uma nova tentativa ou análise administrativa.";
             }
             resultado.hidden = false;
-            campoNome.focus();
+            if (corpo.redirect_url) {
+              window.setTimeout(() => window.location.assign(corpo.redirect_url), 900);
+            } else {
+              campoNome.focus();
+            }
           })
           .catch((erro) => {
             resultado.textContent = erro?.name === "Error"

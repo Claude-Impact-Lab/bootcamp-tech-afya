@@ -6,8 +6,11 @@ import hashlib
 import hmac
 import os
 
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+
 ALGORITHM = "pbkdf2_sha256"
 ITERATIONS = 600_000
+PASSWORD_RESET_SALT = "password-reset"
 
 
 def hash_password(password: str) -> str:
@@ -42,3 +45,30 @@ def verify_password(password: str, encoded: str | None) -> bool:
 
     calculated = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, iterations)
     return hmac.compare_digest(calculated, expected)
+
+
+def create_password_reset_token(
+    user_id: int, email: str, password_hash: str, secret: str
+) -> str:
+    """Cria um token assinado sem armazenar a senha ou o token no banco."""
+
+    serializer = URLSafeTimedSerializer(secret_key=secret, salt=PASSWORD_RESET_SALT)
+    password_version = hashlib.sha256(password_hash.encode()).hexdigest()[:16]
+    return serializer.dumps(
+        {"user_id": user_id, "email": email, "password_version": password_version}
+    )
+
+
+def read_password_reset_token(token: str, secret: str, max_age: int = 3600) -> dict | None:
+    """Valida assinatura e expiração de um link de recuperação."""
+
+    serializer = URLSafeTimedSerializer(secret_key=secret, salt=PASSWORD_RESET_SALT)
+    try:
+        payload = serializer.loads(token, max_age=max_age)
+    except (BadSignature, SignatureExpired):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    if not isinstance(payload.get("user_id"), int) or not isinstance(payload.get("email"), str):
+        return None
+    return payload

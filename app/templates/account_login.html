@@ -13,7 +13,7 @@
       {% else %}<span class="eyebrow">ACESSO DO USUÁRIO</span><h1>Login de usuário</h1><p class="lead">Acesso específico para quem não possui CRM.</p>{% endif %}
       <form id="login-form" class="form-stack"><label>E-mail<input id="email" type="email" required autocomplete="email" /></label><label>Senha<input id="password" type="password" required autocomplete="current-password" /></label><button type="submit">Entrar</button></form>
       <p id="error" class="message" role="alert" hidden></p>
-      <nav style="margin-top:1.4rem">{% if account_type == "doctor" %}<a href="/">Criar cadastro médico</a><a href="/non-medical/login">Não sou médico</a>{% else %}<a href="/non-medical/register">Criar cadastro</a><a href="/doctor/login">Sou médico</a>{% endif %}</nav>
+      <nav style="margin-top:1.4rem"><a href="/account/forgot-password">Esqueci minha senha</a>{% if account_type == "doctor" %}<a href="/">Criar cadastro médico</a><a href="/non-medical/login">Não sou médico</a>{% else %}<a href="/non-medical/register">Criar cadastro</a><a href="/doctor/login">Sou médico</a>{% endif %}</nav>
     </section>
   </main></div>
   <script>

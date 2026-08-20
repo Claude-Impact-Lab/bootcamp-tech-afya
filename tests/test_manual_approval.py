@@ -68,6 +68,7 @@ def doctor_payload(email="medica@exemplo.com", crm="123456"):
 def non_doctor_payload():
     return {
         "user": {"nome": "Bruno Usuário", "email": "bruno@exemplo.com"},
+        "cpf": "111.111.111-11",
         "senha": "senha-segura",
         "confirmacao_senha": "senha-segura",
     }
@@ -95,7 +96,8 @@ def test_admin_recebe_contagem_de_cadastros_pendentes(db_isolado):
     pending = client.get("/admin/registrations")
 
     assert summary.json() == {"pending_count": 2}
-    assert len(pending.json()) == 2
+    assert pending.json()["total"] == 2
+    assert len(pending.json()["items"]) == 2
 
 
 def test_aprovacao_medica_exige_conclusao_antes_do_painel(db_isolado):
@@ -192,7 +194,7 @@ def test_medico_precisa_preencher_dados_validos_para_concluir(db_isolado):
         "/doctor/profile",
         json={
             "email": "medica@exemplo.com",
-            "cpf": "111.111.111-11",
+            "cpf": "111.111.111-1",
             "marital_status": "solteiro",
             "mobile_phone": "(11) 99999-8888",
             "action": "complete",
@@ -201,7 +203,30 @@ def test_medico_precisa_preencher_dados_validos_para_concluir(db_isolado):
 
     assert missing.status_code == 422
     assert invalid_cpf.status_code == 422
+    assert "CPF deve conter 11 dígitos" in invalid_cpf.json()["detail"][0]["msg"]
     assert client.get("/account/me").json()["registration_status"] == "approved_incomplete"
+
+
+def test_cpf_didatico_aceita_qualquer_combinacao_com_onze_digitos(db_isolado):
+    client.post("/registrations", json=doctor_payload())
+    client.post("/admin/registrations/1/approve")
+    client.post("/admin/logout")
+    client.post("/doctor/login", json={"email": "medica@exemplo.com", "senha": "senha-segura"})
+
+    response = client.put(
+        "/doctor/profile",
+        json={
+            "email": "medica@exemplo.com",
+            "cpf": "111.111.111-11",
+            "marital_status": "solteiro",
+            "mobile_phone": "(11) 99999-8888",
+            "action": "complete",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["doctor"]["cpf"] == "11111111111"
+    assert response.json()["registration_status"] == "active"
 
 
 def test_medico_nao_altera_campos_oficiais_pela_edicao_do_perfil(db_isolado):
@@ -278,11 +303,22 @@ def test_usuario_sem_crm_e_aprovado_diretamente_como_ativo(db_isolado):
         json={"email": "bruno@exemplo.com", "senha": "senha-segura"},
     )
 
+    assert registration.json()["cpf"] == "11111111111"
     assert approval.json()["registration_status"] == "active"
     assert approval.json()["doctor"] is None
     assert login.json()["redirect_url"] == "/non-medical/dashboard"
     assert client.get("/non-medical/profile").status_code == 200
     assert client.get("/doctor/profile").status_code == 403
+
+
+def test_cadastro_sem_crm_exige_cpf_com_onze_digitos(db_isolado):
+    payload = non_doctor_payload()
+    payload["cpf"] = "123.456.789-0"
+
+    response = client.post("/non-medical/registrations", json=payload)
+
+    assert response.status_code == 422
+    assert "CPF deve conter 11 dígitos" in response.json()["detail"][0]["msg"]
 
 
 def test_rejeicao_mostra_motivo_e_bloqueia_acesso(db_isolado):
