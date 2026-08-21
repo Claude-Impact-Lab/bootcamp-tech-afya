@@ -8,8 +8,8 @@ from app.cfm_client import (
 
 
 def test_find_doctor_retorna_resultado_do_navegador():
-    def fake_lookup(crm: str, uf: str, headless: bool, timeout: float) -> CfmLookup:
-        assert (crm, uf, headless) == ("123", "SP", True)
+    def fake_lookup(crm: str, uf: str, headless: bool, timeout: float, show_on_start: bool, cancelled) -> CfmLookup:
+        assert (crm, uf, headless, show_on_start) == ("123", "SP", True, False)
         return CfmLookup(CfmLookupStatus.FOUND, "Médica Teste")
 
     result = CfmClient(mode="headless", browser_lookup=fake_lookup).find_doctor("123", "sp")
@@ -21,7 +21,7 @@ def test_find_doctor_retorna_resultado_do_navegador():
 def test_find_doctor_tenta_janela_visivel_se_oculto_for_bloqueado():
     attempts: list[bool] = []
 
-    def fake_lookup(crm: str, uf: str, headless: bool, timeout: float) -> CfmLookup:
+    def fake_lookup(crm: str, uf: str, headless: bool, timeout: float, show_on_start: bool, cancelled) -> CfmLookup:
         attempts.append(headless)
         return CfmLookup(CfmLookupStatus.UNAVAILABLE if headless else CfmLookupStatus.NOT_FOUND)
 

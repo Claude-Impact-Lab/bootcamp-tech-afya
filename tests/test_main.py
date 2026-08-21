@@ -1,7 +1,9 @@
+from datetime import datetime, timezone
+
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import USUARIOS, app
+from app.main import CFM_REVALIDATION_EVENTS, CFM_REVALIDATION_LOCK, USUARIOS, app
 
 client = TestClient(app)
 
@@ -106,6 +108,71 @@ def test_admin_pode_aprovar_usuario_pendente():
     assert resposta.json()["cfm_validated_at"] is not None
 
 
+def test_admin_pode_revalidar_automaticamente_usuario_pendente(monkeypatch):
+    USUARIOS.append({
+        "id": 5,
+        "nome": "Médico Pendente",
+        "email": "pendente@example.com",
+        "crm": "123",
+        "uf": "SP",
+        "cfm_status": "VALIDATION_PENDING",
+    })
+    validado_em = datetime.now(timezone.utc)
+    monkeypatch.setattr(
+        "app.main.validar_medico_no_cfm",
+        lambda crm, uf, cancelled=None: ("VALIDATED", validado_em),
+    )
+
+    resposta = client.post(
+        "/users/5/cfm-revalidate?admin_email=andre.seabra@teste.com",
+    )
+
+    assert resposta.status_code == 200
+    assert resposta.json()["cfm_status"] == "VALIDATED"
+    assert resposta.json()["cfm_validated_at"] is not None
+
+
+def test_revalidacao_sem_confirmacao_mantem_usuario_pendente(monkeypatch):
+    USUARIOS.append({
+        "id": 5,
+        "nome": "Médico Pendente",
+        "email": "pendente@example.com",
+        "crm": "123",
+        "uf": "SP",
+        "cfm_status": "VALIDATION_PENDING",
+    })
+    monkeypatch.setattr(
+        "app.main.validar_medico_no_cfm",
+        lambda crm, uf, cancelled=None: ("VALIDATION_PENDING", None),
+    )
+
+    resposta = client.post(
+        "/users/5/cfm-revalidate?admin_email=andre.seabra@teste.com",
+    )
+
+    assert resposta.status_code == 200
+    assert resposta.json()["cfm_status"] == "VALIDATION_PENDING"
+
+
+def test_admin_pode_interromper_revalidacao_ativa():
+    from threading import Event
+
+    event = Event()
+    with CFM_REVALIDATION_LOCK:
+        CFM_REVALIDATION_EVENTS["validacao-teste"] = event
+    try:
+        resposta = client.post(
+            "/cfm/revalidation/validacao-teste/cancel?admin_email=andre.seabra@teste.com",
+        )
+
+        assert resposta.status_code == 200
+        assert resposta.json() == {"cancelled": True}
+        assert event.is_set()
+    finally:
+        with CFM_REVALIDATION_LOCK:
+            CFM_REVALIDATION_EVENTS.pop("validacao-teste", None)
+
+
 def test_medico_pendente_continua_pendente_ao_tentar_novamente():
     USUARIOS.append({
         "id": 5,
@@ -123,3 +190,72 @@ def test_medico_pendente_continua_pendente_ao_tentar_novamente():
 
     assert resposta.status_code == 200
     assert resposta.json()["cfm_status"] == "VALIDATION_PENDING"
+
+
+def test_mesmo_crm_e_mesmos_dados_retorna_login_sem_duplicar():
+    USUARIOS.append({
+        "id": 5,
+        "nome": "Médico Existente",
+        "email": "medico@example.com",
+        "crm": "123",
+        "uf": "SP",
+        "cfm_status": "VALIDATED",
+    })
+
+    resposta = client.post(
+        "/users",
+        json={"nome": "Médico Existente", "email": "medico@example.com", "crm": "123", "uf": "SP", "is_doctor": True},
+    )
+
+    assert resposta.status_code == 200
+    assert len([item for item in USUARIOS if item.get("crm") == "123"]) == 1
+
+
+@pytest.mark.parametrize("campo, valor", [
+    ("nome", "Outro Médico"),
+    ("email", "outro@example.com"),
+])
+def test_mesmo_crm_e_uf_com_dados_diferentes_e_invalido(campo, valor):
+    USUARIOS.append({
+        "id": 5,
+        "nome": "Médico Existente",
+        "email": "medico@example.com",
+        "crm": "123",
+        "uf": "SP",
+        "cfm_status": "VALIDATED",
+    })
+    payload = {
+        "nome": "Médico Existente",
+        "email": "medico@example.com",
+        "crm": "123",
+        "uf": "SP",
+        "is_doctor": True,
+    }
+    payload[campo] = valor
+
+    resposta = client.post("/users", json=payload)
+
+    assert resposta.status_code == 409
+    assert resposta.json()["detail"] == "Dados inválidos. Confira e tente novamente"
+    assert len([item for item in USUARIOS if item.get("crm") == "123"]) == 1
+
+
+def test_mesmo_numero_de_crm_em_ufs_diferentes_e_permitido():
+    USUARIOS.append({
+        "id": 5,
+        "nome": "Médico de São Paulo",
+        "email": "sp@example.com",
+        "crm": "123",
+        "uf": "SP",
+        "cfm_status": "VALIDATED",
+    })
+
+    resposta = client.post(
+        "/users",
+        json={"nome": "Médica do Rio", "email": "rj@example.com", "crm": "123", "uf": "RJ", "is_doctor": True},
+    )
+
+    assert resposta.status_code == 201
+    registros = [item for item in USUARIOS if item.get("crm") == "123"]
+    assert len(registros) == 2
+    assert {item["uf"] for item in registros} == {"SP", "RJ"}

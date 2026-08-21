@@ -9,6 +9,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
 import os
+from time import monotonic
 from typing import Any
 
 from playwright.sync_api import Error as PlaywrightError
@@ -89,64 +90,103 @@ def parse_cfm_response(payload: Any, crm: str, uf: str) -> CfmLookup:
     return CfmLookup(CfmLookupStatus.NOT_FOUND)
 
 
-BrowserLookup = Callable[[str, str, bool, float], CfmLookup]
+CancellationCheck = Callable[[], bool]
+BrowserLookup = Callable[[str, str, bool, float, bool, CancellationCheck], CfmLookup]
 
 
 class CfmClient:
     """Automatiza o formulário do CFM e captura a resposta AJAX da pesquisa.
 
     Modos aceitos em ``CFM_BROWSER_MODE``:
-    - ``headless_then_headed``: tenta oculto e abre uma janela se necessário;
+    - ``background`` (padrão): usa Chromium normal fora da área visível e só
+      mostra a janela se houver desafio de reCAPTCHA;
+    - ``headless_then_headed``: tenta headless antes do modo em segundo plano;
     - ``headless``: nunca abre janela;
-    - ``headed`` (padrão): abre a janela, pois o reCAPTCHA atual bloqueia o
-      Chromium oculto.
+    - ``headed``: mostra a janela desde o início.
     """
 
     def __init__(
         self,
         *,
         timeout: float = 12.0,
-        interactive_timeout: float = 45.0,
+        interactive_timeout: float = 55.0,
         mode: str | None = None,
         browser_lookup: BrowserLookup | None = None,
+        cancelled: CancellationCheck | None = None,
     ):
         self.timeout = timeout
         self.interactive_timeout = interactive_timeout
-        self.mode = (mode or os.getenv("CFM_BROWSER_MODE", "headed")).lower()
+        self.mode = (mode or os.getenv("CFM_BROWSER_MODE", "background")).lower()
         self._browser_lookup = browser_lookup or self._find_with_browser
+        self._cancelled = cancelled or (lambda: False)
 
     def find_doctor(self, crm: str, uf: str) -> CfmLookup:
         attempts = {
-            "headless": [(True, self.timeout)],
-            "headed": [(False, self.interactive_timeout)],
+            "headless": [(True, self.timeout, False)],
+            "background": [(False, self.interactive_timeout, False)],
+            "headed": [(False, self.interactive_timeout, True)],
             "headless_then_headed": [
-                (True, self.timeout),
-                (False, self.interactive_timeout),
+                (True, self.timeout, False),
+                (False, self.interactive_timeout, False),
             ],
-        }.get(self.mode, [(True, self.timeout)])
+        }.get(self.mode, [(False, self.interactive_timeout, False)])
 
-        for headless, timeout in attempts:
-            result = self._browser_lookup(crm_for_cfm(crm, uf), uf.strip().upper(), headless, timeout)
+        for headless, timeout, show_on_start in attempts:
+            if self._cancelled():
+                return CfmLookup(CfmLookupStatus.UNAVAILABLE)
+            result = self._browser_lookup(
+                crm_for_cfm(crm, uf),
+                uf.strip().upper(),
+                headless,
+                timeout,
+                show_on_start,
+                self._cancelled,
+            )
             if result.status is not CfmLookupStatus.UNAVAILABLE:
                 return result
         return CfmLookup(CfmLookupStatus.UNAVAILABLE)
 
     @staticmethod
-    def _find_with_browser(crm: str, uf: str, headless: bool, timeout: float) -> CfmLookup:
-        timeout_ms = int(timeout * 1000)
-        setup_timeout_ms = min(timeout_ms, 15_000)
+    def _find_with_browser(
+        crm: str,
+        uf: str,
+        headless: bool,
+        timeout: float,
+        show_on_start: bool,
+        cancelled: CancellationCheck,
+    ) -> CfmLookup:
+        deadline = monotonic() + timeout
+
+        def remaining_ms(limit: int | None = None) -> int:
+            remaining = max(1, int((deadline - monotonic()) * 1000))
+            return min(remaining, limit) if limit else remaining
+
         try:
             with sync_playwright() as playwright:
-                browser = playwright.chromium.launch(headless=headless)
+                launch_args = [] if headless or show_on_start else ["--window-position=-32000,-32000"]
+                browser = playwright.chromium.launch(
+                    headless=headless,
+                    args=launch_args,
+                    timeout=remaining_ms(15_000),
+                )
                 try:
+                    if cancelled():
+                        return CfmLookup(CfmLookupStatus.UNAVAILABLE)
                     context = browser.new_context(
                         locale="pt-BR",
                         timezone_id="America/Sao_Paulo",
                         viewport={"width": 1280, "height": 900},
                     )
                     page = context.new_page()
-                    page.goto(CFM_SEARCH_URL, wait_until="domcontentloaded", timeout=setup_timeout_ms)
-                    page.locator("#uf").wait_for(state="visible", timeout=setup_timeout_ms)
+                    cdp = context.new_cdp_session(page) if not headless else None
+                    window_id = None
+                    if cdp:
+                        window_id = cdp.send("Browser.getWindowForTarget")["windowId"]
+
+                    page.goto(CFM_SEARCH_URL, wait_until="domcontentloaded", timeout=remaining_ms(15_000))
+                    if cancelled():
+                        return CfmLookup(CfmLookupStatus.UNAVAILABLE)
+                    page.locator("#uf").wait_for(state="visible", timeout=remaining_ms(15_000))
                     page.locator("#uf").select_option(label=uf)
                     page.locator("#crm").fill(crm)
 
@@ -155,18 +195,54 @@ class CfmClient:
                     page.wait_for_function(
                         "typeof window.jQuery !== 'undefined' && "
                         "typeof window.getInfo === 'function'",
-                        timeout=setup_timeout_ms,
+                        timeout=remaining_ms(15_000),
                     )
-                    if not headless:
+                    if cancelled():
+                        return CfmLookup(CfmLookupStatus.UNAVAILABLE)
+                    if show_on_start:
                         page.bring_to_front()
 
-                    with page.expect_response(
-                        lambda response: CFM_API_PATH in response.url,
-                        timeout=timeout_ms,
-                    ) as response_info:
-                        page.locator("button.btnPesquisar").click()
+                    responses = []
+                    page.on(
+                        "response",
+                        lambda response: responses.append(response)
+                        if CFM_API_PATH in response.url
+                        else None,
+                    )
+                    page.locator("button.btnPesquisar").click()
 
-                    response = response_info.value
+                    captcha_revealed = show_on_start
+                    challenge_selectors = (
+                        "iframe[src*='recaptcha'][title*='challenge']",
+                        "iframe[src*='recaptcha/api2/bframe']",
+                    )
+                    while not responses and monotonic() < deadline and not cancelled():
+                        has_challenge = any(
+                            page.locator(selector).count()
+                            and page.locator(selector).first.is_visible()
+                            for selector in challenge_selectors
+                        )
+                        if has_challenge and not captcha_revealed and cdp and window_id is not None:
+                            cdp.send(
+                                "Browser.setWindowBounds",
+                                {
+                                    "windowId": window_id,
+                                    "bounds": {
+                                        "windowState": "normal",
+                                        "left": 80,
+                                        "top": 60,
+                                        "width": 1280,
+                                        "height": 900,
+                                    },
+                                },
+                            )
+                            page.bring_to_front()
+                            captcha_revealed = True
+                        page.wait_for_timeout(min(250, remaining_ms()))
+
+                    if cancelled() or not responses:
+                        return CfmLookup(CfmLookupStatus.UNAVAILABLE)
+                    response = responses[-1]
                     if not response.ok:
                         return CfmLookup(CfmLookupStatus.UNAVAILABLE)
                     return parse_cfm_response(response.json(), crm, uf)

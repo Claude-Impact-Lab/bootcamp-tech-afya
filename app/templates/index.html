@@ -286,10 +286,29 @@
     .pending-confirmation-question { width: 100%; text-align: center; }
     .pending-confirmation-actions { display: flex; gap: 6px; }
     .pending-confirmation-actions button { white-space: nowrap; padding: 6px 8px; }
+    .pending-summary-content { display:flex; align-items:center; justify-content:space-between; gap:14px; }
+    .bulk-validate-btn {
+      flex: 0 0 auto;
+      border: 0;
+      border-radius: 999px;
+      padding: 9px 16px;
+      background: linear-gradient(135deg, #e60067, #b80054);
+      color: #fff;
+      font-weight: 700;
+      box-shadow: 0 5px 14px rgba(230, 0, 103, .2);
+      cursor: pointer;
+      transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+      white-space: nowrap;
+    }
+    .bulk-validate-btn:hover { transform: translateY(-1px); box-shadow: 0 7px 18px rgba(230, 0, 103, .25); }
+    .bulk-validate-btn.running { background:#94a3b8; box-shadow:none; transform:none; }
+    .pending-validation-loader { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; color:#9a3412; font-size:.82rem; font-weight:700; }
+    .pending-validation-spinner { width:18px; height:18px; border-radius:50%; border:3px solid #fed7aa; border-top-color:#e60067; animation:pending-spin .75s linear infinite; }
     @keyframes pending-slide-down {
       from { opacity: 0; transform: translateY(-8px); }
       to { opacity: 1; transform: translateY(0); }
     }
+    @keyframes pending-spin { to { transform:rotate(360deg); } }
     @keyframes toast-disappear {
       0%, 72% { opacity: 1; transform: translateY(0); }
       100% { opacity: 0; transform: translateY(-6px); }
@@ -567,14 +586,19 @@
     let adminModeSelected = false;
     let currentUser = null; // {nome, email}
     let feedbackTimer;
+    let bulkValidationRunning = false;
+    let bulkValidationRunId = 0;
+    let bulkValidationCurrentId = null;
+    let bulkValidationCurrentRequestId = null;
+    let bulkValidationController = null;
 
-    function showFeedback(message, type = 'success') {
+    function showFeedback(message, type = 'success', duration = 4000) {
       clearTimeout(feedbackTimer);
       feedbackToast.textContent = message;
       feedbackToast.className = `feedback-toast ${type}`;
       void feedbackToast.offsetWidth;
       feedbackToast.classList.add('show');
-      feedbackTimer = setTimeout(() => feedbackToast.classList.remove('show'), 4000);
+      feedbackTimer = setTimeout(() => feedbackToast.classList.remove('show'), duration);
     }
 
     async function hashPassword(password) {
@@ -712,6 +736,7 @@
       function adicionarLinhaPendente(pendente) {
         const tr = document.createElement('tr');
         tr.className = 'pending-detail';
+        tr.dataset.id = String(pendente.id);
         tr.dataset.role = 'medico';
         tr.style.background = '#fffbeb';
         const valores = ['Médico', pendente.nome, pendente.email, pendente.uf || '', pendente.crm || ''];
@@ -722,17 +747,21 @@
         });
         const tdAcoes = document.createElement('td');
         tdAcoes.className = 'actions';
-        const aprovar = document.createElement('button');
-        aprovar.textContent = 'Aprovar';
-        aprovar.className = 'filter-btn';
-        aprovar.style.color = '#047857';
-        aprovar.onclick = () => pedirConfirmacaoPendente(tdAcoes, pendente.id, 'approve');
-        const recusar = document.createElement('button');
-        recusar.textContent = 'Recusar';
-        recusar.className = 'filter-btn';
-        recusar.style.color = '#b91c1c';
-        recusar.onclick = () => pedirConfirmacaoPendente(tdAcoes, pendente.id, 'reject');
-        tdAcoes.append(aprovar, recusar);
+        if (bulkValidationCurrentId === pendente.id) {
+          tdAcoes.innerHTML = '<div class="pending-validation-loader"><span class="pending-validation-spinner"></span><span>Validando no CFM</span></div>';
+        } else {
+          const aprovar = document.createElement('button');
+          aprovar.textContent = 'Aprovar';
+          aprovar.className = 'filter-btn';
+          aprovar.style.color = '#047857';
+          aprovar.onclick = () => pedirConfirmacaoPendente(tdAcoes, pendente.id, 'approve');
+          const recusar = document.createElement('button');
+          recusar.textContent = 'Recusar';
+          recusar.className = 'filter-btn';
+          recusar.style.color = '#b91c1c';
+          recusar.onclick = () => pedirConfirmacaoPendente(tdAcoes, pendente.id, 'reject');
+          tdAcoes.append(aprovar, recusar);
+        }
         tr.appendChild(tdAcoes);
         return tr;
       }
@@ -747,7 +776,23 @@
         tdPendente.style.fontWeight = '700';
         tdPendente.style.color = '#a16207';
         const quantidade = pendentes.length;
-        tdPendente.textContent = `${quantidade} médico${quantidade > 1 ? 's' : ''} pendente${quantidade > 1 ? 's' : ''} de aprovação — clique para visualizar`;
+        const resumoConteudo = document.createElement('div');
+        resumoConteudo.className = 'pending-summary-content';
+        const resumoTexto = document.createElement('span');
+        const validarTodos = document.createElement('button');
+        validarTodos.type = 'button';
+        validarTodos.className = `bulk-validate-btn${bulkValidationRunning ? ' running' : ''}`;
+        validarTodos.textContent = bulkValidationRunning ? 'Validando...' : 'Validar todos';
+        validarTodos.addEventListener('click', event => {
+          event.stopPropagation();
+          toggleBulkPendingValidation(pendentes);
+        });
+        resumoConteudo.append(resumoTexto, validarTodos);
+        tdPendente.appendChild(resumoConteudo);
+        const atualizarTextoResumo = () => {
+          resumoTexto.textContent = `${quantidade} médico${quantidade > 1 ? 's' : ''} pendente${quantidade > 1 ? 's' : ''} de aprovação — clique para ${pendingDetailsExpanded ? 'ocultar' : 'visualizar'}`;
+        };
+        atualizarTextoResumo();
         trPendente.appendChild(tdPendente);
         tbody.appendChild(trPendente);
         trPendente.addEventListener('click', () => {
@@ -755,7 +800,7 @@
           if (detalhes.length) {
             pendingDetailsExpanded = false;
             detalhes.forEach(linha => linha.remove());
-            tdPendente.textContent = `${quantidade} médico${quantidade > 1 ? 's' : ''} pendente${quantidade > 1 ? 's' : ''} de aprovação — clique para visualizar`;
+            atualizarTextoResumo();
           } else {
             pendingDetailsExpanded = true;
             // Insere os detalhes imediatamente após o resumo, mantendo-os no
@@ -763,14 +808,14 @@
             pendentes.slice().reverse().forEach(pendente => {
               tbody.insertBefore(adicionarLinhaPendente(pendente), trPendente.nextSibling);
             });
-            tdPendente.textContent = `${quantidade} médico${quantidade > 1 ? 's' : ''} pendente${quantidade > 1 ? 's' : ''} de aprovação — clique para ocultar`;
+            atualizarTextoResumo();
           }
         });
         if (pendingDetailsExpanded) {
           pendentes.slice().reverse().forEach(pendente => {
             tbody.insertBefore(adicionarLinhaPendente(pendente), trPendente.nextSibling);
           });
-          tdPendente.textContent = `${quantidade} médico${quantidade > 1 ? 's' : ''} pendente${quantidade > 1 ? 's' : ''} de aprovação — clique para ocultar`;
+          atualizarTextoResumo();
         }
       }
       usuarios.forEach(u => {
@@ -959,6 +1004,114 @@
         alert('Não foi possível atualizar o cadastro');
       }
     }
+
+    function updateBulkValidationButtonState() {
+      adminTableWrap.querySelectorAll('.bulk-validate-btn').forEach(button => {
+        button.classList.toggle('running', bulkValidationRunning);
+        button.textContent = bulkValidationRunning ? 'Validando...' : 'Validar todos';
+      });
+    }
+
+    function showPendingRowLoading(userId) {
+      const row = adminTableWrap.querySelector(`.pending-detail[data-id="${userId}"]`);
+      const actions = row?.querySelector('td.actions');
+      if (actions) {
+        actions.innerHTML = '<div class="pending-validation-loader"><span class="pending-validation-spinner"></span><span>Validando no CFM</span></div>';
+      }
+    }
+
+    async function cancelActiveCfmRequest(validationId) {
+      if (!validationId || !currentUser?.email) return;
+      try {
+        await fetch(`/cfm/revalidation/${encodeURIComponent(validationId)}/cancel?admin_email=${encodeURIComponent(currentUser.email)}`, {
+          method: 'POST'
+        });
+      } catch (err) {
+        // A interrupção visual ainda acontece; o backend também possui timeout.
+      }
+    }
+
+    async function toggleBulkPendingValidation(pendentes) {
+      if (bulkValidationRunning) {
+        const validationId = bulkValidationCurrentRequestId;
+        const controller = bulkValidationController;
+        bulkValidationRunId += 1;
+        bulkValidationRunning = false;
+        bulkValidationCurrentId = null;
+        bulkValidationCurrentRequestId = null;
+        updateBulkValidationButtonState();
+        await cancelActiveCfmRequest(validationId);
+        controller?.abort();
+        await carregarUsuariosAdmin(currentUser.email);
+        return;
+      }
+
+      if (!Array.isArray(pendentes) || pendentes.length === 0) return;
+      const runId = ++bulkValidationRunId;
+      bulkValidationRunning = true;
+      updateBulkValidationButtonState();
+      let completed = true;
+
+      for (const pendente of pendentes) {
+        if (!bulkValidationRunning || runId !== bulkValidationRunId) {
+          completed = false;
+          break;
+        }
+
+        bulkValidationCurrentId = pendente.id;
+        bulkValidationCurrentRequestId = `admin-${runId}-${pendente.id}-${Date.now()}`;
+        bulkValidationController = new AbortController();
+        showPendingRowLoading(pendente.id);
+        const requestId = bulkValidationCurrentRequestId;
+        const timeoutId = setTimeout(() => {
+          cancelActiveCfmRequest(requestId);
+          bulkValidationController?.abort();
+        }, 60000);
+
+        try {
+          const res = await fetch(
+            `/users/${pendente.id}/cfm-revalidate?admin_email=${encodeURIComponent(currentUser.email)}&validation_id=${encodeURIComponent(requestId)}`,
+            { method: 'POST', signal: bulkValidationController.signal }
+          );
+          if (!bulkValidationRunning || runId !== bulkValidationRunId) {
+            completed = false;
+            break;
+          }
+          const usuario = res.ok ? await res.json() : null;
+          if (res.ok && usuario.cfm_status === 'VALIDATED') {
+            showFeedback('Cadastro efetuado com sucesso');
+          } else {
+            showFeedback('Não foi possível validar', 'error');
+          }
+        } catch (err) {
+          if (runId !== bulkValidationRunId) {
+            completed = false;
+            break;
+          }
+          showFeedback('Não foi possível validar', 'error');
+        } finally {
+          clearTimeout(timeoutId);
+          if (runId === bulkValidationRunId) {
+            bulkValidationCurrentId = null;
+            bulkValidationCurrentRequestId = null;
+            bulkValidationController = null;
+            await carregarUsuariosAdmin(currentUser.email);
+          }
+        }
+      }
+
+      if (runId !== bulkValidationRunId) return;
+      bulkValidationRunning = false;
+      bulkValidationCurrentId = null;
+      bulkValidationCurrentRequestId = null;
+      bulkValidationController = null;
+      await carregarUsuariosAdmin(currentUser.email);
+      if (completed) {
+        await new Promise(resolve => setTimeout(resolve, 900));
+        showFeedback('Verificação concluída', 'success', 2000);
+      }
+    }
+
     // search UI: simple client-side filter of current table + role filter
     const searchBox = document.getElementById('search-box');
     const filterAllBtn = document.getElementById('filter-all');
@@ -1177,14 +1330,14 @@
             body: JSON.stringify(payload),
             signal: cfmController.signal
           });
-          if ([200, 201, 400].includes(res.status)) {
+          if ([200, 201].includes(res.status)) {
             const medico = await res.json();
             currentUser = { nome, email };
             headerTitle.innerHTML = `<span>Bem-vindo,</span><span class="welcome-user-name">${displayFirstName(nome)}</span>`;
             form.reset();
             const isValidated = medico.cfm_status === 'VALIDATED';
-            const isPending = res.status !== 400 && !isValidated;
-            if (isPending) {
+            const isNewPending = res.status === 201 && !isValidated;
+            if (isNewPending) {
               showFeedback('Cadastro pendente de aprovação', 'error');
             } else if (res.status === 201) {
               showFeedback('Cadastro efetuado com sucesso');
@@ -1193,11 +1346,9 @@
             }
             if (isValidated) {
               aviso.textContent = 'Médico validado pelo CFM.';
-            } else if (isPending) {
+            } else {
               const manualUrl = `/cfm/manual-search?uf=${encodeURIComponent(ufVal)}&crm=${encodeURIComponent(crmVal)}`;
               aviso.innerHTML = `Não foi possível checar agora. <a href="${manualUrl}" target="_blank" rel="noopener">Concluir consulta no CFM</a>`;
-            } else {
-              aviso.textContent = '';
             }
             // ensure crm prefix reset
             if (crmPrefix) crmPrefix.style.display = 'none';
@@ -1206,7 +1357,12 @@
             adminHeading.style.display = 'none';
           } else {
             const data = await res.json();
-            aviso.textContent = data.detail || 'Erro ao cadastrar médico';
+            if (res.status === 409 || data.detail === 'Dados inválidos. Confira e tente novamente') {
+              showFeedback('Dados inválidos. Confira e tente novamente', 'error');
+              aviso.textContent = '';
+            } else {
+              aviso.textContent = data.detail || 'Erro ao cadastrar médico';
+            }
           }
         } catch (err) {
           if (err.name === 'AbortError') {

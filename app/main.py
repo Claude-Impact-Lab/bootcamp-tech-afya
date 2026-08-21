@@ -2,6 +2,8 @@ from pathlib import Path
 from datetime import datetime, timezone
 import subprocess
 import sys
+from threading import Event, Lock
+from collections.abc import Callable
 
 from fastapi import FastAPI, Request, Depends, HTTPException
 from fastapi.responses import HTMLResponse
@@ -10,6 +12,7 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, EmailStr
 import hashlib
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from fastapi import Response
@@ -37,9 +40,32 @@ with engine.begin() as conn:
     conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS cfm_status VARCHAR;"))
     conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS cfm_validated_at TIMESTAMP WITH TIME ZONE;"))
     conn.execute(text("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_key;"))
+    conn.execute(text("DROP INDEX IF EXISTS uq_users_crm;"))
+    conn.execute(text(
+        "CREATE UNIQUE INDEX IF NOT EXISTS uq_users_crm_uf "
+        "ON users (crm, uf) WHERE crm IS NOT NULL AND uf IS NOT NULL;"
+    ))
 
 # Compatibilidade com testes da missão: lista em memória
 USUARIOS: list[dict] = []
+CFM_REVALIDATION_EVENTS: dict[str, Event] = {}
+CFM_REVALIDATION_LOCK = Lock()
+
+
+def register_cfm_revalidation(validation_id: str | None) -> Event:
+    event = Event()
+    if validation_id:
+        with CFM_REVALIDATION_LOCK:
+            CFM_REVALIDATION_EVENTS[validation_id] = event
+    return event
+
+
+def unregister_cfm_revalidation(validation_id: str | None, event: Event) -> None:
+    if not validation_id:
+        return
+    with CFM_REVALIDATION_LOCK:
+        if CFM_REVALIDATION_EVENTS.get(validation_id) is event:
+            CFM_REVALIDATION_EVENTS.pop(validation_id, None)
 
 
 class UsuarioCreate(BaseModel):
@@ -85,6 +111,7 @@ UF_LIST = [
 
 # e-mail do admin (constante em lowercase)
 ADMIN_EMAIL = "andre.seabra@teste.com"
+INVALID_DOCTOR_DATA = "Dados inválidos. Confira e tente novamente"
 
 
 def normalize_crm(crm: str | None) -> str | None:
@@ -125,12 +152,36 @@ def normalize_name(nome: str | None) -> str | None:
     return nome.strip().lower()
 
 
-def validar_medico_no_cfm(crm: str | None, uf: str | None) -> tuple[str | None, datetime | None]:
+def canonical_doctor_crm(crm: str | None, uf: str | None) -> str | None:
+    """Normaliza o CRM armazenado; no RJ, remove o prefixo visual fixo 52."""
+    normalized = normalize_crm(crm)
+    if normalized is None or uf is None:
+        return normalized
+    return crm_for_cfm(normalized, uf)
+
+
+def doctor_data_matches(existing, usuario: UsuarioCreate, crm: str, uf: str) -> bool:
+    """Confere os quatro dados que identificam um login médico existente."""
+    get_value = existing.get if isinstance(existing, dict) else lambda key: getattr(existing, key, None)
+    existing_uf = validate_uf(get_value("uf"))
+    return all((
+        normalize_name(get_value("nome")) == normalize_name(usuario.nome),
+        normalize_email(get_value("email")) == normalize_email(usuario.email),
+        existing_uf == uf,
+        canonical_doctor_crm(get_value("crm"), existing_uf) == crm,
+    ))
+
+
+def validar_medico_no_cfm(
+    crm: str | None,
+    uf: str | None,
+    cancelled: Callable[[], bool] | None = None,
+) -> tuple[str | None, datetime | None]:
     """Converte o contrato do client nos dados persistidos pelo domínio."""
     if not crm or not uf:
         return None, None
 
-    resultado = CfmClient().find_doctor(crm, uf)
+    resultado = CfmClient(cancelled=cancelled).find_doctor(crm, uf)
     if resultado.status is CfmLookupStatus.NOT_FOUND:
         return CfmLookupStatus.UNAVAILABLE.value, None
     if resultado.status is CfmLookupStatus.FOUND:
@@ -193,6 +244,84 @@ def decidir_validacao_cfm(
     db.commit()
     db.refresh(usuario)
     return usuario
+
+
+@app.post("/users/{user_id}/cfm-revalidate", response_model=UsuarioOut)
+def revalidar_medico_pendente(
+    user_id: int,
+    admin_email: EmailStr = Query(...),
+    validation_id: str | None = Query(None),
+    db: Session = Depends(get_db),
+) -> Usuario:
+    """Repete automaticamente a consulta do CFM para um médico pendente."""
+    if normalize_email(admin_email) != ADMIN_EMAIL:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+
+    if USUARIOS:
+        usuario = next((item for item in USUARIOS if item["id"] == user_id), None)
+        if not usuario:
+            raise HTTPException(status_code=404, detail="Usuario não encontrado")
+        if usuario.get("cfm_status") != CfmLookupStatus.UNAVAILABLE.value:
+            raise HTTPException(status_code=409, detail="Usuário não está pendente")
+        cancel_event = register_cfm_revalidation(validation_id)
+        try:
+            status_cfm, validado_em = validar_medico_no_cfm(
+                usuario.get("crm"),
+                usuario.get("uf"),
+                cancel_event.is_set,
+            )
+        finally:
+            unregister_cfm_revalidation(validation_id, cancel_event)
+        if status_cfm == CfmLookupStatus.FOUND.value:
+            usuario["cfm_status"] = CfmLookupStatus.FOUND.value
+            usuario["cfm_validated_at"] = validado_em
+        return usuario
+
+    usuario = db.query(Usuario).filter(Usuario.id == user_id).first()
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuario não encontrado")
+    if usuario.cfm_status != CfmLookupStatus.UNAVAILABLE.value:
+        raise HTTPException(status_code=409, detail="Usuário não está pendente")
+
+    cancel_event = register_cfm_revalidation(validation_id)
+    try:
+        status_cfm, validado_em = validar_medico_no_cfm(
+            usuario.crm,
+            usuario.uf,
+            cancel_event.is_set,
+        )
+    finally:
+        unregister_cfm_revalidation(validation_id, cancel_event)
+    if status_cfm != CfmLookupStatus.FOUND.value:
+        return usuario
+
+    usuario_comum = db.query(Usuario).filter(
+        func.lower(func.trim(Usuario.email)) == normalize_email(usuario.email),
+        Usuario.id != usuario.id,
+        Usuario.crm.is_(None),
+    ).first()
+    if usuario_comum:
+        db.delete(usuario_comum)
+    usuario.cfm_status = CfmLookupStatus.FOUND.value
+    usuario.cfm_validated_at = validado_em
+    db.commit()
+    db.refresh(usuario)
+    return usuario
+
+
+@app.post("/cfm/revalidation/{validation_id}/cancel")
+def cancelar_revalidacao_cfm(
+    validation_id: str,
+    admin_email: EmailStr = Query(...),
+) -> dict[str, bool]:
+    """Interrompe a consulta ativa e fecha o Chromium assim que possível."""
+    if normalize_email(admin_email) != ADMIN_EMAIL:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    with CFM_REVALIDATION_LOCK:
+        event = CFM_REVALIDATION_EVENTS.get(validation_id)
+    if event:
+        event.set()
+    return {"cancelled": event is not None}
 
 
 @app.get("/health")
@@ -317,14 +446,39 @@ def criar_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db), respons
     """Cria um novo usuario e o adiciona no fim da lista."""
     # modo teste/compatibilidade: usar lista USUARIOS somente quando preenchida
     if USUARIOS:
+        doctor_crm = None
+        doctor_uf = None
+        if usuario.is_doctor:
+            doctor_uf = validate_uf(usuario.uf)
+            doctor_crm = canonical_doctor_crm(usuario.crm, doctor_uf)
+            if not doctor_crm or not doctor_uf:
+                raise HTTPException(status_code=400, detail=INVALID_DOCTOR_DATA)
+            crm_owner = next(
+                (
+                    item for item in USUARIOS
+                    if item.get("crm")
+                    and canonical_doctor_crm(item.get("crm"), item.get("uf")) == doctor_crm
+                    and validate_uf(item.get("uf")) == doctor_uf
+                ),
+                None,
+            )
+            if crm_owner:
+                if not doctor_data_matches(crm_owner, usuario, doctor_crm, doctor_uf):
+                    raise HTTPException(status_code=409, detail=INVALID_DOCTOR_DATA)
+                if response is not None:
+                    response.status_code = 200
+                return crm_owner
+
         ne = normalize_email(usuario.email)
         existente = next((u for u in USUARIOS if normalize_email(u.get('email')) == ne), None)
         if existente:
+            if usuario.is_doctor and existente.get("crm"):
+                raise HTTPException(status_code=409, detail=INVALID_DOCTOR_DATA)
             # Só atualiza se payload contém dados de médico ou senha (completar cadastro)
             has_medico_data = (hasattr(usuario, 'crm') and usuario.crm not in (None, '')) or (hasattr(usuario, 'uf') and usuario.uf not in (None, '')) or (usuario.senha not in (None, ''))
             if has_medico_data:
                 if hasattr(usuario, 'crm') and usuario.crm is not None:
-                    existente['crm'] = normalize_crm(usuario.crm)
+                    existente['crm'] = doctor_crm if usuario.is_doctor else normalize_crm(usuario.crm)
                 if hasattr(usuario, 'uf') and usuario.uf is not None:
                     existente['uf'] = validate_uf(usuario.uf)
                 # manter senha se fornecida
@@ -342,7 +496,7 @@ def criar_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db), respons
             senha_hashed = hashlib.sha256(usuario.senha.encode('utf-8')).hexdigest()
         novo = {"id": novo_id, "nome": usuario.nome, "email": usuario.email, "senha": senha_hashed}
         if hasattr(usuario, 'crm') and usuario.crm is not None:
-            novo['crm'] = normalize_crm(usuario.crm)
+            novo['crm'] = doctor_crm if usuario.is_doctor else normalize_crm(usuario.crm)
         if hasattr(usuario, 'uf') and usuario.uf is not None:
             novo['uf'] = validate_uf(usuario.uf)
         USUARIOS.append(novo)
@@ -361,17 +515,31 @@ def criar_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db), respons
         db.refresh(novo_usuario)
         return novo_usuario
 
-    medico_validado = next((item for item in usuarios_com_email if item.cfm_status == "VALIDATED"), None)
-    if medico_validado:
-        raise HTTPException(status_code=400, detail="Médico já cadastrado")
-    medico_pendente = next((item for item in usuarios_com_email if item.cfm_status == CfmLookupStatus.UNAVAILABLE.value), None)
-    if medico_pendente:
+    uf = validate_uf(usuario.uf)
+    crm = canonical_doctor_crm(usuario.crm, uf)
+    if not crm or not uf:
+        raise HTTPException(status_code=400, detail=INVALID_DOCTOR_DATA)
+
+    doctors = db.query(Usuario).filter(Usuario.crm.is_not(None)).all()
+    crm_owner = next(
+        (
+            item for item in doctors
+            if canonical_doctor_crm(item.crm, item.uf) == crm
+            and validate_uf(item.uf) == uf
+        ),
+        None,
+    )
+    if crm_owner:
+        if not doctor_data_matches(crm_owner, usuario, crm, uf):
+            raise HTTPException(status_code=409, detail=INVALID_DOCTOR_DATA)
         if response is not None:
             response.status_code = 200
-        return medico_pendente
+        return crm_owner
 
-    crm = normalize_crm(usuario.crm)
-    uf = validate_uf(usuario.uf)
+    medico_com_mesmo_email = next((item for item in usuarios_com_email if item.crm), None)
+    if medico_com_mesmo_email:
+        raise HTTPException(status_code=409, detail=INVALID_DOCTOR_DATA)
+
     status_cfm, validado_em = validar_medico_no_cfm(crm, uf)
     if status_cfm is None:
         status_cfm = CfmLookupStatus.UNAVAILABLE.value
@@ -386,7 +554,16 @@ def criar_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db), respons
     medico.cfm_status = status_cfm
     medico.cfm_validated_at = validado_em
     db.add(medico)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        crm_owner = db.query(Usuario).filter(Usuario.crm == crm, Usuario.uf == uf).first()
+        if crm_owner and doctor_data_matches(crm_owner, usuario, crm, uf):
+            if response is not None:
+                response.status_code = 200
+            return crm_owner
+        raise HTTPException(status_code=409, detail=INVALID_DOCTOR_DATA)
     db.refresh(medico)
     return medico
 

@@ -312,13 +312,15 @@ automação:
 uv run playwright install chromium
 ```
 
-Por padrão, `CFM_BROWSER_MODE=headed`: a aplicação abre uma janela visível, já
-preenchida, envia automaticamente e aguarda uma eventual interação humana com
-o CAPTCHA. O modo visível é o padrão porque o reCAPTCHA atual do CFM bloqueia o
-Chromium oculto. Também é possível configurar:
+Por padrão, `CFM_BROWSER_MODE=background`: a aplicação usa um Chromium normal,
+mas mantém a janela fora da área visível. A UF e o CRM são preenchidos e
+enviados automaticamente. A janela só é movida para a frente quando a página
+apresenta o desafio visual do reCAPTCHA. A tentativa inteira é limitada a menos
+de 60 segundos. Também é possível configurar:
 
 - `CFM_BROWSER_MODE=headless`: nunca abre uma janela;
 - `CFM_BROWSER_MODE=headless_then_headed`: tenta oculto antes do modo visível.
+- `CFM_BROWSER_MODE=headed`: mostra a janela desde o início.
 
 - `VALIDATED`: a resposta contém exatamente a UF e o CRM consultados;
 - `NOT_FOUND`: a resposta foi concluída, mas não contém a combinação consultada;
@@ -330,3 +332,15 @@ No RJ, o prefixo fixo `52`, exibido separadamente pelo portal, é retirado antes
 do preenchimento e da comparação. O código não resolve nem contorna reCAPTCHA.
 Como o portal é externo e pode mudar, os testes automatizados simulam a resposta
 do CFM e não dependem de internet.
+
+O CRM é armazenado em formato canônico e o par `UF + CRM` é protegido por um
+índice único composto no PostgreSQL. O mesmo número pode existir em UFs
+diferentes. Uma nova tentativa com o mesmo par somente é tratada como login se
+nome e e-mail também forem iguais; qualquer divergência é recusada sem criar
+outro registro.
+
+No painel Admin, o botão **Validar todos** percorre os médicos pendentes um por
+um. A linha em consulta troca as ações por um indicador de carregamento. Uma
+confirmação automática move o cadastro para a lista de médicos; resultados não
+confirmados permanecem pendentes para decisão manual. Um segundo clique no
+botão envia um sinal de cancelamento ao backend e interrompe a fila atual.
