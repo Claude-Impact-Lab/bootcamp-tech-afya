@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from secrets import token_hex, token_urlsafe
 
@@ -13,6 +14,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.cfm import CFMClient, CFMUnavailableError, get_cfm_client
 from app.models import Doctor, User
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -171,7 +173,30 @@ def public_doctor(doctor: Doctor) -> dict:
         "crm": doctor.crm,
         "uf": doctor.uf,
         "specialty": doctor.specialty,
+        "cfm_validation_status": doctor.cfm_validation_status,
+        "cfm_validated_at": doctor.cfm_validated_at,
+        "cfm_name": doctor.cfm_name,
+        "cfm_registration_status": doctor.cfm_registration_status,
+        "cfm_registration_type": doctor.cfm_registration_type,
     }
+
+
+def validate_doctor_with_cfm(doctor: Doctor, cfm: CFMClient) -> None:
+    """Atualiza o medico sem impedir o cadastro quando o CFM estiver fora."""
+    try:
+        result = cfm.find_doctor(doctor.crm, doctor.uf)
+    except CFMUnavailableError:
+        doctor.cfm_validation_status = "VALIDATION_PENDING"
+        return
+
+    doctor.cfm_validated_at = datetime.now(timezone.utc)
+    if not result.found:
+        doctor.cfm_validation_status = "NOT_FOUND"
+        return
+    doctor.cfm_validation_status = "VALIDATED"
+    doctor.cfm_name = result.name
+    doctor.cfm_registration_status = result.registration_status
+    doctor.cfm_registration_type = result.registration_type
 
 
 @app.get("/health")
@@ -231,7 +256,10 @@ def list_doctors(db: Session = Depends(get_db)) -> list[dict]:
 
 @app.post("/users/{user_id}/doctor", status_code=status.HTTP_201_CREATED)
 def create_doctor(
-    user_id: int, data: DoctorCreate, db: Session = Depends(get_db)
+    user_id: int,
+    data: DoctorCreate,
+    db: Session = Depends(get_db),
+    cfm: CFMClient = Depends(get_cfm_client),
 ) -> dict:
     """Transforma o usuario em medico por uma relacao um-para-um."""
     user = db.get(User, user_id)
@@ -250,6 +278,7 @@ def create_doctor(
         specialty=data.specialty.strip() if data.specialty else None,
     )
     db.add(doctor)
+    validate_doctor_with_cfm(doctor, cfm)
     try:
         db.commit()
     except IntegrityError:
@@ -258,6 +287,22 @@ def create_doctor(
             status_code=status.HTTP_409_CONFLICT,
             detail="Este CRM ja esta cadastrado nesta UF.",
         )
+    db.refresh(doctor)
+    return public_doctor(doctor)
+
+
+@app.post("/doctors/{doctor_id}/validate-cfm")
+def retry_cfm_validation(
+    doctor_id: int,
+    db: Session = Depends(get_db),
+    cfm: CFMClient = Depends(get_cfm_client),
+) -> dict:
+    """Permite tentar novamente um cadastro que ficou pendente."""
+    doctor = db.get(Doctor, doctor_id)
+    if doctor is None:
+        raise HTTPException(status_code=404, detail="Medico nao encontrado.")
+    validate_doctor_with_cfm(doctor, cfm)
+    db.commit()
     db.refresh(doctor)
     return public_doctor(doctor)
 

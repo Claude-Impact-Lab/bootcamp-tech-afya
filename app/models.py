@@ -1,4 +1,6 @@
-from sqlalchemy import Boolean, ForeignKey, Integer, String, UniqueConstraint
+from datetime import datetime
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -36,4 +38,13 @@ class Doctor(Base):
     crm: Mapped[str] = mapped_column(String(20), nullable=False)
     uf: Mapped[str] = mapped_column(String(2), nullable=False)
     specialty: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    cfm_validation_status: Mapped[str] = mapped_column(
+        String(30), default="VALIDATION_PENDING", nullable=False
+    )
+    cfm_validated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    cfm_name: Mapped[str | None] = mapped_column(String(70), nullable=True)
+    cfm_registration_status: Mapped[str | None] = mapped_column(String(1), nullable=True)
+    cfm_registration_type: Mapped[str | None] = mapped_column(String(1), nullable=True)
     user: Mapped[User] = relationship(back_populates="doctor")

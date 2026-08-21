@@ -5,6 +5,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app import main
+from app.cfm import CFMClient, CFMDoctor, CFMUnavailableError, get_cfm_client
 from app.database import Base, get_db
 from app.main import app
 from app.models import Doctor, User
@@ -26,6 +27,14 @@ def override_get_db():
 
 
 app.dependency_overrides[get_db] = override_get_db
+
+
+class PendingCFM:
+    def find_doctor(self, crm: str, uf: str) -> CFMDoctor:
+        raise CFMUnavailableError("CFM simulado como indisponivel")
+
+
+app.dependency_overrides[get_cfm_client] = lambda: PendingCFM()
 
 client = TestClient(app)
 
@@ -341,6 +350,11 @@ def test_cria_medico_relacionado_ao_usuario():
         "crm": "123456",
         "uf": "SP",
         "specialty": "Cardiologia",
+        "cfm_validation_status": "VALIDATION_PENDING",
+        "cfm_validated_at": None,
+        "cfm_name": None,
+        "cfm_registration_status": None,
+        "cfm_registration_type": None,
     }
     assert client.get("/doctors").json() == [resposta.json()]
 
@@ -416,3 +430,76 @@ def test_crm_e_uf_nao_podem_se_repetir():
     assert criado.status_code == 201
     assert duplicado.status_code == 409
     assert duplicado.json()["detail"] == "Este CRM ja esta cadastrado nesta UF."
+
+
+def test_cfm_valida_medico_e_salva_dados_oficiais():
+    class SuccessfulCFM:
+        def find_doctor(self, crm: str, uf: str) -> CFMDoctor:
+            assert (crm, uf) == ("123456", "SP")
+            return CFMDoctor(True, "Dra. Maria", "A", "P")
+
+    app.dependency_overrides[get_cfm_client] = lambda: SuccessfulCFM()
+    try:
+        user = client.post("/users", json={"first_name": "Maria"}).json()
+        response = client.post(
+            f"/users/{user['id']}/doctor", json={"crm": "123456", "uf": "SP"}
+        )
+    finally:
+        app.dependency_overrides[get_cfm_client] = lambda: PendingCFM()
+
+    assert response.status_code == 201
+    assert response.json()["cfm_validation_status"] == "VALIDATED"
+    assert response.json()["cfm_name"] == "Dra. Maria"
+    assert response.json()["cfm_validated_at"] is not None
+
+
+def test_cfm_indisponivel_nao_impede_cadastro():
+    user = client.post("/users", json={"first_name": "Maria"}).json()
+
+    response = client.post(
+        f"/users/{user['id']}/doctor", json={"crm": "123456", "uf": "SP"}
+    )
+
+    assert response.status_code == 201
+    assert response.json()["cfm_validation_status"] == "VALIDATION_PENDING"
+
+
+def test_validacao_pendente_pode_ser_tentada_novamente():
+    user = client.post("/users", json={"first_name": "Maria"}).json()
+    doctor = client.post(
+        f"/users/{user['id']}/doctor", json={"crm": "123456", "uf": "SP"}
+    ).json()
+
+    class SuccessfulCFM:
+        def find_doctor(self, crm: str, uf: str) -> CFMDoctor:
+            return CFMDoctor(True, "Dra. Maria", "A", "P")
+
+    app.dependency_overrides[get_cfm_client] = lambda: SuccessfulCFM()
+    try:
+        response = client.post(f"/doctors/{doctor['id']}/validate-cfm")
+    finally:
+        app.dependency_overrides[get_cfm_client] = lambda: PendingCFM()
+
+    assert response.status_code == 200
+    assert response.json()["cfm_validation_status"] == "VALIDATED"
+
+
+def test_cliente_cfm_repete_timeout_uma_vez():
+    attempts = 0
+
+    def timeout(request):
+        nonlocal attempts
+        attempts += 1
+        raise __import__("httpx").ReadTimeout("CFM fora", request=request)
+
+    client_cfm = CFMClient(
+        access_key="12345678",
+        max_attempts=2,
+        retry_delay=0,
+        transport=__import__("httpx").MockTransport(timeout),
+    )
+
+    with pytest.raises(CFMUnavailableError):
+        client_cfm.find_doctor("123456", "SP")
+
+    assert attempts == 2
