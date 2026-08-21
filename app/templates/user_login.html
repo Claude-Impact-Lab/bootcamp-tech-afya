@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Entrar na minha conta</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 1rem; font-family: Arial, sans-serif; background: linear-gradient(135deg, #0033cc, #d81b60); }
+    main { width: min(100%, 420px); padding: 2rem; border-radius: 16px; background: #fff; box-shadow: 0 20px 60px #0005; }
+    h1 { margin: 0 0 .5rem; color: #222; }
+    .subtitle { margin: 0 0 1.5rem; color: #666; }
+    label { display: block; margin: 1rem 0 .35rem; font-weight: 700; color: #333; }
+    input { width: 100%; padding: .8rem; border: 1px solid #ccc; border-radius: 8px; font: inherit; }
+    input:focus { outline: 3px solid #0033cc22; border-color: #0033cc; }
+    button { width: 100%; margin-top: 1.25rem; padding: .85rem; border: 0; border-radius: 8px; background: #0033cc; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+    button:disabled { opacity: .6; cursor: wait; }
+    #message { min-height: 1.25rem; margin: 1rem 0 0; color: #b00020; text-align: center; }
+    nav { display: flex; justify-content: space-between; gap: 1rem; margin-top: 1.25rem; }
+    a { color: #0033cc; font-size: .9rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Minha conta</h1>
+    <p class="subtitle">Entre com o e-mail e a senha usados no cadastro.</p>
+    <form id="login-form">
+      <label for="email">E-mail</label>
+      <input id="email" type="email" autocomplete="username" required>
+
+      <label for="senha">Senha</label>
+      <input id="senha" type="password" autocomplete="current-password" required>
+
+      <button type="submit">Entrar</button>
+      <p id="message" role="alert" aria-live="polite"></p>
+    </form>
+    <nav>
+      <a href="/">Criar cadastro</a>
+      <a href="/admin/login">Acesso administrativo</a>
+    </nav>
+  </main>
+  <script>
+    const form = document.getElementById('login-form');
+    const message = document.getElementById('message');
+
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      const button = form.querySelector('button');
+      button.disabled = true;
+      message.textContent = '';
+      try {
+        const response = await fetch('/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: document.getElementById('email').value.trim(),
+            senha: document.getElementById('senha').value,
+          }),
+        });
+        if (!response.ok) throw new Error('E-mail ou senha inválidos.');
+        window.location.assign('/conta');
+      } catch (error) {
+        message.textContent = error.message;
+      } finally {
+        button.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

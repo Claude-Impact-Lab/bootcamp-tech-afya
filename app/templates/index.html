@@ -1,33 +1,798 @@
 <!doctype html>
 <html lang="pt-BR">
-  <head>
+<head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>User Manager</title>
+    <title>User Manager - Portal</title>
     <style>
-      body {
-        font-family: system-ui, sans-serif;
-        display: grid;
-        place-items: center;
-        min-height: 100vh;
-        margin: 0;
-      }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+            background: linear-gradient(135deg, #0033CC 0%, #1B4DCF 25%, #D81B60 75%, #FF1744 100%);
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
+            overflow-y: auto;
+            line-height: 1.45;
+        }
+
+        /* Efeito de linhas no fundo */
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: 
+                linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.03) 50%, transparent 100%),
+                linear-gradient(180deg, transparent 0%, rgba(255,255,255,0.05) 50%, transparent 100%);
+            pointer-events: none;
+        }
+
+        .container {
+            display: flex;
+            width: 100%;
+            max-width: 1200px;
+            gap: 2rem;
+            min-height: 100vh;
+            padding: 3rem 2rem 6rem;
+            align-items: flex-start;
+            justify-content: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .left-section {
+            flex: 1;
+            min-width: 0;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding-top: 9rem;
+            animation: slideInLeft 0.8s ease-out;
+        }
+
+        @keyframes slideInLeft {
+            from {
+                opacity: 0;
+                transform: translateX(-50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .left-section h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            line-height: 1.2;
+        }
+
+        .left-section p {
+            font-size: 1.3rem;
+            font-weight: 300;
+            line-height: 1.6;
+            opacity: 0.95;
+            max-width: 24rem;
+        }
+
+        .center-card {
+            background: white;
+            border-radius: 16px;
+            padding: 2.5rem;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 450px;
+            min-width: 0;
+            animation: slideInUp 0.8s ease-out;
+        }
+
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .logo-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #D81B60;
+            letter-spacing: -0.5px;
+        }
+
+        .logo-text {
+            font-size: 0.75rem;
+            color: #999;
+            font-weight: 500;
+            margin-top: 0.25rem;
+        }
+
+        .back-link {
+            background: none;
+            border: 2px solid #0033CC;
+            color: #0033CC;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .back-link:hover {
+            background: #0033CC;
+            color: white;
+        }
+
+        .admin-link {
+            color: #0033CC;
+            display: block;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-top: 1.25rem;
+            text-align: center;
+            text-decoration: none;
+        }
+
+        .admin-link:hover { text-decoration: underline; }
+
+        .card-title {
+            font-size: 1.1rem;
+            color: #333;
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 0.5rem;
+        }
+
+        input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #0033CC;
+            box-shadow: 0 0 0 3px rgba(0, 51, 204, 0.1);
+        }
+
+        input::placeholder {
+            color: #999;
+        }
+
+        .submit-btn {
+            width: 100%;
+            padding: 0.9rem;
+            background: linear-gradient(135deg, #0033CC 0%, #1B4DCF 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 1rem;
+        }
+
+        .submit-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 51, 204, 0.3);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .message {
+            margin-top: 1rem;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            text-align: center;
+            animation: slideDown 0.3s ease-out;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.success {
+            background: #e8f5e9;
+            color: #2e7d32;
+            border: 1px solid #c8e6c9;
+        }
+
+        .message.error {
+            background: #ffebee;
+            color: #c62828;
+            border: 1px solid #ffcdd2;
+        }
+
+        .field-error {
+            color: #c62828;
+            font-size: 0.8rem;
+            margin-top: 0.35rem;
+            min-height: 1rem;
+        }
+
+        .message.info {
+            background: #e3f2fd;
+            color: #1565c0;
+            border: 1px solid #bbdefb;
+        }
+
+        .users-section {
+            display: none;
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 2px solid #f0f0f0;
+        }
+
+        .users-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 1rem;
+        }
+
+        .users-list {
+            list-style: none;
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        .user-item {
+            padding: 0.75rem;
+            background: #f9f9f9;
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            border-left: 3px solid #D81B60;
+            transition: all 0.2s ease;
+        }
+
+        .user-item:hover {
+            background: #f0f0f0;
+            transform: translateX(4px);
+        }
+
+        .user-name {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .user-email {
+            color: #999;
+            font-size: 0.85rem;
+            margin-top: 0.25rem;
+        }
+        
+        .user-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+        
+        .user-actions button {
+            border: 0;
+            border-radius: 6px;
+            cursor: pointer;
+            padding: 0.4rem 0.65rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        
+        .edit-btn {
+            background: #e3f2fd;
+            color: #1565c0;
+        }
+        
+        .delete-btn {
+            background: #ffebee;
+            color: #c62828;
+        }
+        
+        .doctor-fields {
+            display: none;
+            gap: 0.75rem;
+        }
+        
+        .doctor-fields.visible {
+            display: grid;
+            grid-template-columns: 1fr 0.7fr;
+        }
+        
+        .doctor-toggle {
+            align-items: center;
+            color: #444;
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .doctor-toggle input {
+            width: auto;
+            margin: 0;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #999;
+            padding: 1rem 0;
+            font-size: 0.9rem;
+        }
+
+        .right-section {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding-top: 4rem;
+            animation: slideInRight 0.8s ease-out;
+        }
+
+        @keyframes slideInRight {
+            from {
+                opacity: 0;
+                transform: translateX(50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .illustration {
+            width: 100%;
+            max-width: 400px;
+            aspect-ratio: 1;
+            border-radius: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            overflow: hidden;
+            box-shadow: 0 20px 45px rgba(0, 0, 0, 0.2);
+        }
+
+        .illustration img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center;
+        }
+
+        footer {
+            width: 100%;
+            padding: 1rem;
+            text-align: center;
+            font-size: 0.85rem;
+            background: rgba(0, 0, 0, 0.12);
+            position: relative;
+            z-index: 2;
+        }
+
+        footer a {
+            color: white;
+            text-decoration: none;
+            margin: 0 1rem;
+            transition: all 0.3s ease;
+            display: inline-block;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+            opacity: 0.8;
+        }
+
+        /* Responsivo */
+        @media (max-width: 1024px) {
+            .container {
+                flex-direction: column;
+                padding: 1rem;
+                min-height: auto;
+                gap: 1.5rem;
+            }
+
+            .left-section {
+                text-align: center;
+                padding-top: 1rem;
+                width: 100%;
+            }
+
+            .left-section h1 {
+                font-size: 2rem;
+            }
+
+            .left-section p {
+                font-size: 1.1rem;
+                margin: 0 auto;
+            }
+
+            .right-section {
+                display: none;
+            }
+
+            footer {
+                margin-top: 0;
+                line-height: 2;
+            }
+
+            .center-card {
+                max-width: 100%;
+                padding: 1.25rem;
+            }
+
+            .logo-header {
+                align-items: flex-start;
+                gap: 1rem;
+                flex-wrap: wrap;
+                margin-bottom: 1.5rem;
+            }
+
+            .right-section {
+                display: none;
+            }
+        }
     </style>
-  </head>
-  <body>
-    <h1 id="mensagem">carregando...</h1>
+</head>
+<body>
+    <div class="container">
+        <div class="left-section">
+            <h1>Bem vindo!</h1>
+            <p>Aqui você poderá gerenciar seu acesso <strong>institucional</strong>.</p>
+        </div>
+
+        <div class="center-card">
+            <div class="logo-header">
+                <div>
+                    <div class="logo">Afya</div>
+                    <div class="logo-text">Educação Médica</div>
+                </div>
+                <button class="back-link" onclick="window.history.back()">← Voltar</button>
+            </div>
+
+            <div class="card-title">Confirme seus dados para continuar:</div>
+
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="nome">Nome Completo</label>
+                    <input 
+                        type="text" 
+                        id="nome" 
+                        name="nome" 
+                        placeholder="Digite seu nome" 
+                        required 
+                    />
+                </div>
+
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input 
+                        type="email" 
+                        id="email" 
+                        name="email" 
+                        placeholder="seu.email@exemplo.com" 
+                        required 
+                    />
+                </div>
+                
+                <div class="form-group">
+                    <label for="senha">Senha</label>
+                    <input type="password" id="senha" name="senha" placeholder="Minimo de 8 caracteres" minlength="8" required />
+                </div>
+
+                <label class="doctor-toggle">
+                    <input type="checkbox" id="eh-medico" />
+                    Sou médico
+                </label>
+                
+                <div id="doctor-fields" class="doctor-fields">
+                    <div>
+                        <label for="crm">CRM</label>
+                        <input type="text" id="crm" placeholder="Número do CRM" />
+                        <p id="crm-erro" class="field-error" aria-live="polite"></p>
+                    </div>
+                    <div>
+                        <label for="uf">UF</label>
+                        <input type="text" id="uf" maxlength="2" placeholder="UF" />
+                        <p id="uf-erro" class="field-error" aria-live="polite"></p>
+                    </div>
+                </div>
+
+                <button type="submit" class="submit-btn">Confirmar →</button>
+                <p id="mensagem"></p>
+            </form>
+            <a class="admin-link" href="/login">Já tenho cadastro · Entrar</a>
+            <a class="admin-link" href="/admin/login">Acesso do administrador</a>
+
+            <div class="users-section">
+                <div class="users-title">Usuários cadastrados</div>
+                <p id="aviso" class="empty-state">carregando...</p>
+                <ul id="lista" class="users-list"></ul>
+            </div>
+        </div>
+
+        <div class="right-section">
+            <div class="illustration">
+                <img src="/static/hero-medica-institucional.png" alt="Profissional de saúde em ambiente clínico" />
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <a href="#">Termos</a>
+        <a href="#">Política de Privacidade</a>
+        <span style="color: white; opacity: 0.7;">© 2026 Afya - Todos os direitos reservados</span>
+    </footer>
 
     <script>
-      // Busca a mensagem na API em vez de escrever no HTML:
-      // e o primeiro contato do time com fetch + JSON.
-      fetch("/health")
-        .then((resposta) => resposta.json())
-        .then((dados) => {
-          document.getElementById("mensagem").textContent = dados.message;
+      const aviso = document.getElementById("aviso");
+      const lista = document.getElementById("lista");
+      const form = document.getElementById("login-form");
+      const nomeInput = document.getElementById("nome");
+      const emailInput = document.getElementById("email");
+      const senhaInput = document.getElementById("senha");
+      const mensagem = document.getElementById("mensagem");
+            const doctorToggle = document.getElementById("eh-medico");
+            const doctorFields = document.getElementById("doctor-fields");
+            const crmInput = document.getElementById("crm");
+            const ufInput = document.getElementById("uf");
+            const crmErro = document.getElementById("crm-erro");
+            const ufErro = document.getElementById("uf-erro");
+
+            doctorToggle.addEventListener("change", () => {
+                doctorFields.classList.toggle("visible", doctorToggle.checked);
+                crmInput.required = doctorToggle.checked;
+                ufInput.required = doctorToggle.checked;
+            });
+
+      // Esta funcao carrega os usuarios da API e atualiza a lista na tela.
+      function carregarUsuarios() {
+        aviso.textContent = "carregando...";
+        aviso.className = "empty-state";
+        lista.innerHTML = "";
+
+        fetch("/users")
+          .then((resposta) => resposta.json())
+          .then((usuarios) => {
+            if (usuarios.length === 0) {
+              aviso.textContent = "nenhum usuário cadastrado ainda";
+              aviso.className = "empty-state";
+            } else {
+              aviso.textContent = "";
+            }
+
+            usuarios.forEach((usuario) => {
+              const item = document.createElement("li");
+              item.className = "user-item";
+
+              const nome = document.createElement("div");
+              nome.className = "user-name";
+              nome.textContent = usuario.nome;
+
+              const email = document.createElement("div");
+              email.className = "user-email";
+              email.textContent = usuario.email;
+
+                            item.append(nome, email);
+
+                            if (usuario.doctor) {
+                                const doctor = document.createElement("div");
+                                doctor.className = "user-email";
+                                doctor.textContent = `Médico · CRM ${usuario.doctor.crm}/${usuario.doctor.uf}`;
+                                item.append(doctor);
+                            }
+
+                            const actions = document.createElement("div");
+                            actions.className = "user-actions";
+
+                            const editButton = document.createElement("button");
+                            editButton.className = "edit-btn";
+                            editButton.textContent = "Editar";
+                            editButton.addEventListener("click", () => editarUsuario(usuario));
+
+                            const deleteButton = document.createElement("button");
+                            deleteButton.className = "delete-btn";
+                            deleteButton.textContent = "Excluir";
+                            deleteButton.addEventListener("click", () => excluirUsuario(usuario.id));
+
+                            actions.append(editButton, deleteButton);
+                            item.append(actions);
+              lista.append(item);
+            });
+          })
+          .catch((erro) => {
+            aviso.textContent = "erro ao carregar usuários";
+            aviso.className = "empty-state";
+            console.error("Erro:", erro);
+          });
+      }
+
+            function editarUsuario(usuario) {
+                const nome = window.prompt("Nome:", usuario.nome);
+                if (nome === null) return;
+                const email = window.prompt("Email:", usuario.email);
+                if (email === null) return;
+
+                fetch(`/users/${usuario.id}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ nome, email }),
+                })
+                    .then((resposta) => {
+                        if (!resposta.ok) throw new Error("Falha ao editar usuário");
+                        return resposta.json();
+                    })
+                    .then(() => {
+                        mensagem.textContent = "Usuário atualizado com sucesso!";
+                        mensagem.className = "message success";
+                        carregarUsuarios();
+                    })
+                    .catch(() => {
+                        mensagem.textContent = "Não foi possível editar o usuário.";
+                        mensagem.className = "message error";
+                    });
+            }
+
+            function excluirUsuario(id) {
+                if (!window.confirm("Deseja realmente excluir este usuário?")) return;
+
+                fetch(`/users/${id}`, { method: "DELETE" })
+                    .then((resposta) => {
+                        if (!resposta.ok) throw new Error("Falha ao excluir usuário");
+                        mensagem.textContent = "Usuário excluído com sucesso!";
+                        mensagem.className = "message success";
+                        carregarUsuarios();
+                    })
+                    .catch(() => {
+                        mensagem.textContent = "Não foi possível excluir o usuário.";
+                        mensagem.className = "message error";
+                    });
+            }
+
+      // Quando o formulario e enviado, criamos um novo usuario via POST.
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        crmErro.textContent = "";
+        ufErro.textContent = "";
+        
+        const submitBtn = form.querySelector(".submit-btn");
+        const btnText = submitBtn.textContent;
+        submitBtn.disabled = true;
+        submitBtn.textContent = doctorToggle.checked ? "Aguardando CFM..." : "Processando...";
+        
+        mensagem.textContent = doctorToggle.checked
+          ? "Uma janela do CFM será aberta. Se aparecer um CAPTCHA, conclua-o manualmente."
+          : "Enviando...";
+        mensagem.className = "message info";
+
+        const novoUsuario = {
+          nome: nomeInput.value.trim(),
+          email: emailInput.value.trim(),
+          senha: senhaInput.value,
+        };
+
+        if (doctorToggle.checked) {
+          novoUsuario.doctor = {
+            crm: crmInput.value.trim(),
+            uf: ufInput.value.trim(),
+          };
+        }
+
+        fetch("/users", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(novoUsuario),
         })
-        .catch(() => {
-          document.getElementById("mensagem").textContent = "erro ao chamar a API";
-        });
+          .then(async (resposta) => {
+            if (!resposta.ok) {
+              const erro = new Error("Falha ao cadastrar usuário");
+              erro.detalhes = (await resposta.json()).detail;
+              throw erro;
+            }
+            return resposta.json();
+          })
+          .then((usuarioCriado) => {
+            const validationPending = usuarioCriado.doctor?.cfm_validation_status === "VALIDATION_PENDING";
+            mensagem.textContent = doctorToggle.checked
+              ? (validationPending
+                ? `Médico ${usuarioCriado.nome} cadastrado. A validação do CFM ficou pendente; entre na sua conta para tentar novamente.`
+                : `Médico ${usuarioCriado.nome} cadastrado e validado pelo CFM.`)
+              : `Usuário ${usuarioCriado.nome} cadastrado com sucesso!`;
+            mensagem.className = "message success";
+            nomeInput.value = "";
+            emailInput.value = "";
+            senhaInput.value = "";
+                        doctorToggle.checked = false;
+                        doctorFields.classList.remove("visible");
+                        crmInput.value = "";
+                        ufInput.value = "";
+            
+            // Limpar mensagem após 3 segundos
+            setTimeout(() => {
+              mensagem.textContent = "";
+              mensagem.className = "";
+            }, 3000);
+          })
+          .catch((erro) => {
+            if (Array.isArray(erro.detalhes)) {
+              erro.detalhes.forEach((detalhe) => {
+                const campo = detalhe.loc.at(-1);
+                if (campo === "crm") crmErro.textContent = detalhe.msg;
+                if (campo === "uf") ufErro.textContent = detalhe.msg;
+              });
+              mensagem.textContent = "Revise os dados médicos e tente novamente.";
+            } else if (erro.detalhes?.code === "CRM_NOT_FOUND") {
+              mensagem.textContent = "O CRM não foi encontrado no CFM. Nenhum cadastro foi salvo.";
+            } else if (erro.detalhes?.code === "CRM_INACTIVE") {
+              mensagem.textContent = "O CRM foi encontrado, mas não está ativo. Nenhum cadastro foi salvo.";
+            } else if (erro.detalhes?.code === "VALIDATION_TIMEOUT") {
+              mensagem.textContent = "A validação expirou. Nenhum cadastro foi salvo; tente novamente e conclua o CAPTCHA.";
+            } else if (erro.detalhes?.code === "CFM_UNAVAILABLE") {
+              mensagem.textContent = "Não foi possível checar o CFM agora. Nenhum cadastro foi salvo; tente novamente mais tarde.";
+            } else if (erro.detalhes?.code === "CFM_CONFIGURATION") {
+              mensagem.textContent = "A integração com o CFM não está disponível. Nenhum cadastro foi salvo.";
+            } else {
+              mensagem.textContent = "Erro ao cadastrar usuário. Tente novamente.";
+            }
+            mensagem.className = "message error";
+            console.error("Erro:", erro);
+          })
+          .finally(() => {
+            submitBtn.disabled = false;
+            submitBtn.textContent = btnText;
+          });
+      });
+
+      // Carregar usuários ao abrir a página
     </script>
   </body>
 </html>
