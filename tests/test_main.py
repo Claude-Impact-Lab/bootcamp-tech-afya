@@ -366,3 +366,53 @@ def test_excluir_usuario_exclui_medico_relacionado():
 
     with TestingSessionLocal() as session:
         assert session.scalar(select(Doctor)) is None
+
+
+def test_crm_deve_conter_apenas_numeros():
+    usuario = client.post("/users", json={"first_name": "Maria"}).json()
+
+    resposta = client.post(
+        f"/users/{usuario['id']}/doctor", json={"crm": "12A456", "uf": "SP"}
+    )
+
+    assert resposta.status_code == 422
+
+
+def test_uf_deve_ser_uma_sigla_brasileira_valida():
+    usuario = client.post("/users", json={"first_name": "Maria"}).json()
+
+    resposta = client.post(
+        f"/users/{usuario['id']}/doctor", json={"crm": "123456", "uf": "XX"}
+    )
+
+    assert resposta.status_code == 422
+
+
+def test_crm_pode_se_repetir_em_ufs_diferentes():
+    primeiro = client.post("/users", json={"first_name": "Maria"}).json()
+    segundo = client.post("/users", json={"first_name": "Joao"}).json()
+
+    sp = client.post(
+        f"/users/{primeiro['id']}/doctor", json={"crm": "123456", "uf": "sp"}
+    )
+    rj = client.post(
+        f"/users/{segundo['id']}/doctor", json={"crm": "123456", "uf": "rj"}
+    )
+
+    assert sp.status_code == 201
+    assert rj.status_code == 201
+    assert sp.json()["uf"] == "SP"
+    assert rj.json()["uf"] == "RJ"
+
+
+def test_crm_e_uf_nao_podem_se_repetir():
+    primeiro = client.post("/users", json={"first_name": "Maria"}).json()
+    segundo = client.post("/users", json={"first_name": "Joao"}).json()
+    dados = {"crm": "123456", "uf": "SP"}
+
+    criado = client.post(f"/users/{primeiro['id']}/doctor", json=dados)
+    duplicado = client.post(f"/users/{segundo['id']}/doctor", json=dados)
+
+    assert criado.status_code == 201
+    assert duplicado.status_code == 409
+    assert duplicado.json()["detail"] == "Este CRM ja esta cadastrado nesta UF."

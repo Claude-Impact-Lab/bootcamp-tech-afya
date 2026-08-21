@@ -19,7 +19,9 @@ Atualizado em: 21/08/2026
 - Missão 05 concluída: entidade `Doctor`, relação um-para-um com `User` e exclusão
   em cascata.
 - Migration `0002` aplicada ao PostgreSQL local.
-- Validação atual: `25 passed` com um aviso de depreciação vindo de uma dependência.
+- Missão 06 concluída: CRM numérico, UF brasileira válida e unicidade de `CRM + UF`.
+- Migration `0003` aplicada ao PostgreSQL local.
+- Validação atual: `29 passed` com um aviso de depreciação vindo de uma dependência.
 
 ## Estado do salvamento
 
@@ -37,7 +39,7 @@ Atualizado em: 21/08/2026
 | 03 — PostgreSQL | Concluída, testada e publicada | Preservar migration e testes isolados |
 | 04 — `PUT` e `DELETE` | Concluída e testada | Preservar testes de idempotência |
 | 05 — User + Doctor | Concluída e testada | Preservar relação e cascade |
-| 06 — CRM + UF | Não iniciada | Validar regras de negócio |
+| 06 — CRM + UF | Concluída e testada | Preservar regras e constraint única |
 | 07 — Integração CFM | Não iniciada | Criar adapter externo |
 | 08 — Falhas do CFM | Não iniciada | Timeout, retry e estado pendente |
 | 09 — Testes e mocks | Não iniciada | Isolar completamente o CFM nos testes |
@@ -45,13 +47,13 @@ Atualizado em: 21/08/2026
 
 ## Próxima sessão
 
-1. Revisar as rotas das missões 04 e 05 em `/docs`.
-2. Confirmar os 25 testes.
-3. Iniciar a missão 06 com as regras de CRM e UF.
-4. Validar formato, UF permitida e unicidade de CRM + UF.
+1. Revisar as rotas das missões 04, 05 e 06 em `/docs`.
+2. Confirmar os 29 testes.
+3. Iniciar a missão 07 sem scraping, usando o webservice oficial do CFM.
+4. Isolar o CFM em um adapter com contrato `find_doctor(crm, uf)`.
 
 ## Comando para retomar com uma nova conversa
 
 > Leia `CONTINUIDADE.md`, confira o Git e os testes, e continue meu treinamento a
-> partir da missão 06. Confirme PostgreSQL, Git e testes antes de alterar código.
+> partir da missão 07. Confirme PostgreSQL, Git e testes antes de alterar código.
 > Ensine passo a passo; não entregue código sem explicar.

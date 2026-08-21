@@ -87,11 +87,32 @@ class UserUpdate(BaseModel):
 
 
 class DoctorCreate(BaseModel):
-    """Dados basicos; as regras oficiais de CRM entram na missao 06."""
+    """Dados profissionais validados pelas regras locais da missao 06."""
 
     crm: str = Field(min_length=1, max_length=20)
     uf: str = Field(min_length=2, max_length=2)
     specialty: str | None = Field(default=None, min_length=2, max_length=100)
+
+    @field_validator("crm")
+    @classmethod
+    def validate_crm(cls, value: str) -> str:
+        crm = value.strip()
+        if not crm.isdecimal():
+            raise ValueError("O CRM deve conter apenas numeros.")
+        return crm
+
+    @field_validator("uf")
+    @classmethod
+    def validate_uf(cls, value: str) -> str:
+        uf = value.strip().upper()
+        valid_ufs = {
+            "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO",
+            "MA", "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI",
+            "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO",
+        }
+        if uf not in valid_ufs:
+            raise ValueError("Informe uma UF brasileira valida.")
+        return uf
 
 
 def admin_session_value() -> str:
@@ -224,12 +245,19 @@ def create_doctor(
 
     doctor = Doctor(
         user_id=user_id,
-        crm=data.crm.strip(),
-        uf=data.uf.upper(),
+        crm=data.crm,
+        uf=data.uf,
         specialty=data.specialty.strip() if data.specialty else None,
     )
     db.add(doctor)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Este CRM ja esta cadastrado nesta UF.",
+        )
     db.refresh(doctor)
     return public_doctor(doctor)
 

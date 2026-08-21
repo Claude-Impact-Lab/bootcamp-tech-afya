@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, ForeignKey, Integer, String
+from sqlalchemy import Boolean, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -27,6 +27,7 @@ class Doctor(Base):
     """Dados profissionais ligados a exatamente um usuario."""
 
     __tablename__ = "doctors"
+    __table_args__ = (UniqueConstraint("crm", "uf", name="uq_doctors_crm_uf"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(
