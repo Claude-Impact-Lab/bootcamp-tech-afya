@@ -393,37 +393,18 @@
             width: 100%;
             max-width: 400px;
             aspect-ratio: 1;
-            height: auto;
-            background: rgba(255, 255, 255, 0.1);
             border-radius: 16px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            backdrop-filter: blur(10px);
             border: 2px solid rgba(255, 255, 255, 0.2);
-            position: relative;
             overflow: hidden;
+            box-shadow: 0 20px 45px rgba(0, 0, 0, 0.2);
         }
 
-        .illustration::before {
-            content: '';
-            position: absolute;
-            width: 200px;
-            height: 200px;
-            background: radial-gradient(circle, rgba(255, 255, 255, 0.3) 0%, transparent 70%);
-            border-radius: 50%;
-            animation: pulse 4s ease-in-out infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); opacity: 0.3; }
-            50% { transform: scale(1.1); opacity: 0.5; }
-        }
-
-        .illustration svg {
-            width: 80%;
-            height: 80%;
-            z-index: 1;
+        .illustration img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center;
         }
 
         footer {
@@ -567,6 +548,7 @@
                 <button type="submit" class="submit-btn">Confirmar →</button>
                 <p id="mensagem"></p>
             </form>
+            <a class="admin-link" href="/login">Já tenho cadastro · Entrar</a>
             <a class="admin-link" href="/admin/login">Acesso do administrador</a>
 
             <div class="users-section">
@@ -578,26 +560,7 @@
 
         <div class="right-section">
             <div class="illustration">
-                <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-                    <!-- Cabeça -->
-                    <circle cx="100" cy="60" r="30" fill="#FFD6E8" opacity="0.8"/>
-                    <!-- Cabelo -->
-                    <path d="M 70 50 Q 100 20 130 50" fill="#FF69B4" opacity="0.8"/>
-                    <!-- Corpo -->
-                    <rect x="80" y="90" width="40" height="60" rx="8" fill="#E91E63" opacity="0.7"/>
-                    <!-- Braço esquerdo -->
-                    <rect x="50" y="95" width="30" height="12" rx="6" fill="#FFD6E8" opacity="0.8" transform="rotate(-30 65 101)"/>
-                    <!-- Braço direito com tablet -->
-                    <rect x="120" y="95" width="30" height="12" rx="6" fill="#FFD6E8" opacity="0.8" transform="rotate(30 135 101)"/>
-                    <!-- Tablet/Dispositivo -->
-                    <rect x="130" y="85" width="35" height="50" rx="4" fill="#0033CC" opacity="0.6" transform="rotate(25 147.5 110)"/>
-                    <!-- Holograma/Círculos -->
-                    <circle cx="100" cy="100" r="50" fill="none" stroke="white" stroke-width="1" opacity="0.3" stroke-dasharray="5,5"/>
-                    <circle cx="100" cy="100" r="65" fill="none" stroke="white" stroke-width="0.5" opacity="0.2" stroke-dasharray="8,4"/>
-                    <!-- Pernas -->
-                    <line x1="90" y1="150" x2="85" y2="180" stroke="#FFD6E8" stroke-width="10" stroke-linecap="round" opacity="0.8"/>
-                    <line x1="110" y1="150" x2="115" y2="180" stroke="#FFD6E8" stroke-width="10" stroke-linecap="round" opacity="0.8"/>
-                </svg>
+                <img src="/static/hero-medica-institucional.png" alt="Profissional de saúde em ambiente clínico" />
             </div>
         </div>
     </div>
@@ -778,8 +741,11 @@
             return resposta.json();
           })
           .then((usuarioCriado) => {
+            const validationPending = usuarioCriado.doctor?.cfm_validation_status === "VALIDATION_PENDING";
             mensagem.textContent = doctorToggle.checked
-              ? `Médico ${usuarioCriado.nome} cadastrado e validado pelo CFM.`
+              ? (validationPending
+                ? `Médico ${usuarioCriado.nome} cadastrado. A validação do CFM ficou pendente; entre na sua conta para tentar novamente.`
+                : `Médico ${usuarioCriado.nome} cadastrado e validado pelo CFM.`)
               : `Usuário ${usuarioCriado.nome} cadastrado com sucesso!`;
             mensagem.className = "message success";
             nomeInput.value = "";

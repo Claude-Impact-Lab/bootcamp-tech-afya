@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Meu cadastro</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; font-family: Arial, sans-serif; color: #252525; background: #f3f5fb; }
+    header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1rem max(1rem, calc((100% - 1050px) / 2)); background: linear-gradient(135deg, #0033cc, #d81b60); color: #fff; }
+    header h1 { margin: 0; font-size: 1.35rem; }
+    header button { border: 1px solid #fff; background: transparent; color: #fff; }
+    main { width: min(100% - 2rem, 1050px); margin: 2rem auto; display: grid; gap: 1.5rem; }
+    section { padding: 1.5rem; border-radius: 14px; background: #fff; box-shadow: 0 5px 20px #10205012; }
+    h2 { margin: 0 0 .25rem; font-size: 1.15rem; }
+    .hint { margin: 0 0 1.25rem; color: #666; font-size: .9rem; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+    .full { grid-column: 1 / -1; }
+    label { display: block; margin-bottom: .35rem; font-weight: 700; font-size: .9rem; }
+    input { width: 100%; padding: .75rem; border: 1px solid #ccd0dc; border-radius: 8px; font: inherit; }
+    input:focus { outline: 3px solid #0033cc1f; border-color: #0033cc; }
+    input[readonly] { color: #555; background: #f0f1f5; }
+    button { padding: .75rem 1.1rem; border: 0; border-radius: 8px; background: #0033cc; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+    button:disabled { opacity: .6; cursor: wait; }
+    .actions { display: flex; justify-content: flex-end; margin-top: 1.25rem; }
+    .doctor-only { display: none; }
+    .doctor-only.visible { display: block; }
+    .validation-status { margin: 0; padding: .75rem; border-radius: 8px; background: #eef3ff; color: #173b88; }
+    .validation-status.pending { background: #fff4df; color: #875200; }
+    #revalidate-doctor { margin-top: .75rem; background: #875200; }
+    #message { position: sticky; top: .75rem; z-index: 2; display: none; padding: .8rem 1rem; border-radius: 8px; }
+    #message.success { display: block; color: #176b2c; background: #e8f5e9; border: 1px solid #a5d6a7; }
+    #message.error { display: block; color: #a51c30; background: #ffebee; border: 1px solid #ef9a9a; }
+    @media (max-width: 650px) { .grid { grid-template-columns: 1fr; } .full { grid-column: auto; } main { margin: 1rem auto; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Meu cadastro</h1>
+    <button id="logout" type="button">Sair</button>
+  </header>
+  <main>
+    <p id="message" role="status" aria-live="polite"></p>
+
+    <form id="profile-form">
+      <section>
+        <h2>Dados pessoais</h2>
+        <p class="hint">Esses dados ficam protegidos na sua área autenticada e não aparecem na página pública.</p>
+        <div class="grid">
+          <div><label for="nome">Nome completo</label><input id="nome" required maxlength="255"></div>
+          <div><label for="email">E-mail</label><input id="email" type="email" required maxlength="255"></div>
+          <div><label for="telefone">Telefone</label><input id="telefone" type="tel" maxlength="20" placeholder="(11) 99999-9999"></div>
+          <div><label for="documento">Documento (CPF, RG ou outro)</label><input id="documento" maxlength="32"></div>
+          <div><label for="data_nascimento">Data de nascimento</label><input id="data_nascimento" type="date"></div>
+          <div><label for="escolaridade">Escolaridade</label><input id="escolaridade" maxlength="120" placeholder="Ex.: Superior completo"></div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Endereço</h2>
+        <p class="hint">Complete os campos que desejar manter no cadastro.</p>
+        <div class="grid">
+          <div><label for="cep">CEP</label><input id="cep" maxlength="9" placeholder="00000-000"></div>
+          <div><label for="logradouro">Logradouro</label><input id="logradouro" maxlength="255"></div>
+          <div><label for="numero">Número</label><input id="numero" maxlength="30"></div>
+          <div><label for="complemento">Complemento</label><input id="complemento" maxlength="120"></div>
+          <div><label for="bairro">Bairro</label><input id="bairro" maxlength="120"></div>
+          <div><label for="cidade">Cidade</label><input id="cidade" maxlength="120"></div>
+          <div><label for="endereco_uf">UF</label><input id="endereco_uf" maxlength="2" placeholder="SP"></div>
+        </div>
+      </section>
+
+      <section id="doctor-section" class="doctor-only">
+        <h2>Dados profissionais</h2>
+        <p class="hint">CRM e UF são validados pelo CFM e não podem ser alterados nesta tela.</p>
+        <div class="grid">
+          <div><label for="crm">CRM</label><input id="crm" readonly></div>
+          <div><label for="uf_medico">UF do CRM</label><input id="uf_medico" readonly></div>
+          <div><label for="hospital">Hospital ou instituição onde trabalha</label><input id="hospital" maxlength="255"></div>
+          <div><label for="especialidade_atuacao">Especialidade/área de atuação</label><input id="especialidade_atuacao" maxlength="255"></div>
+          <div class="full"><label>Status da validação CFM</label><p id="cfm-validation-status" class="validation-status"></p><button id="revalidate-doctor" type="button" hidden>Tentar validar CRM novamente</button></div>
+        </div>
+      </section>
+
+      <div class="actions"><button type="submit">Salvar cadastro</button></div>
+    </form>
+
+    <section>
+      <h2>Trocar senha</h2>
+      <p class="hint">Informe a senha atual antes de escolher uma nova.</p>
+      <form id="password-form">
+        <div class="grid">
+          <div><label for="senha_atual">Senha atual</label><input id="senha_atual" type="password" autocomplete="current-password" required></div>
+          <div><label for="nova_senha">Nova senha</label><input id="nova_senha" type="password" minlength="8" autocomplete="new-password" required></div>
+          <div><label for="confirmar_senha">Confirmar nova senha</label><input id="confirmar_senha" type="password" minlength="8" autocomplete="new-password" required></div>
+        </div>
+        <div class="actions"><button type="submit">Atualizar senha</button></div>
+      </form>
+    </section>
+  </main>
+  <script>
+    const profileForm = document.getElementById('profile-form');
+    const passwordForm = document.getElementById('password-form');
+    const message = document.getElementById('message');
+    let isDoctor = false;
+
+    const optionalFields = [
+      'telefone', 'documento', 'data_nascimento', 'escolaridade', 'cep',
+      'logradouro', 'numero', 'complemento', 'bairro', 'cidade', 'endereco_uf',
+    ];
+
+    function showMessage(text, type) {
+      message.textContent = text;
+      message.className = type;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function apiMessage(data) {
+      if (typeof data?.detail === 'string') return data.detail;
+      if (typeof data?.detail?.message === 'string') return data.detail.message;
+      if (Array.isArray(data?.detail)) return data.detail.map(item => item.msg).join(' ');
+      return 'Não foi possível concluir a operação.';
+    }
+
+    function setValue(id, value) {
+      document.getElementById(id).value = value ?? '';
+    }
+
+    function updateDoctorFields(doctor) {
+      setValue('crm', doctor.crm);
+      setValue('uf_medico', doctor.uf);
+      setValue('hospital', doctor.hospital);
+      setValue('especialidade_atuacao', doctor.especialidade_atuacao);
+      const status = document.getElementById('cfm-validation-status');
+      const retryButton = document.getElementById('revalidate-doctor');
+      const pending = doctor.cfm_validation_status === 'VALIDATION_PENDING';
+      status.classList.toggle('pending', pending);
+      status.textContent = pending
+        ? `Validação pendente${doctor.cfm_validation_reason ? `: ${doctor.cfm_validation_reason}` : ''}.`
+        : 'CRM validado pelo CFM.';
+      retryButton.hidden = !pending;
+    }
+
+    async function loadProfile() {
+      const response = await fetch('/me');
+      if (response.status === 401) return window.location.assign('/login');
+      if (!response.ok) return showMessage('Não foi possível carregar o cadastro.', 'error');
+      const profile = await response.json();
+      setValue('nome', profile.nome);
+      setValue('email', profile.email);
+      optionalFields.forEach(field => setValue(field, profile[field]));
+      isDoctor = Boolean(profile.doctor);
+      if (isDoctor) {
+        document.getElementById('doctor-section').classList.add('visible');
+        updateDoctorFields(profile.doctor);
+      }
+    }
+
+    profileForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      const button = profileForm.querySelector('button[type="submit"]');
+      button.disabled = true;
+      const body = {
+        nome: document.getElementById('nome').value.trim(),
+        email: document.getElementById('email').value.trim(),
+      };
+      optionalFields.forEach(field => { body[field] = document.getElementById(field).value.trim() || null; });
+      if (isDoctor) {
+        body.doctor = {
+          hospital: document.getElementById('hospital').value.trim() || null,
+          especialidade_atuacao: document.getElementById('especialidade_atuacao').value.trim() || null,
+        };
+      }
+      try {
+        const response = await fetch('/me', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(apiMessage(data));
+        showMessage('Cadastro atualizado com sucesso.', 'success');
+      } catch (error) {
+        showMessage(error.message, 'error');
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    passwordForm.addEventListener('submit', async event => {
+      event.preventDefault();
+      const currentPassword = document.getElementById('senha_atual').value;
+      const newPassword = document.getElementById('nova_senha').value;
+      if (newPassword !== document.getElementById('confirmar_senha').value) {
+        return showMessage('A confirmação da nova senha não confere.', 'error');
+      }
+      const button = passwordForm.querySelector('button');
+      button.disabled = true;
+      try {
+        const response = await fetch('/me/password', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ senha_atual: currentPassword, nova_senha: newPassword }),
+        });
+        if (!response.ok) throw new Error(apiMessage(await response.json()));
+        passwordForm.reset();
+        showMessage('Senha atualizada com sucesso.', 'success');
+      } catch (error) {
+        showMessage(error.message, 'error');
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    document.getElementById('logout').addEventListener('click', async () => {
+      await fetch('/logout', { method: 'POST' });
+      window.location.assign('/login');
+    });
+
+    document.getElementById('revalidate-doctor').addEventListener('click', async event => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      try {
+        const response = await fetch('/me/doctor/revalidate', { method: 'POST' });
+        const data = await response.json();
+        if (!response.ok && response.status !== 202) throw new Error(apiMessage(data));
+        updateDoctorFields(data);
+        showMessage(
+          response.status === 202
+            ? 'O CFM continua indisponível. A validação permanece pendente.'
+            : 'CRM validado pelo CFM com sucesso.',
+          response.status === 202 ? 'error' : 'success',
+        );
+      } catch (error) {
+        showMessage(error.message, 'error');
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    loadProfile();
+  </script>
+</body>
+</html>

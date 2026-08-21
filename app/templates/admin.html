@@ -36,7 +36,7 @@
   <dialog id="editor-medico">
     <form id="form-medico">
       <h2>Editar dados médicos</h2><input id="medico-usuario-id" type="hidden">
-      <label for="crm">CRM</label><input id="crm" inputmode="numeric" pattern="[0-9]{4,6}" required><p id="erro-crm" class="erro-campo" aria-live="polite"></p>
+      <label for="crm">CRM</label><input id="crm" inputmode="numeric" pattern="[0-9]{1,7}" required><p id="erro-crm" class="erro-campo" aria-live="polite"></p>
       <label for="uf">UF</label><input id="uf" maxlength="2" required><p id="erro-uf" class="erro-campo" aria-live="polite"></p>
       <div class="actions"><button type="button" data-fechar="editor-medico" class="light">Cancelar</button><button>Salvar dados médicos</button></div>
     </form>
@@ -56,6 +56,7 @@
       return corpo.detail || 'Não foi possível salvar.';
     }
     function statusCfm(medico) {
+      if (medico.cfm_validation_status === 'VALIDATION_PENDING') return `Validação pendente${medico.cfm_validation_reason ? `: ${medico.cfm_validation_reason}` : ''}`;
       if (!medico.cfm_validated_at) return 'CFM ainda não confirmado';
       return `CFM validado em ${new Date(medico.cfm_validated_at).toLocaleString('pt-BR')}`;
     }
