@@ -304,11 +304,33 @@
     .bulk-validate-btn.running { background:#94a3b8; box-shadow:none; transform:none; }
     .pending-validation-loader { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; color:#9a3412; font-size:.82rem; font-weight:700; }
     .pending-validation-spinner { width:18px; height:18px; border-radius:50%; border:3px solid #fed7aa; border-top-color:#e60067; animation:pending-spin .75s linear infinite; }
+    .doctor-main-row { cursor:pointer; }
+    .doctor-details-row td { padding:0 !important; background:#fffafd; }
+    .doctor-details-panel { padding:18px; border-top:1px solid #f4d6e4; border-bottom:1px solid #f4d6e4; }
+    .doctor-details-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:14px 16px; }
+    .doctor-detail-field { display:flex; flex-direction:column; gap:6px; min-width:0; }
+    .doctor-detail-field.wide { grid-column:span 2; }
+    .doctor-detail-field label { color:#7c2d52; font-size:.8rem; font-weight:700; }
+    .doctor-detail-field input, .doctor-detail-field textarea {
+      width:100%; box-sizing:border-box; border:1px solid #e7cbd8; border-radius:9px;
+      padding:9px 10px; background:#fff; color:#334155; font:inherit;
+    }
+    .doctor-detail-field textarea { min-height:72px; resize:vertical; white-space:pre-wrap; }
+    .doctor-details-actions { display:flex; justify-content:flex-end; margin-top:15px; }
+    .doctor-details-save { border:0; border-radius:9px; padding:9px 18px; background:#e60067; color:#fff; font-weight:700; cursor:pointer; }
+    .doctor-details-save:disabled { background:#94a3b8; cursor:wait; }
     @keyframes pending-slide-down {
       from { opacity: 0; transform: translateY(-8px); }
       to { opacity: 1; transform: translateY(0); }
     }
     @keyframes pending-spin { to { transform:rotate(360deg); } }
+    @media (max-width: 880px) {
+      .doctor-details-grid { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 560px) {
+      .doctor-details-grid { grid-template-columns:1fr; }
+      .doctor-detail-field.wide { grid-column:span 1; }
+    }
     @keyframes toast-disappear {
       0%, 72% { opacity: 1; transform: translateY(0); }
       100% { opacity: 0; transform: translateY(-6px); }
@@ -591,6 +613,19 @@
     let bulkValidationCurrentId = null;
     let bulkValidationCurrentRequestId = null;
     let bulkValidationController = null;
+    const doctorDetailsExpanded = new Set();
+    const doctorDetailFields = [
+      ['cfm_data_inscricao', 'Data de Inscrição', false],
+      ['cfm_primeira_inscricao_uf', 'Primeira inscrição na UF', false],
+      ['cfm_tipo_inscricao', 'Inscrição', false],
+      ['cfm_situacao', 'Situação', false],
+      ['cfm_inscricoes_outros_estados', 'Inscrições em outro estado', true],
+      ['cfm_especialidades_areas', 'Especialidades/Áreas de Atuação', true],
+      ['cfm_endereco', 'Endereço', true],
+      ['cfm_telefone', 'Telefone', false],
+      ['cfm_instituicao_graduacao', 'Instituição de Graduação', true],
+      ['cfm_ano_formatura', 'Ano de Formatura', false]
+    ];
 
     function showFeedback(message, type = 'success', duration = 4000) {
       clearTimeout(feedbackTimer);
@@ -708,6 +743,78 @@
       svg.appendChild(restoArc);
     }
 
+    function criarLinhaDetalhesMedico(usuario, isPending = false) {
+      const tr = document.createElement('tr');
+      tr.className = 'doctor-details-row';
+      tr.dataset.doctorDetailsFor = String(usuario.id);
+      tr.dataset.role = 'medico';
+      if (isPending) tr.dataset.pendingDoctorDetails = 'true';
+      const td = document.createElement('td');
+      td.colSpan = 6;
+      const panel = document.createElement('div');
+      panel.className = 'doctor-details-panel';
+      const grid = document.createElement('div');
+      grid.className = 'doctor-details-grid';
+
+      doctorDetailFields.forEach(([field, labelText, wide]) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = `doctor-detail-field${wide ? ' wide' : ''}`;
+        const label = document.createElement('label');
+        label.textContent = labelText;
+        const input = wide ? document.createElement('textarea') : document.createElement('input');
+        input.value = usuario[field] || '';
+        input.dataset.cfmField = field;
+        wrapper.append(label, input);
+        grid.appendChild(wrapper);
+      });
+
+      const actions = document.createElement('div');
+      actions.className = 'doctor-details-actions';
+      const save = document.createElement('button');
+      save.type = 'button';
+      save.className = 'doctor-details-save';
+      save.textContent = 'Salvar informações';
+      save.addEventListener('click', async event => {
+        event.stopPropagation();
+        const payload = {};
+        panel.querySelectorAll('[data-cfm-field]').forEach(input => {
+          payload[input.dataset.cfmField] = input.value.trim() || null;
+        });
+        save.disabled = true;
+        save.textContent = 'Salvando...';
+        try {
+          const res = await fetch(`/users/${usuario.id}/cfm-details?admin_email=${encodeURIComponent(currentUser.email)}`, {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+          });
+          if (!res.ok) throw new Error((await res.json()).detail || 'Erro ao salvar');
+          showFeedback('Informações atualizadas');
+          await carregarUsuariosAdmin(currentUser.email);
+        } catch (err) {
+          showFeedback(err.message || 'Não foi possível atualizar', 'error');
+          save.disabled = false;
+          save.textContent = 'Salvar informações';
+        }
+      });
+      actions.appendChild(save);
+      panel.append(grid, actions);
+      td.appendChild(panel);
+      tr.appendChild(td);
+      return tr;
+    }
+
+    function alternarDetalhesMedico(usuario, mainRow, isPending = false) {
+      const existing = mainRow.parentElement.querySelector(`.doctor-details-row[data-doctor-details-for="${usuario.id}"]`);
+      if (existing) {
+        existing.remove();
+        doctorDetailsExpanded.delete(usuario.id);
+        return;
+      }
+      doctorDetailsExpanded.add(usuario.id);
+      mainRow.insertAdjacentElement('afterend', criarLinhaDetalhesMedico(usuario, isPending));
+    }
+
     function renderizarTabelaAdmin(usuarios) {
       if (!Array.isArray(usuarios)) usuarios = [];
       // remover o usuário que está logado (admin) da lista exibida
@@ -735,7 +842,7 @@
       const tbody = table.querySelector('tbody');
       function adicionarLinhaPendente(pendente) {
         const tr = document.createElement('tr');
-        tr.className = 'pending-detail';
+        tr.className = 'pending-detail doctor-main-row';
         tr.dataset.id = String(pendente.id);
         tr.dataset.role = 'medico';
         tr.style.background = '#fffbeb';
@@ -763,6 +870,10 @@
           tdAcoes.append(aprovar, recusar);
         }
         tr.appendChild(tdAcoes);
+        tr.addEventListener('click', event => {
+          if (event.target.closest('button, input, textarea, select')) return;
+          alternarDetalhesMedico(pendente, tr, true);
+        });
         return tr;
       }
       if (pendentes.length) {
@@ -796,7 +907,7 @@
         trPendente.appendChild(tdPendente);
         tbody.appendChild(trPendente);
         trPendente.addEventListener('click', () => {
-          const detalhes = tbody.querySelectorAll('.pending-detail');
+          const detalhes = tbody.querySelectorAll('.pending-detail, .doctor-details-row[data-pending-doctor-details="true"]');
           if (detalhes.length) {
             pendingDetailsExpanded = false;
             detalhes.forEach(linha => linha.remove());
@@ -806,14 +917,22 @@
             // Insere os detalhes imediatamente após o resumo, mantendo-os no
             // topo da tabela e antes das linhas de usuários já renderizadas.
             pendentes.slice().reverse().forEach(pendente => {
-              tbody.insertBefore(adicionarLinhaPendente(pendente), trPendente.nextSibling);
+              const linha = adicionarLinhaPendente(pendente);
+              tbody.insertBefore(linha, trPendente.nextSibling);
+              if (doctorDetailsExpanded.has(pendente.id)) {
+                linha.insertAdjacentElement('afterend', criarLinhaDetalhesMedico(pendente, true));
+              }
             });
             atualizarTextoResumo();
           }
         });
         if (pendingDetailsExpanded) {
           pendentes.slice().reverse().forEach(pendente => {
-            tbody.insertBefore(adicionarLinhaPendente(pendente), trPendente.nextSibling);
+            const linha = adicionarLinhaPendente(pendente);
+            tbody.insertBefore(linha, trPendente.nextSibling);
+            if (doctorDetailsExpanded.has(pendente.id)) {
+              linha.insertAdjacentElement('afterend', criarLinhaDetalhesMedico(pendente, true));
+            }
           });
           atualizarTextoResumo();
         }
@@ -824,6 +943,7 @@
         // define role: 'medico' se tiver CRM, caso contrário 'usuario'
         const role = (u.crm && String(u.crm).trim() !== '') ? 'medico' : 'usuario';
         tr.dataset.role = role;
+        if (role === 'medico') tr.classList.add('doctor-main-row');
 
         const tdTipo = document.createElement('td');
         tdTipo.style.fontWeight = 700;
@@ -881,7 +1001,17 @@
         tr.appendChild(tdCrm);
         tr.appendChild(tdAcoes);
 
+        if (role === 'medico') {
+          tr.addEventListener('click', event => {
+            if (event.target.closest('button, input, textarea, select')) return;
+            alternarDetalhesMedico(u, tr, false);
+          });
+        }
+
         tbody.appendChild(tr);
+        if (role === 'medico' && doctorDetailsExpanded.has(u.id)) {
+          tbody.appendChild(criarLinhaDetalhesMedico(u, false));
+        }
       });
 
       adminTableWrap.innerHTML = '';

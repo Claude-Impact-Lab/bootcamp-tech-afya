@@ -1,5 +1,6 @@
 from app.cfm_client import (
     CfmClient,
+    CfmDoctorDetails,
     CfmLookup,
     CfmLookupStatus,
     crm_for_cfm,
@@ -60,3 +61,48 @@ def test_resposta_do_rio_ignora_prefixo_52_nos_dois_lados():
     payload = [{"dados": [{"SG_UF": "RJ", "NU_CRM": "12345"}]}]
 
     assert parse_cfm_response(payload, "5212345", "RJ").status is CfmLookupStatus.FOUND
+
+
+def test_parse_cfm_response_inclui_dados_publicos_do_medico():
+    payload = [{"dados": [{
+        "SG_UF": "SP",
+        "NU_CRM": "123",
+        "NM_MEDICO": "Médica Teste",
+        "DT_INSCRICAO": "01/02/2003",
+        "PRIM_INSCRICAO_UF": "SP",
+        "TIPO_INSCRICAO": "Principal",
+        "SITUACAO": "Ativo",
+        "ESPECIALIDADE": "Clínica Médica&Cardiologia",
+        "NM_INSTITUICAO_GRADUACAO": "Universidade Teste",
+        "DT_GRADUACAO": "2002",
+    }]}]
+    details_payload = {"dados": [{
+        "AUTORIZACAO_ENDERECO": "S",
+        "ENDERECO": "Rua Teste",
+        "TELEFONE": "(11) 0000-0000",
+        "INSCRICAO": "RJ 456",
+    }]}
+
+    result = parse_cfm_response(payload, "123", "SP", details_payload)
+
+    assert result.details == CfmDoctorDetails(
+        data_inscricao="01/02/2003",
+        primeira_inscricao_uf="SP",
+        inscricao="Principal",
+        situacao="Ativo",
+        inscricoes_outros_estados="RJ 456",
+        especialidades_areas="Clínica Médica\nCardiologia",
+        endereco="Rua Teste",
+        telefone="(11) 0000-0000",
+        instituicao_graduacao="Universidade Teste",
+        ano_formatura="2002",
+    )
+
+
+def test_parse_cfm_response_respeita_endereco_nao_autorizado():
+    payload = [{"dados": [{"SG_UF": "SP", "NU_CRM": "123"}]}]
+    details_payload = {"dados": [{"AUTORIZACAO_ENDERECO": "N", "ENDERECO": "não divulgar"}]}
+
+    result = parse_cfm_response(payload, "123", "SP", details_payload)
+
+    assert result.details.endereco is None

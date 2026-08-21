@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 import pytest
 from fastapi.testclient import TestClient
 
+from app.cfm_client import CfmDoctorDetails
 from app.main import CFM_REVALIDATION_EVENTS, CFM_REVALIDATION_LOCK, USUARIOS, app
 
 client = TestClient(app)
@@ -120,7 +121,11 @@ def test_admin_pode_revalidar_automaticamente_usuario_pendente(monkeypatch):
     validado_em = datetime.now(timezone.utc)
     monkeypatch.setattr(
         "app.main.validar_medico_no_cfm",
-        lambda crm, uf, cancelled=None: ("VALIDATED", validado_em),
+        lambda crm, uf, cancelled=None: (
+            "VALIDATED",
+            validado_em,
+            CfmDoctorDetails(situacao="Ativo", ano_formatura="2002"),
+        ),
     )
 
     resposta = client.post(
@@ -130,6 +135,8 @@ def test_admin_pode_revalidar_automaticamente_usuario_pendente(monkeypatch):
     assert resposta.status_code == 200
     assert resposta.json()["cfm_status"] == "VALIDATED"
     assert resposta.json()["cfm_validated_at"] is not None
+    assert resposta.json()["cfm_situacao"] == "Ativo"
+    assert resposta.json()["cfm_ano_formatura"] == "2002"
 
 
 def test_revalidacao_sem_confirmacao_mantem_usuario_pendente(monkeypatch):
@@ -143,7 +150,7 @@ def test_revalidacao_sem_confirmacao_mantem_usuario_pendente(monkeypatch):
     })
     monkeypatch.setattr(
         "app.main.validar_medico_no_cfm",
-        lambda crm, uf, cancelled=None: ("VALIDATION_PENDING", None),
+        lambda crm, uf, cancelled=None: ("VALIDATION_PENDING", None, None),
     )
 
     resposta = client.post(
@@ -171,6 +178,31 @@ def test_admin_pode_interromper_revalidacao_ativa():
     finally:
         with CFM_REVALIDATION_LOCK:
             CFM_REVALIDATION_EVENTS.pop("validacao-teste", None)
+
+
+def test_admin_pode_editar_detalhes_cfm_de_medico_pendente():
+    USUARIOS.append({
+        "id": 5,
+        "nome": "Médico Pendente",
+        "email": "pendente@example.com",
+        "crm": "123",
+        "uf": "SP",
+        "cfm_status": "VALIDATION_PENDING",
+    })
+
+    resposta = client.patch(
+        "/users/5/cfm-details?admin_email=andre.seabra@teste.com",
+        json={
+            "cfm_data_inscricao": "01/02/2003",
+            "cfm_situacao": "Ativo",
+            "cfm_especialidades_areas": "Cardiologia",
+        },
+    )
+
+    assert resposta.status_code == 200
+    assert resposta.json()["cfm_data_inscricao"] == "01/02/2003"
+    assert resposta.json()["cfm_situacao"] == "Ativo"
+    assert resposta.json()["cfm_especialidades_areas"] == "Cardiologia"
 
 
 def test_medico_pendente_continua_pendente_ao_tentar_novamente():

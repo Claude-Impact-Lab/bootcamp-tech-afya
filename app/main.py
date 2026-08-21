@@ -21,7 +21,7 @@ from fastapi import Query
 from app.config import settings
 from app.db import SessionLocal, engine
 from app.models import Base, Usuario
-from app.cfm_client import CFM_SEARCH_URL, CfmClient, CfmLookupStatus, crm_for_cfm
+from app.cfm_client import CFM_SEARCH_URL, CfmClient, CfmDoctorDetails, CfmLookupStatus, crm_for_cfm
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -39,6 +39,16 @@ with engine.begin() as conn:
     conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS uf VARCHAR;"))
     conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS cfm_status VARCHAR;"))
     conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS cfm_validated_at TIMESTAMP WITH TIME ZONE;"))
+    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS cfm_data_inscricao VARCHAR;"))
+    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS cfm_primeira_inscricao_uf VARCHAR;"))
+    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS cfm_tipo_inscricao VARCHAR;"))
+    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS cfm_situacao VARCHAR;"))
+    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS cfm_inscricoes_outros_estados VARCHAR;"))
+    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS cfm_especialidades_areas VARCHAR;"))
+    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS cfm_endereco VARCHAR;"))
+    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS cfm_telefone VARCHAR;"))
+    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS cfm_instituicao_graduacao VARCHAR;"))
+    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS cfm_ano_formatura VARCHAR;"))
     conn.execute(text("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_key;"))
     conn.execute(text("DROP INDEX IF EXISTS uq_users_crm;"))
     conn.execute(text(
@@ -86,6 +96,16 @@ class UsuarioOut(BaseModel):
     crm: str | None = None
     cfm_status: str | None = None
     cfm_validated_at: datetime | None = None
+    cfm_data_inscricao: str | None = None
+    cfm_primeira_inscricao_uf: str | None = None
+    cfm_tipo_inscricao: str | None = None
+    cfm_situacao: str | None = None
+    cfm_inscricoes_outros_estados: str | None = None
+    cfm_especialidades_areas: str | None = None
+    cfm_endereco: str | None = None
+    cfm_telefone: str | None = None
+    cfm_instituicao_graduacao: str | None = None
+    cfm_ano_formatura: str | None = None
 
     class Config:
         orm_mode = True
@@ -93,6 +113,19 @@ class UsuarioOut(BaseModel):
 
 class CfmDecision(BaseModel):
     action: str
+
+
+class CfmDetailsUpdate(BaseModel):
+    cfm_data_inscricao: str | None = None
+    cfm_primeira_inscricao_uf: str | None = None
+    cfm_tipo_inscricao: str | None = None
+    cfm_situacao: str | None = None
+    cfm_inscricoes_outros_estados: str | None = None
+    cfm_especialidades_areas: str | None = None
+    cfm_endereco: str | None = None
+    cfm_telefone: str | None = None
+    cfm_instituicao_graduacao: str | None = None
+    cfm_ano_formatura: str | None = None
 
 
 def get_db():
@@ -112,6 +145,29 @@ UF_LIST = [
 # e-mail do admin (constante em lowercase)
 ADMIN_EMAIL = "andre.seabra@teste.com"
 INVALID_DOCTOR_DATA = "Dados inválidos. Confira e tente novamente"
+CFM_DETAIL_FIELD_MAP = {
+    "data_inscricao": "cfm_data_inscricao",
+    "primeira_inscricao_uf": "cfm_primeira_inscricao_uf",
+    "inscricao": "cfm_tipo_inscricao",
+    "situacao": "cfm_situacao",
+    "inscricoes_outros_estados": "cfm_inscricoes_outros_estados",
+    "especialidades_areas": "cfm_especialidades_areas",
+    "endereco": "cfm_endereco",
+    "telefone": "cfm_telefone",
+    "instituicao_graduacao": "cfm_instituicao_graduacao",
+    "ano_formatura": "cfm_ano_formatura",
+}
+
+
+def apply_cfm_details(target, details: CfmDoctorDetails | None) -> None:
+    if details is None:
+        return
+    for detail_field, model_field in CFM_DETAIL_FIELD_MAP.items():
+        value = getattr(details, detail_field)
+        if isinstance(target, dict):
+            target[model_field] = value
+        else:
+            setattr(target, model_field, value)
 
 
 def normalize_crm(crm: str | None) -> str | None:
@@ -176,17 +232,17 @@ def validar_medico_no_cfm(
     crm: str | None,
     uf: str | None,
     cancelled: Callable[[], bool] | None = None,
-) -> tuple[str | None, datetime | None]:
+) -> tuple[str | None, datetime | None, CfmDoctorDetails | None]:
     """Converte o contrato do client nos dados persistidos pelo domínio."""
     if not crm or not uf:
-        return None, None
+        return None, None, None
 
     resultado = CfmClient(cancelled=cancelled).find_doctor(crm, uf)
     if resultado.status is CfmLookupStatus.NOT_FOUND:
-        return CfmLookupStatus.UNAVAILABLE.value, None
+        return CfmLookupStatus.UNAVAILABLE.value, None, None
     if resultado.status is CfmLookupStatus.FOUND:
-        return resultado.status.value, datetime.now(timezone.utc)
-    return resultado.status.value, None
+        return resultado.status.value, datetime.now(timezone.utc), resultado.details
+    return resultado.status.value, None, None
 
 
 @app.get("/cfm/manual-search", response_class=HTMLResponse)
@@ -265,7 +321,7 @@ def revalidar_medico_pendente(
             raise HTTPException(status_code=409, detail="Usuário não está pendente")
         cancel_event = register_cfm_revalidation(validation_id)
         try:
-            status_cfm, validado_em = validar_medico_no_cfm(
+            status_cfm, validado_em, cfm_details = validar_medico_no_cfm(
                 usuario.get("crm"),
                 usuario.get("uf"),
                 cancel_event.is_set,
@@ -275,6 +331,7 @@ def revalidar_medico_pendente(
         if status_cfm == CfmLookupStatus.FOUND.value:
             usuario["cfm_status"] = CfmLookupStatus.FOUND.value
             usuario["cfm_validated_at"] = validado_em
+            apply_cfm_details(usuario, cfm_details)
         return usuario
 
     usuario = db.query(Usuario).filter(Usuario.id == user_id).first()
@@ -285,7 +342,7 @@ def revalidar_medico_pendente(
 
     cancel_event = register_cfm_revalidation(validation_id)
     try:
-        status_cfm, validado_em = validar_medico_no_cfm(
+        status_cfm, validado_em, cfm_details = validar_medico_no_cfm(
             usuario.crm,
             usuario.uf,
             cancel_event.is_set,
@@ -304,6 +361,7 @@ def revalidar_medico_pendente(
         db.delete(usuario_comum)
     usuario.cfm_status = CfmLookupStatus.FOUND.value
     usuario.cfm_validated_at = validado_em
+    apply_cfm_details(usuario, cfm_details)
     db.commit()
     db.refresh(usuario)
     return usuario
@@ -441,6 +499,42 @@ def deletar_usuario(user_id: int, admin_email: EmailStr = Query(...), db: Sessio
     return
 
 
+@app.patch("/users/{user_id}/cfm-details", response_model=UsuarioOut)
+def atualizar_detalhes_cfm(
+    user_id: int,
+    details: CfmDetailsUpdate,
+    admin_email: EmailStr = Query(...),
+    db: Session = Depends(get_db),
+) -> Usuario:
+    """Permite ao Admin corrigir ou complementar os dados públicos do CFM."""
+    if normalize_email(admin_email) != ADMIN_EMAIL:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    values = {
+        key: (value.strip() or None) if isinstance(value, str) else value
+        for key, value in details.model_dump().items()
+    }
+
+    if USUARIOS:
+        usuario = next((item for item in USUARIOS if item["id"] == user_id), None)
+        if not usuario:
+            raise HTTPException(status_code=404, detail="Usuario não encontrado")
+        if not usuario.get("crm"):
+            raise HTTPException(status_code=400, detail="Cadastro não é de médico")
+        usuario.update(values)
+        return usuario
+
+    usuario = db.query(Usuario).filter(Usuario.id == user_id).first()
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuario não encontrado")
+    if not usuario.crm:
+        raise HTTPException(status_code=400, detail="Cadastro não é de médico")
+    for field, value in values.items():
+        setattr(usuario, field, value)
+    db.commit()
+    db.refresh(usuario)
+    return usuario
+
+
 @app.post("/users", status_code=201, response_model=UsuarioOut)
 def criar_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db), response: Response = None) -> Usuario:
     """Cria um novo usuario e o adiciona no fim da lista."""
@@ -540,7 +634,7 @@ def criar_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db), respons
     if medico_com_mesmo_email:
         raise HTTPException(status_code=409, detail=INVALID_DOCTOR_DATA)
 
-    status_cfm, validado_em = validar_medico_no_cfm(crm, uf)
+    status_cfm, validado_em, cfm_details = validar_medico_no_cfm(crm, uf)
     if status_cfm is None:
         status_cfm = CfmLookupStatus.UNAVAILABLE.value
 
@@ -553,6 +647,8 @@ def criar_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db), respons
     medico.uf = uf
     medico.cfm_status = status_cfm
     medico.cfm_validated_at = validado_em
+    if status_cfm == CfmLookupStatus.FOUND.value:
+        apply_cfm_details(medico, cfm_details)
     db.add(medico)
     try:
         db.commit()

@@ -9,6 +9,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
 import os
+import re
 from time import monotonic
 from typing import Any
 
@@ -19,6 +20,7 @@ from playwright.sync_api import sync_playwright
 
 CFM_SEARCH_URL = "https://portal.cfm.org.br/busca-medicos"
 CFM_API_PATH = "/api_rest_php/api/v2/medicos/buscar_medicos"
+CFM_DETAILS_API_PATH = "/api_rest_php/api/v2/medicos/buscar_foto/"
 
 
 class CfmLookupStatus(StrEnum):
@@ -28,9 +30,24 @@ class CfmLookupStatus(StrEnum):
 
 
 @dataclass(frozen=True)
+class CfmDoctorDetails:
+    data_inscricao: str | None = None
+    primeira_inscricao_uf: str | None = None
+    inscricao: str | None = None
+    situacao: str | None = None
+    inscricoes_outros_estados: str | None = None
+    especialidades_areas: str | None = None
+    endereco: str | None = None
+    telefone: str | None = None
+    instituicao_graduacao: str | None = None
+    ano_formatura: str | None = None
+
+
+@dataclass(frozen=True)
 class CfmLookup:
     status: CfmLookupStatus
     name: str | None = None
+    details: CfmDoctorDetails | None = None
 
 
 def crm_for_cfm(crm: str, uf: str) -> str:
@@ -68,7 +85,72 @@ def _extract_records(payload: Any) -> list[dict[str, Any]] | None:
     return [item for item in data if isinstance(item, dict)]
 
 
-def parse_cfm_response(payload: Any, crm: str, uf: str) -> CfmLookup:
+def _clean_text(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = " ".join(str(value).split()).strip()
+    return text or None
+
+
+def _join_values(values: list[Any]) -> str | None:
+    cleaned = []
+    for value in values:
+        text = _clean_text(value)
+        if text and text not in cleaned:
+            cleaned.append(text)
+    return "\n".join(cleaned) or None
+
+
+def _graduation_year(value: Any) -> str | None:
+    text = _clean_text(value)
+    if not text:
+        return None
+    match = re.search(r"\b(?:19|20)\d{2}\b", text)
+    return match.group(0) if match else text
+
+
+def _details_from_records(
+    record: dict[str, Any],
+    details_payload: Any | None,
+) -> CfmDoctorDetails:
+    secondary = _extract_records(details_payload) if details_payload is not None else []
+    secondary = secondary or []
+    specialties = _clean_text(_first_value(record, "ESPECIALIDADE"))
+    if specialties:
+        specialties = "\n".join(part.strip() for part in specialties.split("&") if part.strip()) or None
+
+    authorized_addresses = [
+        _first_value(item, "ENDERECO")
+        for item in secondary
+        if str(_first_value(item, "AUTORIZACAO_ENDERECO") or "").upper() == "S"
+    ]
+    graduation = _first_value(
+        record,
+        "NM_INSTITUICAO_GRADUACAO",
+        "NM_FACULDADE_ESTRANGEIRA_GRADUACAO",
+    )
+    return CfmDoctorDetails(
+        data_inscricao=_clean_text(_first_value(record, "DT_INSCRICAO")),
+        primeira_inscricao_uf=_clean_text(_first_value(record, "PRIM_INSCRICAO_UF")),
+        inscricao=_clean_text(_first_value(record, "TIPO_INSCRICAO", "IN_TIPO_INSCRICAO")),
+        situacao=_clean_text(_first_value(record, "SITUACAO")),
+        inscricoes_outros_estados=_join_values([
+            _first_value(item, "INSCRICAO") for item in secondary
+        ]),
+        especialidades_areas=specialties,
+        endereco=_join_values(authorized_addresses),
+        telefone=_join_values([_first_value(item, "TELEFONE") for item in secondary]),
+        instituicao_graduacao=_clean_text(graduation),
+        ano_formatura=_graduation_year(_first_value(record, "DT_GRADUACAO")),
+    )
+
+
+def parse_cfm_response(
+    payload: Any,
+    crm: str,
+    uf: str,
+    details_payload: Any | None = None,
+) -> CfmLookup:
     """Compara exatamente UF e CRM na resposta produzida pelo próprio portal."""
     records = _extract_records(payload)
     if records is None:
@@ -84,7 +166,11 @@ def parse_cfm_response(payload: Any, crm: str, uf: str) -> CfmLookup:
             continue
         if crm_for_cfm(str(found_crm), found_uf) == requested_crm:
             name = _first_value(record, "NM_MEDICO", "nome", "nomeMedico")
-            return CfmLookup(CfmLookupStatus.FOUND, str(name).strip() if name else None)
+            return CfmLookup(
+                CfmLookupStatus.FOUND,
+                str(name).strip() if name else None,
+                _details_from_records(record, details_payload),
+            )
 
     # Uma resposta válida, mesmo vazia ou com outro CRM, é um resultado negativo.
     return CfmLookup(CfmLookupStatus.NOT_FOUND)
@@ -203,12 +289,15 @@ class CfmClient:
                         page.bring_to_front()
 
                     responses = []
-                    page.on(
-                        "response",
-                        lambda response: responses.append(response)
-                        if CFM_API_PATH in response.url
-                        else None,
-                    )
+                    detail_responses = []
+
+                    def capture_response(response):
+                        if CFM_API_PATH in response.url:
+                            responses.append(response)
+                        elif CFM_DETAILS_API_PATH in response.url:
+                            detail_responses.append(response)
+
+                    page.on("response", capture_response)
                     page.locator("button.btnPesquisar").click()
 
                     captcha_revealed = show_on_start
@@ -245,7 +334,18 @@ class CfmClient:
                     response = responses[-1]
                     if not response.ok:
                         return CfmLookup(CfmLookupStatus.UNAVAILABLE)
-                    return parse_cfm_response(response.json(), crm, uf)
+                    primary_payload = response.json()
+                    result = parse_cfm_response(primary_payload, crm, uf)
+                    if result.status is not CfmLookupStatus.FOUND:
+                        return result
+
+                    details_deadline = min(deadline, monotonic() + 8)
+                    while not detail_responses and monotonic() < details_deadline and not cancelled():
+                        page.wait_for_timeout(min(250, remaining_ms()))
+                    details_payload = None
+                    if detail_responses and detail_responses[-1].ok:
+                        details_payload = detail_responses[-1].json()
+                    return parse_cfm_response(primary_payload, crm, uf, details_payload)
                 finally:
                     browser.close()
         except (PlaywrightTimeoutError, PlaywrightError, ValueError, OSError):

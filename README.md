@@ -344,3 +344,9 @@ um. A linha em consulta troca as ações por um indicador de carregamento. Uma
 confirmação automática move o cadastro para a lista de médicos; resultados não
 confirmados permanecem pendentes para decisão manual. Um segundo clique no
 botão envia um sinal de cancelamento ao backend e interrompe a fila atual.
+
+As linhas de médicos também são expansíveis. A área aberta organiza em grade os
+dados públicos retornados pelas chamadas de busca e detalhes do CFM: inscrição,
+situação, outras inscrições, especialidades/áreas de atuação, contato público e
+formação. Os campos ficam vazios nos registros anteriores a esta implementação
+e podem ser corrigidos pelo Admin, inclusive enquanto o médico está pendente.
