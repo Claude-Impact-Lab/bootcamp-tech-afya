@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 220" role="img" aria-labelledby="title description">
+  <title id="title">AFYA</title>
+  <description id="description">Marca AFYA em composicao colorida</description>
+  <rect width="640" height="220" rx="36" fill="#ffffff"/>
+  <path d="M72 152 123 52h43l51 100h-39l-9-20h-52l-9 20zm58-49h26l-13-31z" fill="#00a98f"/>
+  <path d="M230 52h89v32h-52v16h46v31h-46v21h-37z" fill="#6046c6"/>
+  <path d="m322 52 43 64v36h38v-36l43-64h-43l-19 33-19-33z" fill="#ef7b45"/>
+  <path d="m429 152 51-100h43l51 100h-39l-9-20h-52l-9 20zm58-49h26l-13-31z" fill="#243147"/>
+</svg>
