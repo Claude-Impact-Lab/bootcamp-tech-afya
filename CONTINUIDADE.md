@@ -1,11 +1,11 @@
 # Continuidade do aprendizado — User Manager
 
-Atualizado em: 14/08/2026
+Atualizado em: 21/08/2026
 
 ## Onde paramos
 
-- Branch atual: `missao-02`
-- Último commit publicado: `7dc5239 feat: persiste usuarios no PostgreSQL`
+- Branch atual: `thiago-duque`
+- Último commit publicado: `2672bed docs: atualiza continuidade apos missao 03`
 - Missão 01 (`GET /users`): concluída e publicada.
 - Missão 02 (`POST /users` + Pydantic): implementação principal concluída e publicada.
 - A evolução da missão 02 foi salva e publicada: pré-cadastro, dados pessoais, senha
@@ -14,14 +14,17 @@ Atualizado em: 14/08/2026
 - A página inicial oferece três caminhos: usuário, administrador e realizar cadastro.
 - Missão 03 concluída: PostgreSQL 16 instalado, migration aplicada e rotas usando
   SQLAlchemy no banco real.
-- Validação atual: `18 passed` com um aviso de depreciação vindo de uma dependência.
+- Missão 04 concluída: edição com `PUT`, exclusão com `DELETE` e comportamento
+  idempotente coberto por testes.
+- Missão 05 concluída: entidade `Doctor`, relação um-para-um com `User` e exclusão
+  em cascata.
+- Migration `0002` aplicada ao PostgreSQL local.
+- Validação atual: `25 passed` com um aviso de depreciação vindo de uma dependência.
 
 ## Estado do salvamento
 
-- Branch local e remota sincronizadas em `origin/missao-02`.
-- As alterações funcionais estão salvas no GitHub.
-- Os usuários ainda ficam em memória e desaparecem ao reiniciar o servidor; isso é
-  proposital até a missão 03.
+- As missões 04 e 05 foram revisadas e estão prontas para publicação.
+- Usuários e médicos ficam persistidos no PostgreSQL.
 - O acesso pelo celular funciona na mesma rede Wi-Fi enquanto o servidor estiver
   ligado. Um link público permanente ainda exige hospedagem.
 
@@ -32,9 +35,9 @@ Atualizado em: 14/08/2026
 | 01 — `GET /users` | Concluída | Apenas preservar os testes |
 | 02 — `POST /users` | Concluída, testada e publicada | Aguardar revisão do instrutor |
 | 03 — PostgreSQL | Concluída, testada e publicada | Preservar migration e testes isolados |
-| 04 — `PUT` e `DELETE` | Não iniciada | Após persistência |
-| 05 — User + Doctor | Não iniciada | Após CRUD persistente |
-| 06 — CRM + UF | Não iniciada | Após entidade Doctor |
+| 04 — `PUT` e `DELETE` | Concluída e testada | Preservar testes de idempotência |
+| 05 — User + Doctor | Concluída e testada | Preservar relação e cascade |
+| 06 — CRM + UF | Não iniciada | Validar regras de negócio |
 | 07 — Integração CFM | Não iniciada | Criar adapter externo |
 | 08 — Falhas do CFM | Não iniciada | Timeout, retry e estado pendente |
 | 09 — Testes e mocks | Não iniciada | Isolar completamente o CFM nos testes |
@@ -42,14 +45,13 @@ Atualizado em: 14/08/2026
 
 ## Próxima sessão
 
-1. Rodar `git status` e `uv run pytest -q`.
-2. Confirmar que o serviço `postgresql-x64-16` está ativo.
-3. Iniciar o FastAPI com a variável `DATABASE_URL` do Windows.
-4. Conferir os comentários do Pull Request nº 6.
-5. Começar a missão 04 com `PUT`, `DELETE` e idempotência.
+1. Revisar as rotas das missões 04 e 05 em `/docs`.
+2. Confirmar os 25 testes.
+3. Iniciar a missão 06 com as regras de CRM e UF.
+4. Validar formato, UF permitida e unicidade de CRM + UF.
 
 ## Comando para retomar com uma nova conversa
 
 > Leia `CONTINUIDADE.md`, confira o Git e os testes, e continue meu treinamento a
-> partir da missão 04. Confirme PostgreSQL, Git e testes antes de alterar código.
+> partir da missão 06. Confirme PostgreSQL, Git e testes antes de alterar código.
 > Ensine passo a passo; não entregue código sem explicar.

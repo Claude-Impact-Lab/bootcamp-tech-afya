@@ -1,5 +1,5 @@
-from sqlalchemy import Boolean, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import Boolean, ForeignKey, Integer, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
@@ -18,3 +18,21 @@ class User(Base):
     password_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     password_salt: Mapped[str | None] = mapped_column(String(32), nullable=True)
     confirmation_token: Mapped[str | None] = mapped_column(String(100), unique=True, nullable=True)
+    doctor: Mapped["Doctor | None"] = relationship(
+        back_populates="user", cascade="all, delete-orphan", uselist=False
+    )
+
+
+class Doctor(Base):
+    """Dados profissionais ligados a exatamente um usuario."""
+
+    __tablename__ = "doctors"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False
+    )
+    crm: Mapped[str] = mapped_column(String(20), nullable=False)
+    uf: Mapped[str] = mapped_column(String(2), nullable=False)
+    specialty: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    user: Mapped[User] = relationship(back_populates="doctor")

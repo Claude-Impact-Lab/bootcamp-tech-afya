@@ -6,3 +6,5 @@ __pycache__/
 .pytest_cache/
 .postgres-data/
 .postgres-log/
+*.log
+.claude/

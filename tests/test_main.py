@@ -7,7 +7,7 @@ from sqlalchemy.pool import StaticPool
 from app import main
 from app.database import Base, get_db
 from app.main import app
-from app.models import User
+from app.models import Doctor, User
 
 
 test_engine = create_engine(
@@ -281,3 +281,88 @@ def test_pagina_de_congratulations_exibe_nome_e_logo():
     assert resposta.status_code == 200
     assert "Parabens, Maria Souza!" in resposta.text
     assert "/static/afya-logo.svg" in resposta.text
+
+
+def test_put_atualiza_usuario_e_pode_ser_repetido():
+    criado = client.post("/users", json={"first_name": "Nery"}).json()
+    dados = {"name": "Nery Silva", "age": 35, "email": "nery@exemplo.com"}
+
+    primeira = client.put(f"/users/{criado['id']}", json=dados)
+    segunda = client.put(f"/users/{criado['id']}", json=dados)
+
+    assert primeira.status_code == 200
+    assert segunda.status_code == 200
+    assert primeira.json() == segunda.json()
+    assert segunda.json()["name"] == "Nery Silva"
+
+
+def test_put_de_usuario_inexistente_retorna_404():
+    resposta = client.put(
+        "/users/999", json={"name": "Pessoa Teste", "age": None, "email": None}
+    )
+
+    assert resposta.status_code == 404
+
+
+def test_put_rejeita_nome_formado_apenas_por_espacos():
+    criado = client.post("/users", json={"first_name": "Nery"}).json()
+
+    resposta = client.put(
+        f"/users/{criado['id']}",
+        json={"name": "   ", "age": None, "email": None},
+    )
+
+    assert resposta.status_code == 422
+
+
+def test_delete_e_idempotente():
+    criado = client.post("/users", json={"first_name": "Nery"}).json()
+
+    primeira = client.delete(f"/users/{criado['id']}")
+    segunda = client.delete(f"/users/{criado['id']}")
+
+    assert primeira.status_code == 204
+    assert segunda.status_code == 204
+    assert client.get("/users").json() == []
+
+
+def test_cria_medico_relacionado_ao_usuario():
+    usuario = client.post("/users", json={"first_name": "Maria"}).json()
+
+    resposta = client.post(
+        f"/users/{usuario['id']}/doctor",
+        json={"crm": "123456", "uf": "sp", "specialty": "Cardiologia"},
+    )
+
+    assert resposta.status_code == 201
+    assert resposta.json() == {
+        "id": 1,
+        "user_id": usuario["id"],
+        "crm": "123456",
+        "uf": "SP",
+        "specialty": "Cardiologia",
+    }
+    assert client.get("/doctors").json() == [resposta.json()]
+
+
+def test_usuario_so_pode_ter_um_cadastro_de_medico():
+    usuario = client.post("/users", json={"first_name": "Maria"}).json()
+    dados = {"crm": "123456", "uf": "SP"}
+
+    primeira = client.post(f"/users/{usuario['id']}/doctor", json=dados)
+    segunda = client.post(f"/users/{usuario['id']}/doctor", json=dados)
+
+    assert primeira.status_code == 201
+    assert segunda.status_code == 409
+
+
+def test_excluir_usuario_exclui_medico_relacionado():
+    usuario = client.post("/users", json={"first_name": "Maria"}).json()
+    client.post(
+        f"/users/{usuario['id']}/doctor", json={"crm": "123456", "uf": "SP"}
+    )
+
+    client.delete(f"/users/{usuario['id']}")
+
+    with TestingSessionLocal() as session:
+        assert session.scalar(select(Doctor)) is None

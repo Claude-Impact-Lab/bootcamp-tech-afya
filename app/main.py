@@ -6,14 +6,14 @@ from secrets import token_hex, token_urlsafe
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import User
+from app.models import Doctor, User
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -65,6 +65,35 @@ class UserLogin(BaseModel):
     password: str
 
 
+class UserUpdate(BaseModel):
+    """Representacao completa dos dados editaveis pelo PUT."""
+
+    name: str = Field(min_length=2, max_length=101)
+    age: int | None = Field(default=None, ge=0, le=130)
+    email: str | None = Field(
+        default=None,
+        min_length=5,
+        max_length=100,
+        pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
+    )
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        name = value.strip()
+        if len(name) < 2:
+            raise ValueError("O nome deve ter pelo menos 2 caracteres.")
+        return name
+
+
+class DoctorCreate(BaseModel):
+    """Dados basicos; as regras oficiais de CRM entram na missao 06."""
+
+    crm: str = Field(min_length=1, max_length=20)
+    uf: str = Field(min_length=2, max_length=2)
+    specialty: str | None = Field(default=None, min_length=2, max_length=100)
+
+
 def admin_session_value() -> str:
     return hmac.new(
         ADMIN_SESSION_SECRET.encode(), b"admin", hashlib.sha256
@@ -114,6 +143,16 @@ def public_user(user: User) -> dict:
     }
 
 
+def public_doctor(doctor: Doctor) -> dict:
+    return {
+        "id": doctor.id,
+        "user_id": doctor.user_id,
+        "crm": doctor.crm,
+        "uf": doctor.uf,
+        "specialty": doctor.specialty,
+    }
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     """Endpoint JSON: e daqui que o HTML busca a mensagem."""
@@ -129,6 +168,70 @@ def list_users(request: Request, db: Session = Depends(get_db)) -> list[dict]:
         query = query.where(User.status == "ativo")
     users = db.scalars(query).all()
     return [public_user(user) for user in users]
+
+
+@app.put("/users/{user_id}")
+def update_user(user_id: int, data: UserUpdate, db: Session = Depends(get_db)) -> dict:
+    """Substitui os dados editaveis; repetir o mesmo PUT mantem o mesmo estado."""
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario nao encontrado.")
+
+    user.name = data.name
+    user.age = data.age
+    user.email = data.email.casefold() if data.email else None
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Este e-mail ja esta cadastrado.",
+        )
+    db.refresh(user)
+    return public_user(user)
+
+
+@app.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_user(user_id: int, db: Session = Depends(get_db)) -> Response:
+    """Remove o usuario; repetir a exclusao continua produzindo ausencia."""
+    user = db.get(User, user_id)
+    if user is not None:
+        db.delete(user)
+        db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.get("/doctors")
+def list_doctors(db: Session = Depends(get_db)) -> list[dict]:
+    doctors = db.scalars(select(Doctor).order_by(Doctor.id)).all()
+    return [public_doctor(doctor) for doctor in doctors]
+
+
+@app.post("/users/{user_id}/doctor", status_code=status.HTTP_201_CREATED)
+def create_doctor(
+    user_id: int, data: DoctorCreate, db: Session = Depends(get_db)
+) -> dict:
+    """Transforma o usuario em medico por uma relacao um-para-um."""
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuario nao encontrado.")
+    if user.doctor is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Este usuario ja possui cadastro de medico.",
+        )
+
+    doctor = Doctor(
+        user_id=user_id,
+        crm=data.crm.strip(),
+        uf=data.uf.upper(),
+        specialty=data.specialty.strip() if data.specialty else None,
+    )
+    db.add(doctor)
+    db.commit()
+    db.refresh(doctor)
+    return public_doctor(doctor)
 
 
 @app.get("/admin/session")
