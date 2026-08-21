@@ -1,33 +1,1548 @@
 <!doctype html>
 <html lang="pt-BR">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>User Manager</title>
-    <style>
-      body {
-        font-family: system-ui, sans-serif;
-        display: grid;
-        place-items: center;
-        min-height: 100vh;
-        margin: 0;
-      }
-    </style>
-  </head>
-  <body>
-    <h1 id="mensagem">carregando...</h1>
 
-    <script>
-      // Busca a mensagem na API em vez de escrever no HTML:
-      // e o primeiro contato do time com fetch + JSON.
-      fetch("/health")
-        .then((resposta) => resposta.json())
-        .then((dados) => {
-          document.getElementById("mensagem").textContent = dados.message;
-        })
-        .catch(() => {
-          document.getElementById("mensagem").textContent = "erro ao chamar a API";
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>User Manager</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      display: grid;
+      place-items: center;
+      min-height: 100vh;
+      margin: 0;
+      background: linear-gradient(to right, #E60067 0%, #E60067 10%, #ffffff 10%, #ffffff 90%, #E60067 90%, #E60067 100%);
+      color: #1f2937;
+    }
+
+    .container {
+      width: min(720px, 95vw);
+      background: white;
+      border-radius: 14px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+      padding: 24px;
+      position: relative;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 8px;
+      padding-top: 6px;
+    }
+
+    .top-toggle { display:flex; justify-content:center; margin:6px 0 12px 0; }
+    .mode-toggle {
+      display: inline-flex;
+      background: #ffffff;
+      border-radius: 999px;
+      padding: 6px 12px;
+      gap: 6px;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.95rem;
+      box-shadow: 0 6px 18px rgba(15,23,42,0.06);
+    }
+    /* ensure consistent box sizing throughout the card */
+    *, *::before, *::after { box-sizing: border-box; }
+
+    .admin-btn { background:#f3f4f6; border:none; padding:6px 10px; border-radius:8px; cursor:pointer; font-weight:700; color:#374151 }
+    .header-right { display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
+    .header-right .logo-top { margin-top:0 }
+
+    /* ensure form fields align and don't overflow */
+    .form-cadastro { width:100%; }
+    .form-cadastro .campo { width:100%; }
+    .input-wrap, .campo input, .campo select { width:100%; max-width:100%; box-sizing:border-box; }
+    .campo select { appearance: none; -moz-appearance: none; -webkit-appearance: none; }
+
+    .mode-toggle button {
+      border: none;
+      background: transparent;
+      padding: 6px 14px;
+      border-radius: 999px;
+      cursor: pointer;
+      font-weight: 700;
+      color: #111827;
+    }
+
+    .mode-toggle button.active {
+      background: #E60067;
+      color: #fff;
+    }
+
+    .users-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 12px;
+    }
+
+    .users-table th, .users-table td {
+      border: 1px solid #e6e6e6;
+      padding: 8px 10px;
+      text-align: left;
+      font-size: 0.95rem;
+    }
+
+    .users-table th { background: #fafafa; }
+
+    /* Modern form inputs */
+    .input-wrap { position: relative; }
+    .input-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      opacity: 0.7;
+      width: 18px;
+      height: 18px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #6b7280;
+    }
+    .input-wrap input { width: 100%; }
+    .campo label { font-size: 0.95rem; margin-bottom: 6px; display:block; }
+    .campo input:focus { outline: none; border-color: #E60067; box-shadow: 0 4px 18px rgba(230,6,103,0.08); }
+
+    .botao { height: 48px; border-radius: 12px; font-size: 1rem; }
+
+    /* avatar */
+    .avatar {
+      width: 36px; height: 36px; border-radius: 50%;
+      display:inline-flex; align-items:center; justify-content:center;
+      color:#fff; font-weight:700; font-size:0.9rem;
+    }
+
+    /* action icon buttons */
+    .icon-btn {
+      border: none; background: transparent; cursor: pointer; padding:6px; border-radius:8px;
+      display: inline-flex; align-items:center; justify-content:center;
+    }
+    .icon-btn.edit { color: #0f766e; }
+    .icon-btn.delete { color: #b91c1c; }
+    .users-table td.actions { display:flex; gap:8px; align-items:center; }
+
+    /* responsive */
+    @media (max-width: 520px) {
+      .container { width: calc(100vw - 32px); padding:16px; }
+      .header { gap:8px; }
+      .logo-top { width:64px; }
+      .users-table th, .users-table td { font-size: 0.92rem; padding:8px; }
+    }
+
+    .logo-top {
+      width: 84px;
+      height: auto;
+      object-fit: contain;
+      border-radius: 12px;
+      background: #ffffff;
+      padding: 4px;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+    }
+
+    /* area admin button */
+    .area-admin-btn {
+      display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:10px;
+      border:1px solid #E60067; background:#fff; color:#111827; cursor:pointer; font-weight:600;
+      box-shadow: 0 2px 6px rgba(230,6,103,0.04);
+    }
+    .area-admin-btn:hover { background:#fff0f4; }
+    .area-admin-btn.active {
+      background: #E60067;
+      color: #fff;
+    }
+    .area-admin-btn.active svg path { stroke: #fff !important; }
+
+    /* Top grid: form + summary */
+    .top-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+      align-items: start;
+    }
+    .top-grid.with-summary {
+      grid-template-columns: 1fr 320px;
+    }
+
+    .summary-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 6px 18px rgba(15,23,42,0.04);
+      border: 1px solid rgba(15,23,42,0.03);
+    }
+
+    /* visual panel removed - kept layout spacing via .summary-card */
+
+    .summary-card h4 { margin:0 0 8px 0; font-size:1rem; }
+    .summary-chart { display:flex; gap:12px; align-items:center; justify-content:center; }
+    .donut-legend { display:flex; flex-direction:column; gap:6px; font-size:0.95rem; }
+    .legend-item { display:flex; gap:8px; align-items:center; }
+    .legend-swatch { width:12px; height:12px; border-radius:3px; }
+
+    /* Segmented control styles */
+    .mode-toggle { background: #fff; padding:4px; border-radius:999px; border:1px solid rgba(15,23,42,0.06); }
+    .mode-toggle button { padding:8px 14px; border-radius:999px; }
+    .mode-toggle button.active { background:#E60067; color:#fff; box-shadow:0 6px 18px rgba(230,6,103,0.12); }
+
+    /* Admin search and filters styling */
+    #admin-search { display:flex; gap:10px; align-items:center; }
+    #search-box { padding-left:40px; border-radius:12px; height:44px; border:1px solid #e6e6e6; }
+    #admin-search { position:relative; }
+    #admin-search .search-icon { position:absolute; left:12px; top:50%; transform:translateY(-50%); opacity:0.6 }
+    .filter-btn { border-radius:10px; padding:8px 12px; background:#fff; border:1px solid #e6e6e6; cursor:pointer }
+    .filter-btn.active-filter { background:#E60067; color:#fff; border-color:rgba(230,6,103,0.4) }
+
+    /* Table visual improvements */
+    .users-table { border-radius:10px; overflow:hidden; table-layout: fixed; }
+    .users-table th { background:#faf7fb; font-weight:700; padding:12px 14px; }
+    .users-table td { padding:12px 14px; vertical-align:middle; overflow-wrap:anywhere; }
+    .users-table tbody tr { border-bottom:1px solid rgba(15,23,42,0.04); }
+    .users-table tbody tr:hover { background: rgba(230,6,103,0.03); }
+    .avatar { width:40px; height:40px; border-radius:50%; font-size:0.95rem }
+    .icon-btn { padding:6px; border-radius:8px; }
+    .icon-btn.edit { background: rgba(14,165,164,0.06); }
+    .icon-btn.delete { background: rgba(185,28,28,0.06); }
+
+    @media (max-width: 880px) {
+      .top-grid { grid-template-columns: 1fr; }
+      .summary-card { order: 2 }
+      .top-grid.with-summary .summary-card {
+        margin-top: 0;
+        height: auto;
+      }
+    }
+
+    /* No painel Admin, o resumo acompanha a altura dos campos Nome até Senha. */
+    .top-grid.with-summary .summary-card {
+      margin-top: 60px;
+      height: 234px;
+      padding: 14px;
+    }
+    .top-grid.with-summary .summary-chart svg {
+      width: 112px;
+      height: 112px;
+    }
+    .top-grid.with-summary .summary-card > div[style="height:10px"] {
+      height: 6px !important;
+    }
+    @media (max-width: 880px) {
+      .top-grid.with-summary .summary-card {
+        margin-top: 0;
+        height: auto;
+      }
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 2.6rem;
+      line-height: 1.02;
+    }
+
+    ul {
+      margin: 28px 0 12px 0;
+      padding-left: 20px;
+    }
+
+    #aviso {
+      margin-top: 0;
+      color: #475569;
+      min-height: 20px;
+    }
+
+    .feedback-toast {
+      display: none;
+      margin: 0;
+      padding: 11px 14px;
+      border-radius: 10px;
+      font-weight: 600;
+      text-align: center;
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+    .feedback-toast.show {
+      display: block;
+      animation: toast-disappear 4s ease forwards;
+    }
+    .feedback-toast.success { background: #ecfdf5; color: #047857; }
+    .feedback-toast.error { background: #fff1f2; color: #be123c; }
+    .pending-detail td { animation: pending-slide-down .25s ease-out; }
+    .pending-confirmation {
+      display: inline-flex;
+      flex-direction: column;
+      gap: 6px;
+      align-items: center;
+      padding: 7px;
+      border-radius: 8px;
+      background: #fff7ed;
+      color: #9a3412;
+      font-size: .82rem;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, .12);
+    }
+    .pending-confirmation-question { width: 100%; text-align: center; }
+    .pending-confirmation-actions { display: flex; gap: 6px; }
+    .pending-confirmation-actions button { white-space: nowrap; padding: 6px 8px; }
+    .pending-summary-content { display:flex; align-items:center; justify-content:space-between; gap:14px; }
+    .bulk-validate-btn {
+      flex: 0 0 auto;
+      border: 0;
+      border-radius: 999px;
+      padding: 9px 16px;
+      background: linear-gradient(135deg, #e60067, #b80054);
+      color: #fff;
+      font-weight: 700;
+      box-shadow: 0 5px 14px rgba(230, 0, 103, .2);
+      cursor: pointer;
+      transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+      white-space: nowrap;
+    }
+    .bulk-validate-btn:hover { transform: translateY(-1px); box-shadow: 0 7px 18px rgba(230, 0, 103, .25); }
+    .bulk-validate-btn.running { background:#94a3b8; box-shadow:none; transform:none; }
+    .pending-validation-loader { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; color:#9a3412; font-size:.82rem; font-weight:700; }
+    .pending-validation-spinner { width:18px; height:18px; border-radius:50%; border:3px solid #fed7aa; border-top-color:#e60067; animation:pending-spin .75s linear infinite; }
+    .doctor-main-row { cursor:pointer; }
+    .doctor-details-row td { padding:0 !important; background:#fffafd; }
+    .doctor-details-panel { padding:18px; border-top:1px solid #f4d6e4; border-bottom:1px solid #f4d6e4; }
+    .doctor-details-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:14px 16px; }
+    .doctor-detail-field { display:flex; flex-direction:column; gap:6px; min-width:0; }
+    .doctor-detail-field.wide { grid-column:span 2; }
+    .doctor-detail-field label { color:#7c2d52; font-size:.8rem; font-weight:700; }
+    .doctor-detail-field input, .doctor-detail-field textarea {
+      width:100%; box-sizing:border-box; border:1px solid #e7cbd8; border-radius:9px;
+      padding:9px 10px; background:#fff; color:#334155; font:inherit;
+    }
+    .doctor-detail-field textarea { min-height:72px; resize:vertical; white-space:pre-wrap; }
+    .doctor-details-actions { display:flex; justify-content:flex-end; margin-top:15px; }
+    .doctor-details-save { border:0; border-radius:9px; padding:9px 18px; background:#e60067; color:#fff; font-weight:700; cursor:pointer; }
+    .doctor-details-save:disabled { background:#94a3b8; cursor:wait; }
+    @keyframes pending-slide-down {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes pending-spin { to { transform:rotate(360deg); } }
+    @media (max-width: 880px) {
+      .doctor-details-grid { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 560px) {
+      .doctor-details-grid { grid-template-columns:1fr; }
+      .doctor-detail-field.wide { grid-column:span 1; }
+    }
+    @keyframes toast-disappear {
+      0%, 72% { opacity: 1; transform: translateY(0); }
+      100% { opacity: 0; transform: translateY(-6px); }
+    }
+
+    .form-cadastro {
+      margin-top: 28px;
+      margin-bottom: 20px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .campo {
+      display: grid;
+      gap: 8px;
+    }
+
+    .campo label {
+      font-weight: 600;
+      color: #334155;
+    }
+
+    /* Unified form control styles: inputs and selects share sizing and padding */
+    .campo input, .campo select {
+      padding: 12px 14px;
+      height: 48px;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      font-size: 1rem;
+      outline: none;
+      width: 100%;
+      box-sizing: border-box;
+      background: #fff;
+    }
+
+    /* If an input follows an icon, add extra left padding so icons don't overlap */
+    .input-wrap .input-icon + input,
+    .input-wrap .input-icon + select {
+      padding-left: 40px;
+    }
+
+    .campo input:focus, .campo select:focus {
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    }
+
+    .botao {
+      border: none;
+      border-radius: 10px;
+      background: #E60067;
+      color: white;
+      padding: 12px 16px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+
+    .botao:hover {
+      background: #bf0059;
+    }
+    .form-cadastro .botao { width:100%; display:block; }
+    /* Layout inspirado na referência visual: formulário e painel de boas-vindas. */
+    body { background: linear-gradient(90deg, #d90064 0 5.6%, #f8fafc 5.6% 94.4%, #d90064 94.4%); }
+    .container { width: min(1180px, 92vw); padding: 48px 50px 34px; border-radius: 22px; }
+    .header { position: relative; margin-bottom: 20px; border-bottom: 1px solid #eef0f3; padding-bottom: 24px; }
+    .header h1 { font-size: 2.45rem; white-space: nowrap; }
+    .header::after { content: 'Faça login ou cadastre-se.'; position: absolute; left: 0; bottom: 0; color: #64748b; font-size: 1rem; }
+    .header.admin-logged::after { display: none; }
+    .header-right { flex-direction: row; align-items: center; width: auto; justify-content: center; pointer-events: none; }
+    .header-right .logo-top { position: absolute; left: 50%; transform: translateX(-50%); width: 120px; box-shadow: none; padding: 0; }
+    .area-admin-btn { position: absolute; right: 0; top: 10px; pointer-events: auto; padding: 12px 16px; }
+    .top-toggle { width: calc(100% - 428px); justify-content: flex-start; margin: 0 0 26px; }
+    .mode-toggle { width: 100%; padding: 3px; border-radius: 10px; box-shadow: none; }
+    .mode-toggle button { width: 50%; display: inline-flex; justify-content: center; align-items: center; gap: 8px; border-radius: 8px; }
+    .top-grid, .top-grid.with-summary { grid-template-columns: minmax(0, 1fr) 380px; gap: 48px; }
+    .form-cadastro { margin-top: 0; gap: 18px; }
+    .campo { gap: 6px; }
+    .campo input, .campo select { height: 54px; border-color: #d9dee7; }
+    .botao { height: 60px; margin-top: 14px; border-radius: 10px; }
+    .welcome-panel { display: flex; min-height: 620px; margin-top: -74px; padding: 34px 28px; border-radius: 22px; background: linear-gradient(150deg, #fff6fa, #fce8f2); color: #172033; text-align: center; flex-direction: column; align-items: center; overflow: hidden; }
+    .welcome-icon { width: 80px; height: 80px; display: grid; place-items: center; border-radius: 50%; background: white; color: #e60067; box-shadow: 0 5px 18px rgba(230, 0, 103, .12); font-size: 2.3rem; }
+    .welcome-panel h2 { margin: 28px 0 10px; font-size: 1.5rem; }
+    .welcome-panel p { margin: 0; max-width: 250px; color: #5f697a; line-height: 1.55; }
+    .welcome-visual { margin-top: auto; width: 100%; }
+    .welcome-visual img { display: block; width: 100%; height: auto; border-radius: 16px; mix-blend-mode: multiply; }
+    .welcome-user-name { display: block; margin-top: 4px; font-size: 1em; }
+    .top-grid.with-summary .welcome-panel { display: none; }
+    .top-grid.with-summary .summary-card { margin-top: 0; height: auto; min-height: 360px; }
+    @media (max-width: 880px) {
+      .container { padding: 28px 24px; }
+      .header-right .logo-top { position: static; transform: none; }
+      .area-admin-btn { top: 0; }
+      .top-toggle { width: 100%; }
+      .top-grid, .top-grid.with-summary { grid-template-columns: 1fr; gap: 24px; }
+      .welcome-panel { min-height: 360px; margin-top: 0; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Bem-vindo</h1>
+      <div class="header-right">
+        <img class="logo-top" src="https://companieslogo.com/img/orig/AFYA_BIG-54d3e65a.png?t=1742570503" alt="Logo Afya" />
+        <button id="admin-btn" class="area-admin-btn" title="Área Admin">
+          <!-- shield icon -->
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2l7 3v5c0 5-3.5 9.7-7 12-3.5-2.3-7-7-7-12V5l7-3z" stroke="#E60067" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Área Admin
+        </button>
+      </div>
+    </div>
+
+    <div class="top-toggle" id="access-mode-toggle">
+      <div class="mode-toggle" role="tablist" aria-label="Modo de acesso">
+        <button type="button" id="mode-user" class="active"><span>♙</span> Usuário</button>
+        <button type="button" id="mode-medico"><span>⚕</span> Médico</button>
+      </div>
+    </div>
+
+    <div class="top-grid">
+    <form class="form-cadastro">
+
+      <div class="campo">
+        <label for="nome">Nome</label>
+        <div class="input-wrap">
+          <span class="input-icon"> 
+            <!-- user icon -->
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 12c2.761 0 5-2.239 5-5s-2.239-5-5-5-5 2.239-5 5 2.239 5 5 5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 21c0-3.866 3.582-7 9-7s9 3.134 9 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          <input id="nome" name="nome" type="text" placeholder="Digite seu nome" />
+        </div>
+      </div>
+
+      <div class="campo">
+        <label for="email">E-mail</label>
+        <div class="input-wrap">
+          <span class="input-icon">
+            <!-- mail icon -->
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 8.5v7.5A2 2 0 0 0 5 18h14a2 2 0 0 0 2-2V8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 6H3v2.5l9 6 9-6V6z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          <input id="email" name="email" type="email" placeholder="Digite seu e-mail" />
+        </div>
+      </div>
+
+      <div class="campo" id="campo-senha" style="display:none;">
+        <label for="senha">Senha</label>
+        <div class="input-wrap">
+          <span class="input-icon">
+            <!-- lock icon -->
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="11" width="18" height="10" rx="2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 11V8a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          <input id="senha" name="senha" type="password" placeholder="Digite sua senha" />
+        </div>
+      </div>
+
+      <div class="campo" id="campo-uf" style="display:none;">
+        <label for="uf">UF</label>
+        <div class="input-wrap">
+          <select id="uf" name="uf">
+            <option value="">Selecione a UF</option>
+            <option>AC</option>
+            <option>AL</option>
+            <option>AP</option>
+            <option>AM</option>
+            <option>BA</option>
+            <option>CE</option>
+            <option>DF</option>
+            <option>ES</option>
+            <option>GO</option>
+            <option>MA</option>
+            <option>MT</option>
+            <option>MS</option>
+            <option>MG</option>
+            <option>PA</option>
+            <option>PB</option>
+            <option>PR</option>
+            <option>PE</option>
+            <option>PI</option>
+            <option>RJ</option>
+            <option>RN</option>
+            <option>RS</option>
+            <option>RO</option>
+            <option>RR</option>
+            <option>SC</option>
+            <option>SP</option>
+            <option>SE</option>
+            <option>TO</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="campo" id="campo-crm" style="display:none;">
+        <label for="crm">CRM</label>
+        <div class="input-wrap" style="display:flex; gap:8px; align-items:center;">
+          <div id="crm-prefix" style="display:none; width:48px; height:48px; border-radius:10px; background:#E60067; color:#fff; font-weight:700; display:flex; align-items:center; justify-content:center;">52</div>
+          <input id="crm" name="crm" type="text" inputmode="numeric" pattern="\d*" placeholder="Apenas números" maxlength="10" />
+        </div>
+      </div>
+
+      <p id="aviso" role="status" aria-live="polite"></p>
+      <button class="botao" type="submit">Entrar/Cadastrar</button>
+      <p id="feedback-toast" class="feedback-toast" role="status" aria-live="polite"></p>
+    </form>
+
+    <div class="summary-card" id="summary-card" style="display:none;">
+      <h4>Resumo de usuários</h4>
+      <div class="summary-chart">
+        <svg id="donut-chart" width="160" height="160" viewBox="0 0 160 160"></svg>
+        <div class="donut-info">
+          <div id="donut-center" style="font-weight:700; font-size:1.2rem; text-align:center;"></div>
+          <div style="font-size:0.85rem; color:#6b7280; text-align:center;">Total: <span id="total-users">0</span></div>
+        </div>
+      </div>
+      <div style="height:10px"></div>
+      <div class="donut-legend">
+        <div class="legend-item"><div class="legend-swatch" style="background:#E60067"></div> <div> Médicos — <span id="medico-pct">0%</span></div></div>
+        <div class="legend-item"><div class="legend-swatch" style="background:#6b21a8"></div> <div> Usuários — <span id="usuario-pct">0%</span></div></div>
+      </div>
+    </div>
+
+    <aside class="welcome-panel" aria-label="Apresentação do sistema">
+      <div class="welcome-icon">♙</div>
+      <h2>Acesse sua conta</h2>
+      <p>Gerencie seus dados e tenha acesso a todas as funcionalidades.</p>
+      <div class="welcome-visual">
+        <img src="/static/images/afya-dashboard.jpeg" alt="Notebook exibindo painel da Afya ao lado de uma planta" />
+      </div>
+    </aside>
+
+    </div> <!-- end top-grid -->
+
+    <div id="admin-area" style="display:none; margin-top: 18px;">
+      <h3 style="margin:0 0 8px 0;">Painel Admin</h3>
+      <p id="admin-heading" style="font-weight:700; margin:6px 0 8px 0; display:none;">Usuários cadastrados</p>
+      <!-- search (visual) -->
+      <div id="admin-search" style="display:flex; gap:8px; margin-bottom:10px; align-items:center;">
+        <input id="search-box" placeholder="Buscar por nome ou e-mail..." style="flex:1; height:40px; padding:8px 12px; border-radius:10px; border:1px solid #e6e6e6" />
+        <div id="role-filters" style="display:flex; gap:6px; align-items:center;">
+          <button id="filter-all" class="filter-btn" data-role="all" style="height:36px; padding:6px 10px; border-radius:8px; border:1px solid #e6e6e6; cursor:pointer">Todos</button>
+          <button id="filter-usuario" class="filter-btn" data-role="usuario" style="height:36px; padding:6px 10px; border-radius:8px; border:1px solid #e6e6e6; cursor:pointer">Usuário</button>
+          <button id="filter-medico" class="filter-btn" data-role="medico" style="height:36px; padding:6px 10px; border-radius:8px; border:1px solid #e6e6e6; cursor:pointer">Médico</button>
+        </div>
+      </div>
+      <div id="admin-table-wrap"></div>
+    </div>
+
+    <ul id="lista-usuarios"></ul>
+  </div>
+
+  <script>
+    const lista = document.getElementById("lista-usuarios");
+    const aviso = document.getElementById("aviso");
+    const form = document.querySelector(".form-cadastro");
+    const submitButton = form.querySelector('button[type="submit"]');
+    const feedbackToast = document.getElementById('feedback-toast');
+    const modeUserBtn = document.getElementById('mode-user');
+    const modeMedicoBtn = document.getElementById('mode-medico');
+    const adminBtn = document.getElementById('admin-btn');
+    const adminArea = document.getElementById('admin-area');
+    const adminTableWrap = document.getElementById('admin-table-wrap');
+    const adminHeading = document.getElementById('admin-heading');
+    const headerTitle = document.querySelector('.header h1');
+    const campoSenha = document.getElementById('campo-senha');
+    const senhaInput = document.getElementById('senha');
+    const campoUf = document.getElementById('campo-uf');
+    const campoCrm = document.getElementById('campo-crm');
+    const ufSelect = document.getElementById('uf');
+    const crmInput = document.getElementById('crm');
+    const crmPrefix = document.getElementById('crm-prefix');
+
+    let mode = 'user'; // 'user' or 'medico'
+    let isAdmin = false;
+    let adminModeSelected = false;
+    let currentUser = null; // {nome, email}
+    let feedbackTimer;
+    let bulkValidationRunning = false;
+    let bulkValidationRunId = 0;
+    let bulkValidationCurrentId = null;
+    let bulkValidationCurrentRequestId = null;
+    let bulkValidationController = null;
+    const doctorDetailsExpanded = new Set();
+    const doctorDetailFields = [
+      ['cfm_data_inscricao', 'Data de Inscrição', false],
+      ['cfm_primeira_inscricao_uf', 'Primeira inscrição na UF', false],
+      ['cfm_tipo_inscricao', 'Inscrição', false],
+      ['cfm_situacao', 'Situação', false],
+      ['cfm_inscricoes_outros_estados', 'Inscrições em outro estado', true],
+      ['cfm_especialidades_areas', 'Especialidades/Áreas de Atuação', true],
+      ['cfm_endereco', 'Endereço', true],
+      ['cfm_telefone', 'Telefone', false],
+      ['cfm_instituicao_graduacao', 'Instituição de Graduação', true],
+      ['cfm_ano_formatura', 'Ano de Formatura', false]
+    ];
+
+    function showFeedback(message, type = 'success', duration = 4000) {
+      clearTimeout(feedbackTimer);
+      feedbackToast.textContent = message;
+      feedbackToast.className = `feedback-toast ${type}`;
+      void feedbackToast.offsetWidth;
+      feedbackToast.classList.add('show');
+      feedbackTimer = setTimeout(() => feedbackToast.classList.remove('show'), duration);
+    }
+
+    async function hashPassword(password) {
+      const bytes = new TextEncoder().encode(password);
+      const digest = await crypto.subtle.digest('SHA-256', bytes);
+      return Array.from(new Uint8Array(digest)).map(byte => byte.toString(16).padStart(2, '0')).join('');
+    }
+
+    function renderizarUsuarios(usuarios) {
+      // função legacy não usada para admin; mantida para compatibilidade
+      lista.innerHTML = "";
+
+      for (const usuario of usuarios) {
+        const item = document.createElement("li");
+        const nome = document.createElement("strong");
+        nome.textContent = usuario.nome;
+        item.appendChild(nome);
+        item.append(` — ${usuario.email}`);
+        lista.appendChild(item);
+      }
+
+      if (usuarios.length === 0) {
+        aviso.textContent = "Nenhum usuário cadastrado.";
+      } else {
+        aviso.textContent = "";
+      }
+    }
+
+    async function carregarUsuariosAdmin(adminEmail) {
+      try {
+        const res = await fetch(`/users?admin_email=${encodeURIComponent(adminEmail)}`);
+        if (!res.ok) throw new Error('acesso negado');
+        const usuarios = await res.json();
+        renderSummary(usuarios);
+        renderizarTabelaAdmin(usuarios);
+      } catch (err) {
+        adminTableWrap.innerHTML = `<p style="color:#b91c1c">Não foi possível carregar usuários: ${err.message}</p>`;
+      }
+    }
+
+    function renderSummary(usuarios) {
+      if (!Array.isArray(usuarios)) usuarios = [];
+      // same filter as table: remove current admin from counts
+      if (currentUser && currentUser.email) {
+        usuarios = usuarios.filter(u => u.email.toLowerCase() !== currentUser.email.toLowerCase());
+      }
+      usuarios = usuarios.filter(u => !['VALIDATION_PENDING', 'REJECTED'].includes(u.cfm_status));
+      const total = usuarios.length;
+      const medicoCount = usuarios.filter(u => u.crm && String(u.crm).trim() !== '').length;
+      const usuarioCount = total - medicoCount;
+      const medicoPct = total ? Math.round((medicoCount / total) * 100) : 0;
+      const usuarioPct = total ? 100 - medicoPct : 0;
+
+      document.getElementById('total-users').textContent = String(total);
+      document.getElementById('medico-pct').textContent = medicoPct + '%';
+      document.getElementById('usuario-pct').textContent = usuarioPct + '%';
+
+      const dominantPct = medicoPct >= usuarioPct ? medicoPct : usuarioPct;
+      document.getElementById('donut-center').textContent = dominantPct + '%';
+
+      // draw donut in SVG
+      const svg = document.getElementById('donut-chart');
+      const svgNS = 'http://www.w3.org/2000/svg';
+      const size = 160;
+      const r = 56;
+      const cx = size / 2;
+      const cy = size / 2;
+      const circumference = 2 * Math.PI * r;
+      svg.innerHTML = '';
+
+      // background ring
+      const bg = document.createElementNS(svgNS, 'circle');
+      bg.setAttribute('cx', cx);
+      bg.setAttribute('cy', cy);
+      bg.setAttribute('r', r);
+      bg.setAttribute('fill', 'none');
+      bg.setAttribute('stroke', '#f3f4f6');
+      bg.setAttribute('stroke-width', '14');
+      svg.appendChild(bg);
+
+      // medico arc (magenta)
+      const medicoArc = document.createElementNS(svgNS, 'circle');
+      medicoArc.setAttribute('cx', cx);
+      medicoArc.setAttribute('cy', cy);
+      medicoArc.setAttribute('r', r);
+      medicoArc.setAttribute('fill', 'none');
+      medicoArc.setAttribute('stroke', '#E60067');
+      medicoArc.setAttribute('stroke-width', '14');
+      medicoArc.setAttribute('stroke-linecap', 'round');
+      medicoArc.setAttribute('transform', `rotate(-90 ${cx} ${cy})`);
+      const medicoLen = (medicoPct / 100) * circumference;
+      medicoArc.setAttribute('stroke-dasharray', `${medicoLen} ${circumference}`);
+      svg.appendChild(medicoArc);
+
+      // usuario arc (purple) - not necessary as background shows rest but add subtle stroke for contrast
+      const restoArc = document.createElementNS(svgNS, 'circle');
+      restoArc.setAttribute('cx', cx);
+      restoArc.setAttribute('cy', cy);
+      restoArc.setAttribute('r', r);
+      restoArc.setAttribute('fill', 'none');
+      restoArc.setAttribute('stroke', '#6b21a8');
+      restoArc.setAttribute('stroke-width', '14');
+      restoArc.setAttribute('stroke-linecap', 'round');
+      restoArc.setAttribute('transform', `rotate(${(-90 + (medicoPct/100)*360)} ${cx} ${cy})`);
+      const restoLen = (usuarioPct / 100) * circumference;
+      restoArc.setAttribute('stroke-dasharray', `${restoLen} ${circumference}`);
+      svg.appendChild(restoArc);
+    }
+
+    function criarLinhaDetalhesMedico(usuario, isPending = false) {
+      const tr = document.createElement('tr');
+      tr.className = 'doctor-details-row';
+      tr.dataset.doctorDetailsFor = String(usuario.id);
+      tr.dataset.role = 'medico';
+      if (isPending) tr.dataset.pendingDoctorDetails = 'true';
+      const td = document.createElement('td');
+      td.colSpan = 6;
+      const panel = document.createElement('div');
+      panel.className = 'doctor-details-panel';
+      const grid = document.createElement('div');
+      grid.className = 'doctor-details-grid';
+
+      doctorDetailFields.forEach(([field, labelText, wide]) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = `doctor-detail-field${wide ? ' wide' : ''}`;
+        const label = document.createElement('label');
+        label.textContent = labelText;
+        const input = wide ? document.createElement('textarea') : document.createElement('input');
+        input.value = usuario[field] || '';
+        input.dataset.cfmField = field;
+        wrapper.append(label, input);
+        grid.appendChild(wrapper);
+      });
+
+      const actions = document.createElement('div');
+      actions.className = 'doctor-details-actions';
+      const save = document.createElement('button');
+      save.type = 'button';
+      save.className = 'doctor-details-save';
+      save.textContent = 'Salvar informações';
+      save.addEventListener('click', async event => {
+        event.stopPropagation();
+        const payload = {};
+        panel.querySelectorAll('[data-cfm-field]').forEach(input => {
+          payload[input.dataset.cfmField] = input.value.trim() || null;
         });
-    </script>
-  </body>
+        save.disabled = true;
+        save.textContent = 'Salvando...';
+        try {
+          const res = await fetch(`/users/${usuario.id}/cfm-details?admin_email=${encodeURIComponent(currentUser.email)}`, {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+          });
+          if (!res.ok) throw new Error((await res.json()).detail || 'Erro ao salvar');
+          showFeedback('Informações atualizadas');
+          await carregarUsuariosAdmin(currentUser.email);
+        } catch (err) {
+          showFeedback(err.message || 'Não foi possível atualizar', 'error');
+          save.disabled = false;
+          save.textContent = 'Salvar informações';
+        }
+      });
+      actions.appendChild(save);
+      panel.append(grid, actions);
+      td.appendChild(panel);
+      tr.appendChild(td);
+      return tr;
+    }
+
+    function alternarDetalhesMedico(usuario, mainRow, isPending = false) {
+      const existing = mainRow.parentElement.querySelector(`.doctor-details-row[data-doctor-details-for="${usuario.id}"]`);
+      if (existing) {
+        existing.remove();
+        doctorDetailsExpanded.delete(usuario.id);
+        return;
+      }
+      doctorDetailsExpanded.add(usuario.id);
+      mainRow.insertAdjacentElement('afterend', criarLinhaDetalhesMedico(usuario, isPending));
+    }
+
+    function renderizarTabelaAdmin(usuarios) {
+      if (!Array.isArray(usuarios)) usuarios = [];
+      // remover o usuário que está logado (admin) da lista exibida
+      if (currentUser && currentUser.email) {
+        usuarios = usuarios.filter(u => u.email.toLowerCase() !== currentUser.email.toLowerCase());
+      }
+      const pendentes = usuarios.filter(u => u.cfm_status === 'VALIDATION_PENDING');
+      usuarios = usuarios.filter(u => u.cfm_status !== 'VALIDATION_PENDING');
+      if (usuarios.length === 0 && pendentes.length === 0) {
+        adminTableWrap.innerHTML = '<p>Nenhum usuário cadastrado.</p>';
+        return;
+      }
+
+      const table = document.createElement('table');
+      table.className = 'users-table';
+      table.innerHTML = `
+        <colgroup>
+          <col style="width:15%"><col style="width:23%"><col style="width:24%">
+          <col style="width:8%"><col style="width:12%"><col style="width:18%">
+        </colgroup>
+        <thead><tr><th>Tipo</th><th>Nome</th><th>E-mail</th><th>UF</th><th>CRM</th><th>Ações</th></tr></thead>
+        <tbody></tbody>
+      `;
+
+      const tbody = table.querySelector('tbody');
+      function adicionarLinhaPendente(pendente) {
+        const tr = document.createElement('tr');
+        tr.className = 'pending-detail doctor-main-row';
+        tr.dataset.id = String(pendente.id);
+        tr.dataset.role = 'medico';
+        tr.style.background = '#fffbeb';
+        const valores = ['Médico', pendente.nome, pendente.email, pendente.uf || '', pendente.crm || ''];
+        valores.forEach(valor => {
+          const td = document.createElement('td');
+          td.textContent = valor;
+          tr.appendChild(td);
+        });
+        const tdAcoes = document.createElement('td');
+        tdAcoes.className = 'actions';
+        if (bulkValidationCurrentId === pendente.id) {
+          tdAcoes.innerHTML = '<div class="pending-validation-loader"><span class="pending-validation-spinner"></span><span>Validando no CFM</span></div>';
+        } else {
+          const aprovar = document.createElement('button');
+          aprovar.textContent = 'Aprovar';
+          aprovar.className = 'filter-btn';
+          aprovar.style.color = '#047857';
+          aprovar.onclick = () => pedirConfirmacaoPendente(tdAcoes, pendente.id, 'approve');
+          const recusar = document.createElement('button');
+          recusar.textContent = 'Recusar';
+          recusar.className = 'filter-btn';
+          recusar.style.color = '#b91c1c';
+          recusar.onclick = () => pedirConfirmacaoPendente(tdAcoes, pendente.id, 'reject');
+          tdAcoes.append(aprovar, recusar);
+        }
+        tr.appendChild(tdAcoes);
+        tr.addEventListener('click', event => {
+          if (event.target.closest('button, input, textarea, select')) return;
+          alternarDetalhesMedico(pendente, tr, true);
+        });
+        return tr;
+      }
+      if (pendentes.length) {
+        const trPendente = document.createElement('tr');
+        trPendente.dataset.role = 'medico';
+        trPendente.dataset.pendingSummary = 'true';
+        trPendente.style.background = '#fffbeb';
+        trPendente.style.cursor = 'pointer';
+        const tdPendente = document.createElement('td');
+        tdPendente.colSpan = 6;
+        tdPendente.style.fontWeight = '700';
+        tdPendente.style.color = '#a16207';
+        const quantidade = pendentes.length;
+        const resumoConteudo = document.createElement('div');
+        resumoConteudo.className = 'pending-summary-content';
+        const resumoTexto = document.createElement('span');
+        const validarTodos = document.createElement('button');
+        validarTodos.type = 'button';
+        validarTodos.className = `bulk-validate-btn${bulkValidationRunning ? ' running' : ''}`;
+        validarTodos.textContent = bulkValidationRunning ? 'Validando...' : 'Validar todos';
+        validarTodos.addEventListener('click', event => {
+          event.stopPropagation();
+          toggleBulkPendingValidation(pendentes);
+        });
+        resumoConteudo.append(resumoTexto, validarTodos);
+        tdPendente.appendChild(resumoConteudo);
+        const atualizarTextoResumo = () => {
+          resumoTexto.textContent = `${quantidade} médico${quantidade > 1 ? 's' : ''} pendente${quantidade > 1 ? 's' : ''} de aprovação — clique para ${pendingDetailsExpanded ? 'ocultar' : 'visualizar'}`;
+        };
+        atualizarTextoResumo();
+        trPendente.appendChild(tdPendente);
+        tbody.appendChild(trPendente);
+        trPendente.addEventListener('click', () => {
+          const detalhes = tbody.querySelectorAll('.pending-detail, .doctor-details-row[data-pending-doctor-details="true"]');
+          if (detalhes.length) {
+            pendingDetailsExpanded = false;
+            detalhes.forEach(linha => linha.remove());
+            atualizarTextoResumo();
+          } else {
+            pendingDetailsExpanded = true;
+            // Insere os detalhes imediatamente após o resumo, mantendo-os no
+            // topo da tabela e antes das linhas de usuários já renderizadas.
+            pendentes.slice().reverse().forEach(pendente => {
+              const linha = adicionarLinhaPendente(pendente);
+              tbody.insertBefore(linha, trPendente.nextSibling);
+              if (doctorDetailsExpanded.has(pendente.id)) {
+                linha.insertAdjacentElement('afterend', criarLinhaDetalhesMedico(pendente, true));
+              }
+            });
+            atualizarTextoResumo();
+          }
+        });
+        if (pendingDetailsExpanded) {
+          pendentes.slice().reverse().forEach(pendente => {
+            const linha = adicionarLinhaPendente(pendente);
+            tbody.insertBefore(linha, trPendente.nextSibling);
+            if (doctorDetailsExpanded.has(pendente.id)) {
+              linha.insertAdjacentElement('afterend', criarLinhaDetalhesMedico(pendente, true));
+            }
+          });
+          atualizarTextoResumo();
+        }
+      }
+      usuarios.forEach(u => {
+        const tr = document.createElement('tr');
+        tr.dataset.id = u.id;
+        // define role: 'medico' se tiver CRM, caso contrário 'usuario'
+        const role = (u.crm && String(u.crm).trim() !== '') ? 'medico' : 'usuario';
+        tr.dataset.role = role;
+        if (role === 'medico') tr.classList.add('doctor-main-row');
+
+        const tdTipo = document.createElement('td');
+        tdTipo.style.fontWeight = 700;
+        tdTipo.style.width = '84px';
+        tdTipo.textContent = role === 'medico' ? 'Médico' : 'Usuário';
+
+        const tdNome = document.createElement('td');
+        // avatar + nome
+        const avatar = document.createElement('div');
+        avatar.className = 'avatar';
+        // background color based on id for subtle variety
+        const colors = ['#E60067','#9b1743','#c026d3','#ef4444','#0ea5a4'];
+        avatar.style.background = colors[u.id % colors.length];
+        const initials = (u.nome || '').split(' ').map(s=>s.replace(/[^A-Za-zÀ-ÿ]/g,'')).filter(Boolean).slice(0,2).map(x=>x[0]?.toUpperCase()||'').join('');
+        avatar.textContent = initials || 'U';
+        const nameWrap = document.createElement('div');
+        nameWrap.style.display = 'inline-flex';
+        nameWrap.style.gap = '10px';
+        nameWrap.style.alignItems = 'center';
+        nameWrap.appendChild(avatar);
+        const nomeSpan = document.createElement('span'); nomeSpan.textContent = u.nome;
+        nameWrap.appendChild(nomeSpan);
+        tdNome.appendChild(nameWrap);
+
+        const tdEmail = document.createElement('td');
+        tdEmail.textContent = u.email;
+
+        const tdUf = document.createElement('td');
+        tdUf.textContent = u.uf || '';
+
+        const tdCrm = document.createElement('td');
+        tdCrm.textContent = u.crm || '';
+
+        const tdAcoes = document.createElement('td');
+        tdAcoes.className = 'actions';
+        const btnEditar = document.createElement('button');
+        btnEditar.className = 'icon-btn edit';
+        btnEditar.title = 'Editar';
+        btnEditar.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 21l3-1 11-11 2 2L8 22l-5 1z" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        btnEditar.onclick = () => ativarEdicaoLinha(tr, u);
+
+        const btnExcluir = document.createElement('button');
+        btnExcluir.className = 'icon-btn delete';
+        btnExcluir.title = 'Excluir';
+        btnExcluir.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 6h18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        btnExcluir.onclick = () => excluirUsuarioConfirm(u.id);
+
+        tdAcoes.appendChild(btnEditar);
+        tdAcoes.appendChild(btnExcluir);
+
+        tr.appendChild(tdTipo);
+        tr.appendChild(tdNome);
+        tr.appendChild(tdEmail);
+        tr.appendChild(tdUf);
+        tr.appendChild(tdCrm);
+        tr.appendChild(tdAcoes);
+
+        if (role === 'medico') {
+          tr.addEventListener('click', event => {
+            if (event.target.closest('button, input, textarea, select')) return;
+            alternarDetalhesMedico(u, tr, false);
+          });
+        }
+
+        tbody.appendChild(tr);
+        if (role === 'medico' && doctorDetailsExpanded.has(u.id)) {
+          tbody.appendChild(criarLinhaDetalhesMedico(u, false));
+        }
+      });
+
+      adminTableWrap.innerHTML = '';
+      adminTableWrap.appendChild(table);
+    }
+
+    function ativarEdicaoLinha(tr, user) {
+      const nomeTd = tr.children[0];
+      const emailTd = tr.children[1];
+      const ufTd = tr.children[2];
+      const crmTd = tr.children[3];
+      const acoesTd = tr.children[4];
+
+      nomeTd.innerHTML = `<input type="text" value="${escapeHtml(user.nome)}" style="width:100%" />`;
+      emailTd.innerHTML = `<input type="email" value="${escapeHtml(user.email)}" style="width:100%" />`;
+      ufTd.innerHTML = `<input type="text" value="${escapeHtml(user.uf || '')}" style="width:100%" />`;
+      crmTd.innerHTML = `<input type="text" value="${escapeHtml(user.crm || '')}" style="width:100%" inputmode="numeric" />`;
+
+      acoesTd.innerHTML = '';
+      const btnSalvar = document.createElement('button');
+      btnSalvar.textContent = 'Salvar';
+      btnSalvar.style.marginRight = '8px';
+      btnSalvar.onclick = async () => {
+        const novoNome = nomeTd.querySelector('input').value.trim();
+        const novoEmail = emailTd.querySelector('input').value.trim();
+        const novoUf = ufTd.querySelector('input').value.trim();
+        const novoCrm = crmTd.querySelector('input').value.trim().replace(/\D/g,'');
+        if (!novoNome || !validateEmail(novoEmail)) {
+          alert('Nome e e-mail válidos são necessários.');
+          return;
+        }
+
+        try {
+          const res = await fetch(`/users/${user.id}?admin_email=${encodeURIComponent(currentUser.email)}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({nome: novoNome, email: novoEmail, uf: novoUf || undefined, crm: novoCrm || undefined})
+          });
+          if (!res.ok) {
+            const data = await res.json();
+            alert(data.detail || 'Erro ao atualizar');
+            return;
+          }
+          const updated = await res.json();
+          nomeTd.textContent = updated.nome;
+          emailTd.textContent = updated.email;
+          ufTd.textContent = updated.uf || '';
+          crmTd.textContent = updated.crm || '';
+          acoesTd.innerHTML = '';
+          const btnEditar = document.createElement('button'); btnEditar.textContent = 'Editar'; btnEditar.onclick = () => ativarEdicaoLinha(tr, updated);
+          const btnExcluir = document.createElement('button'); btnExcluir.textContent = 'Excluir'; btnExcluir.onclick = () => excluirUsuarioConfirm(updated.id);
+          acoesTd.appendChild(btnEditar); acoesTd.appendChild(btnExcluir);
+        } catch (err) {
+          alert('Erro ao atualizar usuário');
+        }
+      };
+
+      const btnCancelar = document.createElement('button');
+      btnCancelar.textContent = 'Cancelar';
+      btnCancelar.onclick = () => carregarUsuariosAdmin(currentUser.email);
+
+      acoesTd.appendChild(btnSalvar);
+      acoesTd.appendChild(btnCancelar);
+    }
+
+    async function excluirUsuarioConfirm(userId) {
+      const ok = confirm('Tem certeza que deseja excluir este usuário?');
+      if (!ok) return;
+      try {
+        const res = await fetch(`/users/${userId}?admin_email=${encodeURIComponent(currentUser.email)}`, { method: 'DELETE' });
+        if (!res.ok && res.status !== 204) {
+          const data = await res.json();
+          alert(data.detail || 'Erro ao excluir');
+          return;
+        }
+        // recarrega a tabela
+        carregarUsuariosAdmin(currentUser.email);
+      } catch (err) {
+        alert('Erro ao excluir usuário');
+      }
+    }
+
+    function pedirConfirmacaoPendente(container, userId, action) {
+      const label = action === 'approve' ? 'Aprovar' : 'Recusar';
+      container.innerHTML = '';
+      const balao = document.createElement('div');
+      balao.className = 'pending-confirmation';
+      const mensagem = document.createElement('span');
+      mensagem.className = 'pending-confirmation-question';
+      mensagem.textContent = `${label}?`;
+      const confirmar = document.createElement('button');
+      confirmar.textContent = 'Confirmar';
+      confirmar.className = 'filter-btn';
+      confirmar.onclick = () => decidirPendente(userId, action);
+      const cancelar = document.createElement('button');
+      cancelar.textContent = 'Cancelar';
+      cancelar.className = 'filter-btn';
+      cancelar.onclick = () => carregarUsuariosAdmin(currentUser.email);
+      const acoes = document.createElement('div');
+      acoes.className = 'pending-confirmation-actions';
+      acoes.append(confirmar, cancelar);
+      balao.append(mensagem, acoes);
+      container.appendChild(balao);
+    }
+
+    async function decidirPendente(userId, action) {
+      try {
+        const res = await fetch(`/users/${userId}/cfm-status?admin_email=${encodeURIComponent(currentUser.email)}`, {
+          method: 'PATCH',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({action})
+        });
+        if (!res.ok) {
+          const data = await res.json();
+          alert(data.detail || 'Não foi possível atualizar o cadastro');
+          return;
+        }
+        await carregarUsuariosAdmin(currentUser.email);
+      } catch (err) {
+        alert('Não foi possível atualizar o cadastro');
+      }
+    }
+
+    function updateBulkValidationButtonState() {
+      adminTableWrap.querySelectorAll('.bulk-validate-btn').forEach(button => {
+        button.classList.toggle('running', bulkValidationRunning);
+        button.textContent = bulkValidationRunning ? 'Validando...' : 'Validar todos';
+      });
+    }
+
+    function showPendingRowLoading(userId) {
+      const row = adminTableWrap.querySelector(`.pending-detail[data-id="${userId}"]`);
+      const actions = row?.querySelector('td.actions');
+      if (actions) {
+        actions.innerHTML = '<div class="pending-validation-loader"><span class="pending-validation-spinner"></span><span>Validando no CFM</span></div>';
+      }
+    }
+
+    async function cancelActiveCfmRequest(validationId) {
+      if (!validationId || !currentUser?.email) return;
+      try {
+        await fetch(`/cfm/revalidation/${encodeURIComponent(validationId)}/cancel?admin_email=${encodeURIComponent(currentUser.email)}`, {
+          method: 'POST'
+        });
+      } catch (err) {
+        // A interrupção visual ainda acontece; o backend também possui timeout.
+      }
+    }
+
+    async function toggleBulkPendingValidation(pendentes) {
+      if (bulkValidationRunning) {
+        const validationId = bulkValidationCurrentRequestId;
+        const controller = bulkValidationController;
+        bulkValidationRunId += 1;
+        bulkValidationRunning = false;
+        bulkValidationCurrentId = null;
+        bulkValidationCurrentRequestId = null;
+        updateBulkValidationButtonState();
+        await cancelActiveCfmRequest(validationId);
+        controller?.abort();
+        await carregarUsuariosAdmin(currentUser.email);
+        return;
+      }
+
+      if (!Array.isArray(pendentes) || pendentes.length === 0) return;
+      const runId = ++bulkValidationRunId;
+      bulkValidationRunning = true;
+      updateBulkValidationButtonState();
+      let completed = true;
+
+      for (const pendente of pendentes) {
+        if (!bulkValidationRunning || runId !== bulkValidationRunId) {
+          completed = false;
+          break;
+        }
+
+        bulkValidationCurrentId = pendente.id;
+        bulkValidationCurrentRequestId = `admin-${runId}-${pendente.id}-${Date.now()}`;
+        bulkValidationController = new AbortController();
+        showPendingRowLoading(pendente.id);
+        const requestId = bulkValidationCurrentRequestId;
+        const timeoutId = setTimeout(() => {
+          cancelActiveCfmRequest(requestId);
+          bulkValidationController?.abort();
+        }, 60000);
+
+        try {
+          const res = await fetch(
+            `/users/${pendente.id}/cfm-revalidate?admin_email=${encodeURIComponent(currentUser.email)}&validation_id=${encodeURIComponent(requestId)}`,
+            { method: 'POST', signal: bulkValidationController.signal }
+          );
+          if (!bulkValidationRunning || runId !== bulkValidationRunId) {
+            completed = false;
+            break;
+          }
+          const usuario = res.ok ? await res.json() : null;
+          if (res.ok && usuario.cfm_status === 'VALIDATED') {
+            showFeedback('Cadastro efetuado com sucesso');
+          } else {
+            showFeedback('Não foi possível validar', 'error');
+          }
+        } catch (err) {
+          if (runId !== bulkValidationRunId) {
+            completed = false;
+            break;
+          }
+          showFeedback('Não foi possível validar', 'error');
+        } finally {
+          clearTimeout(timeoutId);
+          if (runId === bulkValidationRunId) {
+            bulkValidationCurrentId = null;
+            bulkValidationCurrentRequestId = null;
+            bulkValidationController = null;
+            await carregarUsuariosAdmin(currentUser.email);
+          }
+        }
+      }
+
+      if (runId !== bulkValidationRunId) return;
+      bulkValidationRunning = false;
+      bulkValidationCurrentId = null;
+      bulkValidationCurrentRequestId = null;
+      bulkValidationController = null;
+      await carregarUsuariosAdmin(currentUser.email);
+      if (completed) {
+        await new Promise(resolve => setTimeout(resolve, 900));
+        showFeedback('Verificação concluída', 'success', 2000);
+      }
+    }
+
+    // search UI: simple client-side filter of current table + role filter
+    const searchBox = document.getElementById('search-box');
+    const filterAllBtn = document.getElementById('filter-all');
+    const filterUsuarioBtn = document.getElementById('filter-usuario');
+    const filterMedicoBtn = document.getElementById('filter-medico');
+    let roleFilter = 'all'; // 'all' | 'usuario' | 'medico'
+    let pendingDetailsExpanded = false;
+    if (searchBox) {
+      searchBox.addEventListener('input', () => {
+        const q = (searchBox.value || '').toLowerCase().trim();
+        const table = adminTableWrap.querySelector('table');
+        if (!table) return;
+      const trs = Array.from(table.querySelectorAll('tbody tr'));
+      trs.forEach(tr => {
+          const isPendingSummary = tr.dataset.pendingSummary === 'true';
+          const nome = tr.children[1]?.innerText.trim().toLowerCase() || '';
+          const email = tr.children[2]?.innerText.trim().toLowerCase() || '';
+          const matchesText = isPendingSummary || nome.includes(q) || email.includes(q);
+          const matchesRole = (roleFilter === 'all') || (tr.dataset.role === roleFilter);
+          tr.style.display = (matchesText && matchesRole) ? '' : 'none';
+        });
+      });
+      function setActiveFilterButton() {
+        [filterAllBtn, filterUsuarioBtn, filterMedicoBtn].forEach(b => b.classList.remove('active-filter'));
+        if (roleFilter === 'all') filterAllBtn.classList.add('active-filter');
+        if (roleFilter === 'usuario') filterUsuarioBtn.classList.add('active-filter');
+        if (roleFilter === 'medico') filterMedicoBtn.classList.add('active-filter');
+      }
+      if (filterAllBtn) filterAllBtn.addEventListener('click', () => { roleFilter = 'all'; setActiveFilterButton(); searchBox.dispatchEvent(new Event('input')); });
+      if (filterUsuarioBtn) filterUsuarioBtn.addEventListener('click', () => { roleFilter = 'usuario'; setActiveFilterButton(); searchBox.dispatchEvent(new Event('input')); });
+      if (filterMedicoBtn) filterMedicoBtn.addEventListener('click', () => { roleFilter = 'medico'; setActiveFilterButton(); searchBox.dispatchEvent(new Event('input')); });
+      // initial active
+      setActiveFilterButton();
+    }
+
+    function validateEmail(email) {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    }
+
+    function escapeHtml(unsafe) {
+      return unsafe.replace(/[&<>"']/g, function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#039;"}[m];});
+    }
+
+    function displayFirstName(rawName) {
+      const first = (rawName || '').trim().split(' ')[0] || '';
+      const normalized = first.toLowerCase();
+      const capitalized = normalized ? (normalized.charAt(0).toUpperCase() + normalized.slice(1)) : '';
+      return escapeHtml(capitalized);
+    }
+
+    modeUserBtn.addEventListener('click', () => {
+      mode = 'user';
+      adminModeSelected = false;
+      modeUserBtn.classList.add('active');
+      modeMedicoBtn.classList.remove('active');
+      adminBtn.classList.remove('active');
+      document.querySelector('.header').classList.remove('admin-logged');
+      // ao trocar de modo, desloga automaticamente
+      currentUser = null;
+      headerTitle.innerHTML = 'Bem-vindo';
+      aviso.textContent = '';
+      adminArea.style.display = 'none';
+    const sc = document.getElementById('summary-card'); if (sc) sc.style.display = 'none';
+    const tg = document.querySelector('.top-grid'); if (tg) tg.classList.remove('with-summary');
+      adminHeading.style.display = 'none';
+      isAdmin = false;
+      if (campoSenha) { campoSenha.style.display = 'none'; senhaInput.value = ''; }
+      if (campoUf) { campoUf.style.display = 'none'; ufSelect.value = ''; }
+      if (campoCrm) { campoCrm.style.display = 'none'; crmInput.value = ''; }
+    });
+
+    modeMedicoBtn.addEventListener('click', () => {
+      mode = 'medico';
+      adminModeSelected = false;
+      modeMedicoBtn.classList.add('active');
+      modeUserBtn.classList.remove('active');
+      adminBtn.classList.remove('active');
+      document.querySelector('.header').classList.remove('admin-logged');
+      // ao trocar de modo, desloga automaticamente
+      currentUser = null;
+      headerTitle.innerHTML = 'Bem-vindo';
+      aviso.textContent = '';
+      adminArea.style.display = 'none';
+      const sc = document.getElementById('summary-card'); if (sc) sc.style.display = 'none';
+      const tg = document.querySelector('.top-grid'); if (tg) tg.classList.remove('with-summary');
+      adminHeading.style.display = 'none';
+      isAdmin = false;
+      if (campoSenha) { campoSenha.style.display = 'none'; senhaInput.value = ''; }
+      if (campoUf) { campoUf.style.display = ''; }
+      if (campoCrm) { campoCrm.style.display = ''; }
+      // show/hide prefix depending on UF value
+      if (ufSelect && ufSelect.value === 'RJ') {
+        if (crmPrefix) crmPrefix.style.display = 'flex';
+      } else {
+        if (crmPrefix) crmPrefix.style.display = 'none';
+      }
+    });
+
+    if (adminBtn) {
+      adminBtn.addEventListener('click', () => {
+        // A Área Admin é o modo selecionado; os demais ficam desmarcados.
+        modeUserBtn.classList.remove('active');
+        modeMedicoBtn.classList.remove('active');
+        adminBtn.classList.add('active');
+        // atalho para modo médico
+        mode = 'medico';
+        adminModeSelected = true;
+        currentUser = null;
+        headerTitle.innerHTML = 'Bem-vindo';
+        aviso.textContent = '';
+        adminArea.style.display = 'none';
+        const sc = document.getElementById('summary-card'); if (sc) sc.style.display = 'none';
+        const tg = document.querySelector('.top-grid'); if (tg) tg.classList.remove('with-summary');
+        adminHeading.style.display = 'none';
+        isAdmin = false;
+        if (campoSenha) { campoSenha.style.display = ''; senhaInput.value=''; }
+        if (campoUf) { campoUf.style.display = 'none'; ufSelect.value = ''; }
+        if (campoCrm) { campoCrm.style.display = 'none'; crmInput.value = ''; if (crmPrefix) crmPrefix.style.display = 'none'; }
+        document.getElementById('nome').focus();
+      });
+    }
+
+    if (ufSelect) {
+      ufSelect.addEventListener('change', () => {
+        if (ufSelect.value === 'RJ') {
+          if (crmPrefix) crmPrefix.style.display = 'flex';
+        } else {
+          if (crmPrefix) crmPrefix.style.display = 'none';
+        }
+      });
+    }
+
+    form.addEventListener("submit", async (evento) => {
+      evento.preventDefault();
+      const nome = document.getElementById("nome").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const senhaVal = document.getElementById('senha') ? document.getElementById('senha').value.trim() : '';
+      const ufVal = document.getElementById('uf') ? document.getElementById('uf').value : '';
+      let crmVal = document.getElementById('crm') ? document.getElementById('crm').value.trim() : '';
+      // sanitize CRM: keep digits only
+      crmVal = (crmVal || '').replace(/\D/g, '');
+      // remove leading zeros before sending (server will also normalize)
+      crmVal = crmVal.replace(/^0+/, '');
+
+      if (!nome || !email) {
+        aviso.textContent = "Preencha nome e e-mail.";
+        return;
+      }
+      if (!validateEmail(email)) {
+        aviso.textContent = "E-mail inválido.";
+        return;
+      }
+
+      // médico flow
+      if (mode === 'medico') {
+        const adminCredentialsMatch = nome.toLowerCase() === 'andré seabra' && email.toLowerCase() === 'andre.seabra@teste.com';
+        if (adminModeSelected && !adminCredentialsMatch) {
+          showFeedback('Dados incorretos', 'error');
+          return;
+        }
+
+        // Login administrativo só ocorre quando a Área Admin foi selecionada.
+        if (adminModeSelected && adminCredentialsMatch) {
+          // checar se usuário existe e se já tem senha
+          try {
+            const res = await fetch(`/users/search?email=${encodeURIComponent(email)}`);
+            if (!res.ok) throw new Error('usuario nao encontrado');
+            const usuario = await res.json();
+            // se ainda não tiver senha, pedimos para definir
+            if (!usuario.senha) {
+              // require senha provided via Admin button field
+              if (!senhaVal) { aviso.textContent = 'Senha obrigatória para ativar admin.'; return; }
+              // envia PUT para atualizar senha (usamos admin_email na query para autorizar)
+              const upd = await fetch(`/users/${usuario.id}?admin_email=${encodeURIComponent('andre.seabra@teste.com')}`, {
+                method: 'PUT', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({ nome: usuario.nome, email: usuario.email, senha: senhaVal, uf: ufVal, crm: crmVal })
+              });
+              if (!upd.ok) { const d = await upd.json(); aviso.textContent = d.detail || 'Erro ao definir senha'; return; }
+            } else if (!senhaVal || await hashPassword(senhaVal) !== usuario.senha) {
+              showFeedback('Dados incorretos', 'error');
+              return;
+            }
+
+            // agora consideramos o admin como logado
+            isAdmin = true;
+            currentUser = { nome, email };
+            document.querySelector('.header').classList.add('admin-logged');
+            headerTitle.innerHTML = `<span>Bem-vindo,</span><span class="welcome-user-name">Seabra</span>`;
+            adminArea.style.display = '';
+            const sc = document.getElementById('summary-card'); if (sc) sc.style.display = '';
+            const tg = document.querySelector('.top-grid'); if (tg) tg.classList.add('with-summary');
+            adminHeading.style.display = '';
+            adminTableWrap.innerHTML = '<p>carregando usuários...</p>';
+            await carregarUsuariosAdmin(currentUser.email);
+            aviso.textContent = '';
+            if (campoSenha) { campoSenha.style.display = 'none'; senhaInput.value = ''; }
+          } catch (err) {
+            showFeedback('Dados incorretos', 'error');
+            isAdmin = false;
+            adminArea.style.display = 'none';
+            adminHeading.style.display = 'none';
+          }
+          return;
+        }
+
+        // Regular médico signup (not André): create user in DB with UF and CRM
+        let cfmRequestTimeout;
+        try {
+          submitButton.disabled = true;
+          submitButton.textContent = 'Validando no CFM...';
+          const cfmController = new AbortController();
+          cfmRequestTimeout = setTimeout(() => cfmController.abort(), 60000);
+          const payload = { nome, email, uf: ufVal || undefined, crm: crmVal || undefined, is_doctor: true };
+          const res = await fetch('/users', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(payload),
+            signal: cfmController.signal
+          });
+          if ([200, 201].includes(res.status)) {
+            const medico = await res.json();
+            currentUser = { nome, email };
+            headerTitle.innerHTML = `<span>Bem-vindo,</span><span class="welcome-user-name">${displayFirstName(nome)}</span>`;
+            form.reset();
+            const isValidated = medico.cfm_status === 'VALIDATED';
+            const isNewPending = res.status === 201 && !isValidated;
+            if (isNewPending) {
+              showFeedback('Cadastro pendente de aprovação', 'error');
+            } else if (res.status === 201) {
+              showFeedback('Cadastro efetuado com sucesso');
+            } else {
+              showFeedback('Login efetuado');
+            }
+            if (isValidated) {
+              aviso.textContent = 'Médico validado pelo CFM.';
+            } else {
+              const manualUrl = `/cfm/manual-search?uf=${encodeURIComponent(ufVal)}&crm=${encodeURIComponent(crmVal)}`;
+              aviso.innerHTML = `Não foi possível checar agora. <a href="${manualUrl}" target="_blank" rel="noopener">Concluir consulta no CFM</a>`;
+            }
+            // ensure crm prefix reset
+            if (crmPrefix) crmPrefix.style.display = 'none';
+            // don't show admin area
+            adminArea.style.display = 'none';
+            adminHeading.style.display = 'none';
+          } else {
+            const data = await res.json();
+            if (res.status === 409 || data.detail === 'Dados inválidos. Confira e tente novamente') {
+              showFeedback('Dados inválidos. Confira e tente novamente', 'error');
+              aviso.textContent = '';
+            } else {
+              aviso.textContent = data.detail || 'Erro ao cadastrar médico';
+            }
+          }
+        } catch (err) {
+          if (err.name === 'AbortError') {
+            showFeedback('Cadastro pendente de aprovação', 'error');
+            aviso.textContent = 'A consulta ao CFM demorou mais que o esperado.';
+          } else {
+            aviso.textContent = 'erro ao cadastrar médico';
+          }
+        } finally {
+          clearTimeout(cfmRequestTimeout);
+          submitButton.disabled = false;
+          submitButton.textContent = 'Entrar/Cadastrar';
+        }
+        return;
+      }
+
+      // user flow
+      try {
+        const res = await fetch('/users', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ nome, email })
+        });
+        if (res.status === 201) {
+          currentUser = { nome, email };
+          headerTitle.innerHTML = `<span>Bem-vindo,</span><span class="welcome-user-name">${displayFirstName(nome)}</span>`;
+          form.reset();
+          aviso.textContent = '';
+          showFeedback('Cadastro efetuado com sucesso');
+        } else if (res.status === 400) {
+          // email já cadastrado — ainda assim mostramos o primeiro nome
+          currentUser = { nome, email };
+          headerTitle.innerHTML = `<span>Bem-vindo,</span><span class="welcome-user-name">${displayFirstName(nome)}</span>`;
+          form.reset();
+          aviso.textContent = '';
+          showFeedback('Login efetuado');
+        } else {
+          const data = await res.json();
+          aviso.textContent = data.detail || 'Erro ao cadastrar';
+        }
+      } catch (err) {
+        aviso.textContent = 'erro ao cadastrar usuário';
+      }
+    });
+
+    // não carregamos lista por padrão — só quando admin loga
+  </script>
+  <footer style="text-align:center; padding:18px 0; color:#6b7280; font-size:0.9rem;">
+    © 2026 Afya • Todos os direitos reservados
+  </footer>
+</body>
+
 </html>
